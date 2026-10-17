@@ -115,3 +115,35 @@ export function formatGap(millis: number | null, reference: number | null): stri
   if (delta <= 0) return '—'
   return `+${(delta / 1000).toFixed(3)}`
 }
+
+/** Statuses of cars that were still running when the flag fell. */
+const RUNNING_STATUSES = new Set(['FINISHED', 'LAPPED'])
+
+/**
+ * The alpha API reports each car's own elapsed time rather than a gap, and for
+ * a car that retired early that time is *shorter* than the winner's. Rendering
+ * it raw would show a retirement as the fastest car on track, so the time cell
+ * is rebuilt from the leader's laps and time:
+ *
+ *  - cars that stopped: their status
+ *  - cars a lap or more down: "+1 Lap"
+ *  - the rest: the winner's total, or their gap to it
+ */
+export function raceTimeLabel(
+  entry: { time?: string; status?: string; laps?: number },
+  leader: { laps: number | null; timeMillis: number | null },
+): string {
+  if (entry.status && !RUNNING_STATUSES.has(entry.status.toUpperCase())) {
+    return entry.status
+  }
+
+  if (entry.laps != null && leader.laps != null && entry.laps < leader.laps) {
+    const deficit = leader.laps - entry.laps
+    return deficit === 1 ? '+1 Lap' : `+${deficit} Laps`
+  }
+
+  const millis = parseSessionTime(entry.time)
+  if (millis === null) return entry.time ?? entry.status ?? '—'
+  if (leader.timeMillis === null || millis <= leader.timeMillis) return entry.time ?? '—'
+  return formatGap(millis, leader.timeMillis)
+}

@@ -1,5 +1,5 @@
 import type { AlphaSessionEntry, AlphaSessionResults, SessionCode } from '../api/types'
-import { formatGap, parseSessionTime } from '../lib/format'
+import { formatGap, parseSessionTime, raceTimeLabel } from '../lib/format'
 import { Position, TeamBar } from './TeamBar'
 
 /** Segments rendered as their own columns, in order. */
@@ -20,6 +20,14 @@ export function SessionResultTable({ session }: { session: AlphaSessionResults }
 
 /** Finishing order: grid, laps, time or status, and points. */
 function RaceTable({ session }: { session: AlphaSessionResults }) {
+  // The leader's laps and total time are the reference the rest are measured
+  // against, because the API only gives each car its own elapsed time.
+  const leader = session.results[0]
+  const reference = {
+    laps: leader?.laps ?? null,
+    timeMillis: parseSessionTime(leader?.time),
+  }
+
   return (
     <div className="table-wrap">
       <table className="table">
@@ -56,7 +64,7 @@ function RaceTable({ session }: { session: AlphaSessionResults }) {
               <td className="muted hide-sm">{entry.team?.name ?? '—'}</td>
               <td className="table__num hide-sm">{entry.components?.GRID?.position ?? '—'}</td>
               <td className="table__num hide-sm">{entry.laps ?? '—'}</td>
-              <td>{entry.time ?? entry.status ?? '—'}</td>
+              <td>{raceTimeLabel(entry, reference)}</td>
               <td className="table__num table__num--strong">{entry.points ?? 0}</td>
             </tr>
           ))}

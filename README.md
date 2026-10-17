@@ -199,5 +199,10 @@ src/
 - Qualifying and practice positions show the numeric position. The alpha API marks drivers
   who set no time in a final segment as `NC` / not classified while still ordering them, so
   the numeric position keeps the table readable and a blank segment column shows the cause.
+- The alpha API reports each car's **own elapsed time** in race and sprint results, not a
+  gap. For a car that retired early that time is *shorter* than the winner's, so the raw
+  value would show a retirement as the fastest car on track. The Time/Status column is
+  therefore rebuilt from the leader's laps and time: the winner's total, a gap for cars on
+  the lead lap, `+1 Lap` for cars a lap down, and the status for retirements.
 - The API is free and rate limited; responses are not cached, so each round and session
   selection refetches.
