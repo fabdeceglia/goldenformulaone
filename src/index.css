@@ -118,17 +118,6 @@ a:hover {
   color: var(--muted);
 }
 
-.season-badge {
-  padding: 0.35rem 0.7rem;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  background-color: var(--surface-raised);
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
 .field {
   display: flex;
   flex-direction: column;

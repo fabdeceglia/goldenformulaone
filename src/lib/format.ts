@@ -1,84 +1,138 @@
-const dateFormatter = new Intl.DateTimeFormat('en-GB', {
+/**
+ * Everything the API sends is UTC, and the app renders it in the visitor's own
+ * timezone. That means handling two different kinds of date:
+ *
+ *  - **instants** — a date *and* a time, which are shifted into local time;
+ *  - **calendar days** — a date on its own, with no time to anchor it. These
+ *    are printed exactly as written, because shifting a bare date would move a
+ *    race to the wrong day for everyone west of UTC.
+ */
+
+/** Parses an API date/time pair, which is UTC, into a Date. */
+export function parseUtcInstant(date: string | undefined, time: string | undefined): Date | null {
+  if (!date || !time) return null
+  // Times normally arrive as "13:00:00Z"; tolerate a missing zone marker.
+  const stamped = /(?:Z|[+-]\d{2}:?\d{2})$/.test(time) ? `${date}T${time}` : `${date}T${time}Z`
+  const parsed = new Date(stamped)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+/** The visitor's calendar day for an instant, as `YYYY-MM-DD`. */
+export function toDateKey(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+/* ---------- Calendar days (no timezone shifting) ---------- */
+
+const DAY = { timeZone: 'UTC' } as const
+
+const dayFull = new Intl.DateTimeFormat('en-GB', {
   weekday: 'short',
   day: '2-digit',
   month: 'short',
   year: 'numeric',
-  timeZone: 'UTC',
+  ...DAY,
 })
-
-const timeFormatter = new Intl.DateTimeFormat('en-GB', {
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-  timeZone: 'UTC',
-})
-
-const compactFormatter = new Intl.DateTimeFormat('en-GB', {
+const dayCompact = new Intl.DateTimeFormat('en-GB', {
   weekday: 'short',
   day: '2-digit',
   month: 'short',
-  timeZone: 'UTC',
+  ...DAY,
 })
-
-const weekdayFormatter = new Intl.DateTimeFormat('en-GB', { weekday: 'short', timeZone: 'UTC' })
-const dayFormatter = new Intl.DateTimeFormat('en-GB', { day: '2-digit', timeZone: 'UTC' })
-const yearFormatter = new Intl.DateTimeFormat('en-GB', { year: 'numeric', timeZone: 'UTC' })
-const dayMonthYearFormatter = new Intl.DateTimeFormat('en-GB', {
+const dayWeekday = new Intl.DateTimeFormat('en-GB', { weekday: 'short', ...DAY })
+const dayNumber = new Intl.DateTimeFormat('en-GB', { day: '2-digit', ...DAY })
+const dayYear = new Intl.DateTimeFormat('en-GB', { year: 'numeric', ...DAY })
+const dayMonthYear = new Intl.DateTimeFormat('en-GB', {
   day: '2-digit',
   month: 'short',
   year: 'numeric',
-  timeZone: 'UTC',
+  ...DAY,
 })
 
-function parseDay(date: string): Date {
+function parseCalendarDay(date: string): Date {
   return new Date(`${date}T00:00:00Z`)
 }
 
-/** Race times come from the API in UTC, so we render them in UTC too. */
-export function formatDate(date: string | undefined): string {
+/* ---------- Instants (visitor's timezone) ---------- */
+
+const localDate = new Intl.DateTimeFormat('en-GB', {
+  weekday: 'short',
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+})
+const localCompact = new Intl.DateTimeFormat('en-GB', {
+  weekday: 'short',
+  day: '2-digit',
+  month: 'short',
+})
+const localClock = new Intl.DateTimeFormat('en-GB', {
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+})
+
+/** A date, localised when the API attached a time to it. */
+export function formatDate(date: string | undefined, time?: string): string {
   if (!date) return '—'
-  const parsed = parseDay(date)
-  return Number.isNaN(parsed.getTime()) ? date : dateFormatter.format(parsed)
+
+  const instant = parseUtcInstant(date, time)
+  if (instant) return localDate.format(instant)
+
+  const day = parseCalendarDay(date)
+  return Number.isNaN(day.getTime()) ? date : dayFull.format(day)
 }
 
-/** Compact day label, e.g. "Fri 23 Oct". */
-export function formatCompactDate(date: string | undefined): string {
+/** Compact day label, e.g. "Fri 23 Oct", localised when a time is attached. */
+export function formatCompactDate(date: string | undefined, time?: string): string {
   if (!date) return '—'
-  const parsed = parseDay(date)
-  return Number.isNaN(parsed.getTime()) ? date : compactFormatter.format(parsed)
+
+  const instant = parseUtcInstant(date, time)
+  if (instant) return localCompact.format(instant)
+
+  const day = parseCalendarDay(date)
+  return Number.isNaN(day.getTime()) ? date : dayCompact.format(day)
 }
 
-/** Human-friendly weekend range, e.g. "Fri 23 – Sun 25 Oct 2026". */
+/** Clock time in the visitor's timezone, e.g. "14:00". */
+export function formatTime(date: string | undefined, time: string | undefined): string {
+  const instant = parseUtcInstant(date, time)
+  return instant ? localClock.format(instant) : ''
+}
+
+export function formatDateTime(date: string | undefined, time?: string): string {
+  const day = formatDate(date, time)
+  const clock = formatTime(date, time)
+  return clock ? `${day} · ${clock}` : day
+}
+
+/**
+ * Human-friendly weekend range, e.g. "Fri 23 – Sun 25 Oct 2026". Takes calendar
+ * days, which are already local by the time they get here.
+ */
 export function formatDateRange(start: string | undefined, end: string | undefined): string {
   if (!start || !end) return formatDate(end ?? start)
   if (start === end) return formatDate(end)
 
-  const startDate = parseDay(start)
-  const endDate = parseDay(end)
-  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return formatDate(end)
+  const startDay = parseCalendarDay(start)
+  const endDay = parseCalendarDay(end)
+  if (Number.isNaN(startDay.getTime()) || Number.isNaN(endDay.getTime())) return formatDate(end)
 
   if (start.slice(0, 7) === end.slice(0, 7)) {
-    return `${weekdayFormatter.format(startDate)} ${dayFormatter.format(startDate)} – ${weekdayFormatter.format(
-      endDate,
-    )} ${dayMonthYearFormatter.format(endDate)}`
+    return `${dayWeekday.format(startDay)} ${dayNumber.format(startDay)} – ${dayWeekday.format(
+      endDay,
+    )} ${dayMonthYear.format(endDay)}`
   }
 
-  return `${formatCompactDate(start)} ${yearFormatter.format(startDate)} – ${formatCompactDate(
-    end,
-  )} ${yearFormatter.format(endDate)}`
+  return `${dayCompact.format(startDay)} ${dayYear.format(startDay)} – ${dayCompact.format(
+    endDay,
+  )} ${dayYear.format(endDay)}`
 }
 
-export function formatTime(date: string | undefined, time: string | undefined): string {
-  if (!time) return ''
-  const parsed = new Date(`${date}T${time}`)
-  return Number.isNaN(parsed.getTime()) ? '' : `${timeFormatter.format(parsed)} UTC`
-}
-
-export function formatDateTime(date: string | undefined, time?: string): string {
-  const day = formatDate(date)
-  const clock = formatTime(date, time)
-  return clock ? `${day} · ${clock}` : day
-}
+/* ---------- Session timings ---------- */
 
 export function driverName(driver: { givenName: string; familyName: string }): string {
   return `${driver.givenName} ${driver.familyName}`

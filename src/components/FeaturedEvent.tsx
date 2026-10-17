@@ -68,7 +68,7 @@ export function FeaturedEventPanel({ featured }: { featured: FeaturedEvent }) {
             >
               <span className="schedule__label">{entry.label}</span>
               <span className="schedule__when">
-                <span className="schedule__day">{formatCompactDate(entry.date)}</span>
+                <span className="schedule__day">{formatCompactDate(entry.date, entry.time)}</span>
                 {entry.time && (
                   <span className="schedule__clock">{formatTime(entry.date, entry.time)}</span>
                 )}

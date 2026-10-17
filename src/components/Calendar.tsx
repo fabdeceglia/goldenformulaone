@@ -59,7 +59,9 @@ export function Calendar({ season, races, featuredRound, onSelectRace }: Calenda
                     <span className="race-circuit">{race.Circuit.circuitName}</span>
                     <span className="race-locality">{race.Circuit.Location.locality}</span>
                   </td>
-                  <td title={formatDateTime(race.date, race.time)}>{formatDate(race.date)}</td>
+                  <td title={formatDateTime(race.date, race.time)}>
+                    {formatDate(race.date, race.time)}
+                  </td>
                   <td className="table__action">
                     <button
                       type="button"

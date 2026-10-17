@@ -1,12 +1,17 @@
 import type { Race, SessionCode } from '../api/types'
+import { parseUtcInstant, toDateKey } from './format'
 
 const LOADED_AT = new Date()
 
 /**
  * Captured once at module load. Keeping it out of the render path avoids
  * impure calls during render and is plenty for a browsing session.
+ *
+ * This is the *visitor's* calendar day, matching how times are rendered: a
+ * session late on Sunday UTC can already be Monday where they are, and the
+ * featured-event logic has to agree with what they see.
  */
-export const TODAY = LOADED_AT.toISOString().slice(0, 10)
+export const TODAY = toDateKey(LOADED_AT)
 
 /** Timestamp of module load, for ordering sessions that share a date. */
 export const NOW_MILLIS = LOADED_AT.getTime()
@@ -84,14 +89,30 @@ export function raceSchedule(race: Race): ScheduleEntry[] {
 }
 
 /**
- * The window a race weekend occupies: from the first session to race day.
+ * The window a race weekend occupies: from the first session to race day, as
+ * calendar days in the visitor's timezone.
  * `2026-10-23` -> `2026-10-25` for the United States Grand Prix.
  */
 export function eventWindow(race: Race): { start: string; end: string } {
   const dates = raceSchedule(race)
-    .map((entry) => entry.date)
+    .map(sessionDayKey)
     .sort()
   return { start: dates[0], end: dates[dates.length - 1] }
+}
+
+/**
+ * The day a session lands on locally. Sessions carry a time, so they shift;
+ * anything without one is already a calendar day and is taken as written.
+ */
+function sessionDayKey(entry: ScheduleEntry): string {
+  const instant = parseUtcInstant(entry.date, entry.time)
+  return instant ? toDateKey(instant) : entry.date
+}
+
+/** Race day in the visitor's timezone, matching how the calendar renders it. */
+export function raceDayKey(race: Race): string {
+  const instant = parseUtcInstant(race.date, race.time)
+  return instant ? toDateKey(instant) : race.date
 }
 
 export type EventStatus = 'raceDay' | 'live' | 'upcoming' | 'final'
@@ -121,7 +142,7 @@ export function findFeaturedEvent(races: Race[], today: string = TODAY): Feature
   if (current) {
     return {
       ...current,
-      status: current.race.date === today ? 'raceDay' : 'live',
+      status: raceDayKey(current.race) === today ? 'raceDay' : 'live',
       daysUntilStart: 0,
     }
   }

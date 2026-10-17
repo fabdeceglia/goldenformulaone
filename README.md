@@ -6,16 +6,18 @@ powered by the free [jolpica-f1](https://github.com/jolpica/jolpica-f1) API.
 ## Features
 
 - **Home** — the next or current race at full size, plus a placeholder for the news feed
-- **Calendar** — every round of the season with circuit, location and UTC date
+- **Calendar** — every round of the season with circuit, location and date
 - **Driver standings** — championship table, with team colour accents
 - **Constructor standings** — team championship table
 - **Session results** — every session of a weekend: practice 1–3, sprint qualifying,
   qualifying, the sprint and the race
 - The featured event stays visible in every section as a compact bar that links back to Home
+- Dates and times are shown in **your own timezone**, not the circuit's
 - Loading, empty and error states with retry, and full keyboard/ARIA support
 
 The app follows the **season in progress**. There is no season picker: the current season is
-resolved from the API and shown in the header.
+resolved from the API and shown in the Calendar, which is titled with it (for example
+`2026 Calendar`).
 
 ## Navigation
 
@@ -74,10 +76,29 @@ every session is rendered from one response shape.
 > changing between requests (sometimes wrapped in `{ metadata, data }`, sometimes not).
 > `src/api/alpha.ts` normalises the envelope, but the shape may still change without notice.
 
+## Dates and times
+
+The API sends everything in UTC. The app converts it to the **visitor's timezone**, using the
+browser's own zone — there is no setting to choose, and nothing in the UI names the zone, so
+the clocks are simply "the time where you are".
+
+Two kinds of date are handled differently, in `src/lib/format.ts`:
+
+- an **instant** — a date *with* a time — is shifted into local time;
+- a **calendar day** — a date on its own, with no time to anchor it — is printed as written.
+  Shifting one of those would move a race to the wrong day for anyone west of UTC, so a bare
+  date is never converted.
+
+This matters more than it sounds. The Singapore Grand Prix starts at `12:00Z` on 11 Oct, which
+is Sunday morning in Europe, Sunday afternoon in Tokyo and **01:00 on Monday** in Auckland —
+so the calendar and the results header show 12 Oct for a visitor there. Because the day can
+move, the featured-event logic uses local days too, so "today" always agrees with what is on
+screen.
+
 ## The featured event
 
 The home screen shows a panel for the event that matters right now. Its logic lives in
-`src/lib/schedule.ts` and works on **date-only** string comparisons in UTC:
+`src/lib/schedule.ts` and works on **date-only** string comparisons in the visitor's timezone:
 
 1. Each race gets a **weekend window**: from its earliest session (`FirstPractice`,
    `SprintQualifying`, …) through to race day.
@@ -90,13 +111,13 @@ The home screen shows a panel for the event that matters right now. Its logic li
 
 The featured race is also highlighted in the calendar table.
 
-Worked example, 2026 season — Singapore is 9–11 Oct and the USA is 23–25 Oct:
+Worked example, 2026 season — Singapore runs 9–11 Oct and the USA 23–25 Oct, both UTC:
 
-| Today | Featured |
+| Today (local) | Featured |
 | --- | --- |
 | 10 Oct 2026 | Singapore Grand Prix (`live`) |
-| 17 Oct 2026 | United States Grand Prix (`upcoming`, in 6 days) |
 | 11 Oct 2026 | Singapore Grand Prix (`raceDay`) |
+| 17 Oct 2026 | United States Grand Prix (`upcoming`, in 6 days) |
 | 7 Dec 2026 | Abu Dhabi Grand Prix (`final`) |
 
 `TODAY` is resolved once at module load in `src/lib/schedule.ts`. For a long-running
@@ -193,7 +214,9 @@ src/
 
 ## Notes
 
-- Race dates and times are rendered in **UTC**, matching the raw API values.
+- Race dates and times are rendered in the **visitor's timezone**. Dates arrive from the API in
+  UTC and are converted for display, except for bare dates with no time attached, which are
+  calendar days and are shown as written.
 - Team colours for the standings come from a small local map
   (`src/api/teams.ts`); session results use the exact colour the alpha API returns.
 - Qualifying and practice positions show the numeric position. The alpha API marks drivers

@@ -16,7 +16,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <Header season={season} />
+      <Header />
 
       <main className="main">
         {loading && <Loading message="Loading the season…" />}

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { alpha } from '../api/alpha'
 import type { Race } from '../api/types'
 import { useFetch } from '../hooks/useFetch'
-import { TODAY, findFeaturedEvent } from '../lib/schedule'
+import { TODAY, findFeaturedEvent, raceDayKey } from '../lib/schedule'
 import { Calendar } from './Calendar'
 import { ConstructorStandings } from './ConstructorStandings'
 import { DriverStandings } from './DriverStandings'
@@ -48,7 +48,7 @@ export function SeasonView({ season, races }: SeasonViewProps) {
   // Default to the most recently completed race, falling back to the last round.
   const defaultRound = useMemo(() => {
     if (races.length === 0) return ''
-    const completed = races.filter((race) => race.date <= TODAY)
+    const completed = races.filter((race) => raceDayKey(race) <= TODAY)
     return (completed[completed.length - 1] ?? races[races.length - 1]).round
   }, [races])
 

@@ -1,8 +1,4 @@
-interface HeaderProps {
-  season: string
-}
-
-export function Header({ season }: HeaderProps) {
+export function Header() {
   return (
     <header className="header">
       <div className="brand">
@@ -14,8 +10,6 @@ export function Header({ season }: HeaderProps) {
           <p className="brand__subtitle">Race results &amp; championship standings</p>
         </div>
       </div>
-
-      {season && <span className="season-badge">{season} season</span>}
     </header>
   )
 }
