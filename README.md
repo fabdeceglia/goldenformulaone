@@ -1,43 +1,53 @@
-# F1 Explorer
+# Box this Lap!
+
+Live standings and updates from the pit wall.
 
 A small, clean React app for browsing Formula 1 results and championship standings,
 powered by the free [jolpica-f1](https://github.com/jolpica/jolpica-f1) API.
 
 ## Features
 
-- **Home** — the next or current race at full size, plus a placeholder for the news feed
-- **Calendar** — every round of the season with circuit, location and date
-- **Driver standings** — championship table, with each position in a team-coloured chip
-- **Constructor standings** — team championship table
-- **Session results** — every session of a weekend: practice 1–3, sprint qualifying,
+- **The Pit Wall** — the next or current race at full size, plus a placeholder for the news feed
+- **The Schedule** — every round of the season with circuit, location and date. Completed rounds
+  open their results; rounds still to come open a details panel instead, since there is
+  nothing to show yet
+- **The Grid** — driver championship table, with each position in a team-coloured chip
+- **Constructors** — team championship table
+- **Chequered Flag** — every session of a weekend: practice 1–3, sprint qualifying,
   qualifying, the sprint and the race
-- The featured event stays visible in every section as a compact bar that links back to Home
+- The featured event stays visible in every section as a compact bar that links back to
+  The Pit Wall
 - Dates and times are shown in **your own timezone**, not the circuit's
 - Loading, empty and error states with retry, and full keyboard/ARIA support
 
 The app follows the **season in progress**. There is no season picker: the current season is
-resolved from the API and shown in the Calendar, which is titled with it (for example
+resolved from the API and shown in The Schedule panel, which is titled with it (for example
 `2026 Calendar`).
+
+The section names above are the tab labels. Each tab keeps a stable id (`home`, `calendar`,
+`drivers`, `constructors`, `results`) for its ARIA wiring.
 
 ## Navigation
 
 | Section | Content |
 | --- | --- |
-| **Home** | Full-size featured-event panel + news placeholder |
-| **Calendar** | Round list with the featured race highlighted |
-| **Drivers** | Driver championship table |
+| **The Pit Wall** | Full-size featured-event panel + news placeholder |
+| **The Schedule** | Round list with the featured race highlighted; future rounds open a details panel |
+| **The Grid** | Driver championship table |
 | **Constructors** | Constructor championship table |
-| **Results** | Every session of a selected round |
+| **Chequered Flag** | Every session of a selected round |
 
-Every section except Home shows `FeaturedEventBar`, a one-line summary of the featured
-event. Clicking it returns to Home. The bar hides the circuit and date details on narrow
-screens, keeping the race name and countdown.
+Every section except The Pit Wall shows `FeaturedEventBar`, a one-line summary of the featured
+event. Clicking it returns to The Pit Wall. The bar hides the circuit and date details on
+narrow screens, keeping the race name and countdown.
 
 ## Look and feel
 
 The app is styled after the [Golden Lap](https://www.funselektor.com/goldenlap) interface:
 flat, warm and retro. Cream "paper" panels sit on a soft pastel haze, text is near-black
-ink, and a single warm red carries every call to action.
+ink, and a single warm red carries every call to action. The header pairs a checkered-flag
+mark with the name **Box this Lap!** and its tagline, "Live standings and updates from the
+pit wall."
 
 - **Type** — one variable font, [Archivo](https://fonts.google.com/specimen/Archivo), served
   from `public/fonts`. Its two axes do the whole job: headings and labels are set condensed
@@ -60,9 +70,9 @@ overriding them.
 
 ## Session results
 
-The Results section shows every session the API can serve for a round, selected with a
-segmented control under the round picker. Sessions are listed in the order the weekend runs
-them.
+The **Chequered Flag** section shows every session the API can serve for a round, selected
+with a segmented control under the round picker. Sessions are listed in the order the weekend
+runs them.
 
 | Session | Code | Table columns |
 | --- | --- | --- |
@@ -122,7 +132,7 @@ screen.
 
 ## The featured event
 
-The home screen shows a panel for the event that matters right now. Its logic lives in
+The **Pit Wall** shows a panel for the event that matters right now. Its logic lives in
 `src/lib/schedule.ts` and works on **date-only** string comparisons in the visitor's timezone:
 
 1. Each race gets a **weekend window**: from its earliest session (`FirstPractice`,
@@ -135,6 +145,14 @@ The home screen shows a panel for the event that matters right now. Its logic li
    layout stays consistent.
 
 The featured race is also highlighted in the calendar table.
+
+Each calendar row ends with one action. A round already completed opens its **Results**; a
+round still to come has no results to open, so it opens a **Details** dialog instead. That
+dialog is the same `FeaturedEventPanel` used on The Pit Wall, filled in for the selected round
+— its window, its race time and its full weekend schedule — rendered inside a native
+`<dialog>`, so focus trapping, `Esc` and the backdrop come from the browser. The panel drops
+its status badge for every round but the featured one: only that round may claim **Next up**,
+the rest show their countdown alone.
 
 Worked example, 2026 season — Singapore runs 9–11 Oct and the USA 23–25 Oct, both UTC:
 
@@ -185,9 +203,9 @@ Endpoints used:
 
 | View | Endpoint |
 | --- | --- |
-| Calendar + current season | `/ergast/f1/current/races/?limit=100` |
-| Driver standings | `/ergast/f1/{season}/driverstandings/?limit=100` |
-| Constructor standings | `/ergast/f1/{season}/constructorstandings/?limit=100` |
+| The Schedule + current season | `/ergast/f1/current/races/?limit=100` |
+| The Grid | `/ergast/f1/{season}/driverstandings/?limit=100` |
+| Constructors | `/ergast/f1/{season}/constructorstandings/?limit=100` |
 | Round ids for the season | `/f1/alpha/core/rounds/?year={season}` |
 | Sessions a round has | `/f1/alpha/results/{roundId}/` |
 | One session's results | `/f1/alpha/results/{roundId}/{code}/` |
@@ -221,17 +239,18 @@ src/
 │   ├── Feedback.tsx             # Loading / ErrorState / Empty
 │   ├── Header.tsx               # checkered-flag mark + wordmark
 │   ├── Home.tsx                 # featured event + news placeholder
+│   ├── Modal.tsx                # native <dialog> shell for the details popup
 │   ├── NewsPlaceholder.tsx      # empty box for the future news feed
 │   ├── Position.tsx             # team-coloured position chip
 │   ├── RaceResults.tsx          # round + session selection
-│   ├── SeasonView.tsx           # tabs + shared season state
+│   ├── SeasonView.tsx           # nav tabs + shared season state
 │   ├── SessionResultTable.tsx   # one table per session format
 │   └── Tabs.tsx
 ├── hooks/
 │   └── useFetch.ts              # abortable fetch hook with reload
 ├── lib/
 │   ├── format.ts                # date, time and gap formatting
-│   └── schedule.ts              # weekend windows, session codes, featured event
+│   └── schedule.ts              # weekend windows, session codes, race-day status
 ├── App.tsx                      # resolves the current season
 ├── index.css                    # theme tokens + all styling
 └── main.tsx

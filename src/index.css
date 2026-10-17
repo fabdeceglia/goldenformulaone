@@ -1,5 +1,5 @@
 /* ==========================================================================
-   F1 Explorer — "paper & ink" theme
+   Box this Lap! — "paper & ink" theme
    Flat, warm and retro, after the Golden Lap UI: cream paper panels on a soft
    pastel haze, condensed caps for display type, and flat colour-coded chips.
    ========================================================================== */
@@ -893,6 +893,78 @@ a:hover {
   box-shadow: inset 4px 0 0 var(--red);
 }
 
+/* ---------- Event details modal ---------- */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  width: min(760px, 94vw);
+  height: fit-content;
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  overflow: hidden;
+  box-shadow: 0 40px 80px -34px rgba(20, 14, 4, 0.65);
+}
+
+.modal::backdrop {
+  background: rgba(30, 26, 20, 0.42);
+}
+
+/* Focus lands on the dialog container on open; it is not interactive, so the
+   ring would only be noise. Tab still moves to the close button. */
+.modal:focus,
+.modal:focus-visible {
+  outline: none;
+}
+
+/* The dialog itself never scrolls, so the close button stays put while the
+   panel below it does. */
+.modal__scroll {
+  max-height: 88vh;
+  overflow: auto;
+}
+
+/* The featured panel is designed as a full-width card; inside the dialog it
+   fills the frame edge to edge instead of floating on it. */
+.modal .hero {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.modal__close {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--paper-raised);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.modal__close:hover {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 780px) {
@@ -927,6 +999,17 @@ a:hover {
 
   .panel__head {
     padding: 0.9rem 1rem;
+  }
+
+  /* The section names are longer than the old ones; trim the pill so they wrap
+     to two rows on a phone instead of three. */
+  .tabs:not(.tabs--compact) {
+    gap: 0.22rem;
+  }
+
+  .tabs:not(.tabs--compact) .tabs__button {
+    padding: 0.4rem 0.68rem;
+    font-size: 0.74rem;
   }
 
   .table thead th,

@@ -129,6 +129,30 @@ export interface FeaturedEvent {
 }
 
 /**
+ * Describes any round the way the featured panel presents it, from the weekend
+ * window alone. Used both to pick the event to feature and to open a round
+ * still to come straight from the calendar.
+ */
+export function eventFor(race: Race, today: string = TODAY): FeaturedEvent {
+  const window = eventWindow(race)
+
+  if (window.start <= today && today <= window.end) {
+    return {
+      race,
+      ...window,
+      status: raceDayKey(race) === today ? 'raceDay' : 'live',
+      daysUntilStart: 0,
+    }
+  }
+
+  if (window.start > today) {
+    return { race, ...window, status: 'upcoming', daysUntilStart: daysBetween(today, window.start) }
+  }
+
+  return { race, ...window, status: 'final', daysUntilStart: 0 }
+}
+
+/**
  * Picks the event to feature: the one happening right now if today falls inside
  * a race weekend, otherwise the next one on the calendar. Once a season is over
  * it falls back to the final round so the layout stays consistent.
@@ -136,24 +160,13 @@ export interface FeaturedEvent {
 export function findFeaturedEvent(races: Race[], today: string = TODAY): FeaturedEvent | null {
   if (races.length === 0) return null
 
-  const windows = races.map((race) => ({ race, ...eventWindow(race) }))
+  const events = races.map((race) => eventFor(race, today))
 
-  const current = windows.find((window) => window.start <= today && today <= window.end)
-  if (current) {
-    return {
-      ...current,
-      status: raceDayKey(current.race) === today ? 'raceDay' : 'live',
-      daysUntilStart: 0,
-    }
-  }
-
-  const next = windows.find((window) => window.start > today)
-  if (next) {
-    return { ...next, status: 'upcoming', daysUntilStart: daysBetween(today, next.start) }
-  }
-
-  const last = windows[windows.length - 1]
-  return { ...last, status: 'final', daysUntilStart: 0 }
+  return (
+    events.find((event) => event.status === 'live' || event.status === 'raceDay') ??
+    events.find((event) => event.status === 'upcoming') ??
+    events[events.length - 1]
+  )
 }
 
 function daysBetween(from: string, to: string): number {

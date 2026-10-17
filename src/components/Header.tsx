@@ -26,8 +26,8 @@ export function Header() {
         </span>
 
         <div className="brand__text">
-          <h1 className="brand__title">F1 Explorer</h1>
-          <p className="brand__subtitle">Race results &amp; championship standings</p>
+          <h1 className="brand__title">Box this Lap!</h1>
+          <p className="brand__subtitle">Live standings and updates from the pit wall.</p>
         </div>
       </div>
     </header>

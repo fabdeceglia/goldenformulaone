@@ -13,11 +13,11 @@ import { Tabs } from './Tabs'
 import type { Tab } from './Tabs'
 
 const TABS = [
-  { id: 'home', label: 'Home' },
-  { id: 'calendar', label: 'Calendar' },
-  { id: 'drivers', label: 'Drivers' },
+  { id: 'home', label: 'The Pit Wall' },
+  { id: 'calendar', label: 'The Schedule' },
+  { id: 'drivers', label: 'The Grid' },
   { id: 'constructors', label: 'Constructors' },
-  { id: 'results', label: 'Results' },
+  { id: 'results', label: 'Chequered Flag' },
 ] as const satisfies readonly Tab<string>[]
 
 type TabId = (typeof TABS)[number]['id']

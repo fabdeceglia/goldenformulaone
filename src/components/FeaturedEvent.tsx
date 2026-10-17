@@ -19,8 +19,18 @@ function countdownLabel(days: number): string {
   return `Starts in ${days} days`
 }
 
-/** Full-width panel used on the home screen. */
-export function FeaturedEventPanel({ featured }: { featured: FeaturedEvent }) {
+/**
+ * Full-width panel used on the home screen. Round-specific badges only make
+ * sense for the feature itself, so a panel opened for any other round can drop
+ * them and leave just the countdown.
+ */
+export function FeaturedEventPanel({
+  featured,
+  showBadge = true,
+}: {
+  featured: FeaturedEvent
+  showBadge?: boolean
+}) {
   const { race, status, start, end, daysUntilStart } = featured
   const schedule = raceSchedule(race)
   const circuit = race.Circuit
@@ -29,10 +39,12 @@ export function FeaturedEventPanel({ featured }: { featured: FeaturedEvent }) {
     <section className={`hero hero--${status}`} aria-labelledby="featured-event">
       <div className="hero__main">
         <div className="hero__top">
-          <span className={`pill pill--${status}`}>
-            {isRunning(status) && <span className="pill__dot" aria-hidden="true" />}
-            {BADGE[status]}
-          </span>
+          {showBadge && (
+            <span className={`pill pill--${status}`}>
+              {isRunning(status) && <span className="pill__dot" aria-hidden="true" />}
+              {BADGE[status]}
+            </span>
+          )}
           {status === 'upcoming' && (
             <span className="hero__countdown">{countdownLabel(daysUntilStart)}</span>
           )}
