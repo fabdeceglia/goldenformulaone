@@ -40,7 +40,61 @@ const TEAM_COLORS: Record<string, string> = {
   mf1: '#F5820B',
 }
 
+/** Neutral chip colour for a team whose livery we do not know. */
+const UNKNOWN_TEAM_COLOR = '#7d786b'
+
+const PAPER_INK = '#fbf8f0'
+const DARK_INK = '#1b1b1b'
+
 export function teamColor(constructorId: string | undefined): string {
-  if (!constructorId) return '#6b7280'
-  return TEAM_COLORS[constructorId] ?? '#6b7280'
+  if (!constructorId) return UNKNOWN_TEAM_COLOR
+  return TEAM_COLORS[constructorId] ?? UNKNOWN_TEAM_COLOR
+}
+
+/** `#rgb`, `#rrggbb` or the same without the hash. Anything else is unknown. */
+function parseHex(color: string): [number, number, number] | null {
+  const hex = color.trim().replace(/^#/, '')
+  if (/^[0-9a-f]{3}$/i.test(hex)) {
+    return [...hex].map((char) => parseInt(char + char, 16)) as [number, number, number]
+  }
+  if (/^[0-9a-f]{6}$/i.test(hex)) {
+    return [0, 2, 4].map((offset) => parseInt(hex.slice(offset, offset + 2), 16)) as [
+      number,
+      number,
+      number,
+    ]
+  }
+  return null
+}
+
+function channelLuminance(value: number): number {
+  const channel = value / 255
+  return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+}
+
+function luminance([r, g, b]: [number, number, number]): number {
+  return (
+    0.2126 * channelLuminance(r) + 0.7152 * channelLuminance(g) + 0.0722 * channelLuminance(b)
+  )
+}
+
+function contrast(a: number, b: number): number {
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+}
+
+const PAPER_LUMINANCE = luminance([0xfb, 0xf8, 0xf0])
+const DARK_LUMINANCE = luminance([0x1b, 0x1b, 0x1b])
+
+/**
+ * Ink or paper, whichever stays legible on a team colour. The grid spans
+ * near-white liveries (Haas) and near-black ones, so chip text cannot be a
+ * single hard-coded colour.
+ */
+export function readableInk(color: string): string {
+  const rgb = parseHex(color)
+  if (!rgb) return PAPER_INK
+  const background = luminance(rgb)
+  return contrast(background, DARK_LUMINANCE) >= contrast(background, PAPER_LUMINANCE)
+    ? DARK_INK
+    : PAPER_INK
 }

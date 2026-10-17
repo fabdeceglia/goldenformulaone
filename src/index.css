@@ -1,19 +1,59 @@
+/* ==========================================================================
+   F1 Explorer — "paper & ink" theme
+   Flat, warm and retro, after the Golden Lap UI: cream paper panels on a soft
+   pastel haze, condensed caps for display type, and flat colour-coded chips.
+   ========================================================================== */
+
+/* One variable font covers the whole system: weight for emphasis, width for
+   the condensed caps that give the theme its character. */
+@font-face {
+  font-family: 'Archivo Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  src: url('/fonts/archivo-latin-wdth-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  --bg: #0c0e12;
-  --surface: #14171d;
-  --surface-raised: #1a1e26;
-  --border: #262b35;
-  --border-strong: #333a47;
-  --text: #eceef1;
-  --muted: #969ca8;
-  --accent: #e10600;
-  --radius: 14px;
-  --radius-sm: 8px;
+  /* Paper */
+  --paper: #f4efe2;
+  --paper-raised: #fbf8f0;
+  --paper-sunken: #eae3d1;
+  --paper-hover: #efe8d6;
 
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
-    sans-serif;
+  /* Rules and edges */
+  --line: #d9cfb7;
+  --line-strong: #bcb096;
+
+  /* Ink */
+  --ink: #1b1b1b;
+  --ink-soft: #3a3730;
+  --ink-muted: #5f594d;
+  --paper-ink: #fbf8f0;
+
+  /* Golden Lap accents */
+  --red: #e4161c;
+  --red-deep: #ac1016;
+  --on-red: #ffffff;
+  --amber: #ff960b;
+  --amber-ink: #8a4a00;
+  --gold: #ffbc05;
+  --magenta: #c9217f;
+
+  --radius: 10px;
+  --radius-sm: 4px;
+
+  --font-sans: 'Archivo Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    Roboto, Helvetica, Arial, sans-serif;
+  --condensed: 78%;
+
+  font-family: var(--font-sans);
   line-height: 1.5;
 }
 
@@ -27,16 +67,29 @@ body {
   min-height: 100%;
 }
 
+/* The blurred pastel haze the game floats its panels on. Fixed so it never
+   stretches over a tall document. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: #d9d3dc;
+  background-image:
+    radial-gradient(880px 620px at 8% 2%, rgba(202, 219, 199, 0.95), transparent 62%),
+    radial-gradient(960px 680px at 94% 10%, rgba(215, 204, 226, 0.95), transparent 64%),
+    radial-gradient(920px 640px at 76% 98%, rgba(243, 226, 189, 0.85), transparent 62%),
+    radial-gradient(760px 560px at 10% 92%, rgba(196, 215, 226, 0.8), transparent 62%);
+}
+
 body {
-  background-color: var(--bg);
-  background-image: radial-gradient(
-    1100px 520px at 50% -260px,
-    rgba(225, 6, 0, 0.22),
-    transparent 65%
-  );
-  background-repeat: no-repeat;
-  color: var(--text);
+  color: var(--ink);
   -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background-color: var(--red);
+  color: var(--paper-ink);
 }
 
 .sr-only {
@@ -52,20 +105,49 @@ body {
 }
 
 a {
-  color: var(--text);
-  text-decoration-color: var(--border-strong);
+  color: var(--ink);
+  text-decoration-color: var(--line-strong);
   text-underline-offset: 3px;
 }
 
 a:hover {
-  color: #fff;
-  text-decoration-color: var(--accent);
+  color: var(--red-deep);
+  text-decoration-color: var(--red-deep);
+}
+
+:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 2px;
+}
+
+/* ---------- Display type ----------
+   Every heading, label and control shares the condensed, tracked caps that
+   carry the retro motorsport feel. Body copy stays at normal width. */
+
+.brand__title,
+.hero__title,
+.panel__title,
+.hero__schedule-title,
+.field__label,
+.pill,
+.tabs__button,
+.button,
+.panel__meta,
+.hero__dates-time,
+.schedule__label,
+.driver__code,
+.badge,
+.event-bar__cta,
+.table thead th {
+  font-stretch: var(--condensed);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
 }
 
 /* ---------- Layout ---------- */
 
 .app {
-  max-width: 1080px;
+  max-width: 1120px;
   margin: 0 auto;
   padding: 0 1.25rem 3rem;
 }
@@ -82,41 +164,56 @@ a:hover {
   gap: 1rem;
   align-items: center;
   justify-content: space-between;
-  padding: 1.75rem 0 1.25rem;
+  padding: 1.6rem 0 1.15rem;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
+  gap: 0.75rem;
 }
 
 .brand__mark {
-  display: grid;
-  place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  border-radius: 12px;
-  background: linear-gradient(145deg, #ff1f14, var(--accent));
-  color: #fff;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  font-size: 1.05rem;
-  box-shadow: 0 8px 22px -10px rgba(225, 6, 0, 0.9);
+  display: block;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 2px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background-color: var(--paper);
+  box-shadow: 0 3px 0 rgba(27, 27, 27, 0.22);
+}
+
+.brand__mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 2px;
+}
+
+.brand__check--red {
+  fill: var(--red);
+}
+
+.brand__check--paper {
+  fill: var(--paper);
 }
 
 .brand__title {
   margin: 0;
-  font-size: 1.35rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-size: 1.45rem;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: 0.06em;
 }
 
 .brand__subtitle {
-  margin: 0.1rem 0 0;
+  margin: 0.15rem 0 0;
+  color: var(--ink-soft);
   font-size: 0.85rem;
-  color: var(--muted);
 }
+
+/* ---------- Fields ---------- */
 
 .field {
   display: flex;
@@ -125,37 +222,28 @@ a:hover {
 }
 
 .field__label {
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--muted);
+  color: var(--ink-muted);
+  font-size: 0.66rem;
+  font-weight: 700;
 }
 
 .field__select {
   appearance: none;
   min-width: 7.5rem;
-  padding: 0.5rem 2rem 0.5rem 0.75rem;
-  border: 1px solid var(--border-strong);
+  padding: 0.45rem 2rem 0.45rem 0.7rem;
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
-  background-color: var(--surface-raised);
-  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
-    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-color: var(--paper-raised);
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-muted) 50%),
+    linear-gradient(135deg, var(--ink-muted) 50%, transparent 50%);
   background-position: calc(100% - 1.05rem) 52%, calc(100% - 0.7rem) 52%;
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
-  color: var(--text);
+  color: var(--ink);
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
-}
-
-.field__select:focus-visible,
-.button:focus-visible,
-.tabs__button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 .field__select:disabled {
@@ -168,62 +256,60 @@ a:hover {
 .tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
-  padding: 0.25rem;
+  gap: 0.3rem;
+  padding: 0.28rem;
   margin-bottom: 1.25rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(20, 23, 29, 0.7);
-  backdrop-filter: blur(8px);
+  background: var(--paper);
   width: fit-content;
   max-width: 100%;
+  box-shadow: 0 10px 22px -20px rgba(43, 32, 12, 0.6);
 }
 
 .tabs__button {
-  padding: 0.5rem 1.05rem;
+  padding: 0.45rem 0.95rem;
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: var(--muted);
+  color: var(--ink-muted);
   font: inherit;
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-size: 0.82rem;
+  font-weight: 700;
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
 .tabs__button:hover {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--paper-hover);
+  color: var(--ink);
 }
 
 .tabs__button--active {
-  background: var(--surface-raised);
-  color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--border-strong);
+  background: var(--ink);
+  color: var(--paper);
 }
 
 .tabs--compact {
   margin-bottom: 0;
-  padding: 0.2rem;
   border-color: transparent;
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: none;
+  background: var(--paper-sunken);
+  box-shadow: none;
 }
 
 .tabs--compact .tabs__button {
-  padding: 0.35rem 0.8rem;
-  font-size: 0.82rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.76rem;
 }
 
 /* ---------- Panel ---------- */
 
 .panel {
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: var(--paper);
   overflow: hidden;
-  box-shadow: 0 24px 48px -32px rgba(0, 0, 0, 0.85);
+  box-shadow: 0 16px 34px -28px rgba(43, 32, 12, 0.7);
 }
 
 .panel__head {
@@ -232,9 +318,9 @@ a:hover {
   gap: 0.75rem 1rem;
   align-items: center;
   justify-content: space-between;
-  padding: 1.1rem 1.25rem;
-  border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent);
+  padding: 0.95rem 1.15rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-sunken);
 }
 
 .panel__head--stack {
@@ -244,19 +330,20 @@ a:hover {
 .panel__title {
   margin: 0;
   font-size: 1.05rem;
-  font-weight: 700;
-  letter-spacing: -0.005em;
+  font-weight: 800;
+  line-height: 1.15;
 }
 
 .panel__subtitle {
-  margin: 0.2rem 0 0;
-  font-size: 0.85rem;
-  color: var(--muted);
+  margin: 0.25rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.83rem;
 }
 
 .panel__meta {
-  font-size: 0.78rem;
-  color: var(--muted);
+  color: var(--ink-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
@@ -265,8 +352,8 @@ a:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.7rem 1.25rem;
-  border-bottom: 1px solid var(--border);
+  padding: 0.65rem 1.15rem;
+  border-bottom: 1px solid var(--line);
 }
 
 /* ---------- Table ---------- */
@@ -278,27 +365,29 @@ a:hover {
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: 0.89rem;
   font-variant-numeric: tabular-nums;
 }
 
 .table thead th {
-  padding: 0.65rem 1.1rem;
-  border-bottom: 1px solid var(--border);
-  color: var(--muted);
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+  padding: 0.6rem 1.05rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-sunken);
+  color: var(--ink-muted);
+  font-size: 0.66rem;
+  font-weight: 700;
   text-align: left;
   white-space: nowrap;
-  background: rgba(255, 255, 255, 0.015);
 }
 
 .table tbody td {
-  padding: 0.7rem 1.1rem;
-  border-bottom: 1px solid var(--border);
+  padding: 0.6rem 1.05rem;
+  border-bottom: 1px solid var(--line);
   vertical-align: middle;
+}
+
+.table tbody tr:nth-child(even) {
+  background-color: var(--paper-raised);
 }
 
 .table tbody tr:last-child td {
@@ -306,7 +395,7 @@ a:hover {
 }
 
 .table tbody tr:hover {
-  background: var(--surface-raised);
+  background-color: var(--paper-hover);
 }
 
 .table__pos {
@@ -317,7 +406,7 @@ a:hover {
 .table__round {
   width: 3.25rem;
   white-space: nowrap;
-  color: var(--muted);
+  color: var(--ink-muted);
 }
 
 .table__num {
@@ -336,37 +425,29 @@ a:hover {
 }
 
 .muted {
-  color: var(--muted);
+  color: var(--ink-muted);
 }
 
 /* ---------- Cells ---------- */
 
+/* Position chip, filled with the team colour by the component. */
 .position {
-  font-weight: 600;
-  color: var(--muted);
-}
-
-.position--p1 {
-  color: var(--accent);
-}
-.position--p2 {
-  color: #d7dbe2;
-}
-.position--p3 {
-  color: #d6925c;
-}
-
-.team-bar {
-  flex: none;
-  width: 3px;
-  height: 1.35rem;
-  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  padding: 0 0.32rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .driver {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.55rem;
   min-width: 0;
 }
 
@@ -376,26 +457,25 @@ a:hover {
 }
 
 .driver__code {
-  padding: 0.05rem 0.35rem;
-  border: 1px solid var(--border-strong);
-  border-radius: 5px;
-  color: var(--muted);
-  font-size: 0.68rem;
-  letter-spacing: 0.06em;
+  padding: 0.08rem 0.34rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--paper-raised);
+  color: var(--ink-muted);
+  font-size: 0.64rem;
+  font-weight: 700;
 }
 
 .badge {
-  padding: 0.05rem 0.35rem;
-  border-radius: 5px;
-  font-size: 0.65rem;
+  padding: 0.08rem 0.34rem;
+  border-radius: 3px;
+  font-size: 0.62rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
 }
 
 .badge--fastest {
-  background: rgba(168, 85, 247, 0.18);
-  border: 1px solid rgba(168, 85, 247, 0.5);
-  color: #d8b4fe;
+  background: var(--magenta);
+  color: var(--paper-ink);
 }
 
 .race-name {
@@ -406,8 +486,8 @@ a:hover {
 .race-country,
 .race-locality {
   display: block;
-  font-size: 0.78rem;
-  color: var(--muted);
+  color: var(--ink-muted);
+  font-size: 0.72rem;
 }
 
 .race-circuit {
@@ -418,24 +498,31 @@ a:hover {
 
 .button {
   padding: 0.4rem 0.8rem;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--red-deep);
   border-radius: var(--radius-sm);
-  background: var(--surface-raised);
-  color: var(--text);
+  background: var(--red);
+  color: var(--on-red);
   font: inherit;
-  font-size: 0.82rem;
-  font-weight: 600;
+  font-size: 0.76rem;
+  font-weight: 700;
   cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
 
 .button:hover {
-  border-color: var(--accent);
-  color: #fff;
+  background: var(--red-deep);
 }
 
 .button--ghost {
   background: transparent;
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.button--ghost:hover {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
 }
 
 /* ---------- Feedback ---------- */
@@ -444,17 +531,18 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 1.75rem 1.25rem;
-  border: 1px solid var(--border);
+  padding: 1.5rem 1.15rem;
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 0.9rem;
+  background: var(--paper);
+  color: var(--ink-muted);
+  font-size: 0.88rem;
 }
 
 .feedback--error {
-  color: #fca5a5;
-  border-color: rgba(225, 6, 0, 0.4);
+  border-color: rgba(228, 22, 28, 0.45);
+  background: rgba(228, 22, 28, 0.07);
+  color: var(--red-deep);
 }
 
 .feedback--empty {
@@ -464,8 +552,8 @@ a:hover {
 .spinner {
   width: 1rem;
   height: 1rem;
-  border: 2px solid var(--border-strong);
-  border-top-color: var(--accent);
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--red);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
@@ -480,6 +568,10 @@ a:hover {
   .spinner {
     animation-duration: 2s;
   }
+
+  .pill__dot {
+    animation: none;
+  }
 }
 
 /* ---------- Footer ---------- */
@@ -487,9 +579,13 @@ a:hover {
 .footer {
   margin-top: 2rem;
   padding-top: 1rem;
-  border-top: 1px solid var(--border);
-  color: var(--muted);
-  font-size: 0.8rem;
+  border-top: 1px solid var(--line-strong);
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}
+
+.footer a {
+  color: var(--ink);
 }
 
 /* ---------- Featured event ---------- */
@@ -499,35 +595,30 @@ a:hover {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
   gap: 1.5rem 2rem;
-  padding: 1.5rem 1.5rem 1.5rem 1.75rem;
+  padding: 1.4rem 1.5rem 1.4rem 1.6rem;
   margin-bottom: 1.25rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  background-image: radial-gradient(
-      640px 260px at 0% 0%,
-      rgba(225, 6, 0, 0.3),
-      transparent 72%
-    ),
-    linear-gradient(180deg, var(--surface-raised), var(--surface));
-  box-shadow: 0 28px 60px -40px rgba(0, 0, 0, 0.9);
+  background: var(--paper);
+  box-shadow: 0 18px 40px -30px rgba(43, 32, 12, 0.75);
   overflow: hidden;
 }
 
+/* The red spine: the loudest single mark in the app. */
 .hero::before {
   content: '';
   position: absolute;
   inset: 0 auto 0 0;
-  width: 3px;
-  background: var(--accent);
+  width: 5px;
+  background: var(--red);
 }
 
 .hero--upcoming::before {
-  background: linear-gradient(180deg, var(--accent), #7c3aed);
+  background: var(--amber);
 }
 
-.hero--final {
-  background-image: none;
-  background-color: var(--surface);
+.hero--final::before {
+  background: var(--line-strong);
 }
 
 .hero__main {
@@ -545,18 +636,18 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.25rem 0.6rem;
-  border-radius: 999px;
-  border: 1px solid var(--border-strong);
-  font-size: 0.68rem;
+  padding: 0.22rem 0.55rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--paper-raised);
+  color: var(--ink-muted);
+  font-size: 0.64rem;
   font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
 }
 
 .pill__dot {
-  width: 0.45rem;
-  height: 0.45rem;
+  width: 0.42rem;
+  height: 0.42rem;
   border-radius: 50%;
   background: currentColor;
   animation: pulse 1.6s ease-in-out infinite;
@@ -564,48 +655,47 @@ a:hover {
 
 @keyframes pulse {
   50% {
-    opacity: 0.25;
+    opacity: 0.3;
   }
 }
 
 .pill--raceDay,
 .pill--live {
-  border-color: rgba(225, 6, 0, 0.55);
-  background: rgba(225, 6, 0, 0.16);
-  color: #ff857d;
+  border-color: var(--red-deep);
+  background: var(--red);
+  color: var(--on-red);
 }
 
 .pill--upcoming {
-  border-color: rgba(124, 58, 237, 0.5);
-  background: rgba(124, 58, 237, 0.14);
-  color: #c4b5fd;
+  border-color: var(--amber);
+  background: rgba(255, 150, 11, 0.18);
+  color: var(--amber-ink);
 }
 
 .pill--final {
-  color: var(--muted);
+  color: var(--ink-muted);
 }
 
 .hero__countdown {
+  color: var(--ink-soft);
   font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--muted);
+  font-weight: 700;
 }
 
 .hero__title {
-  margin: 0.7rem 0 0.35rem;
-  font-size: clamp(1.4rem, 3.4vw, 2rem);
+  margin: 0.65rem 0 0.3rem;
+  font-size: clamp(1.5rem, 3.6vw, 2.15rem);
   font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
+  line-height: 1.08;
 }
 
 .hero__meta {
   margin: 0.1rem 0 0;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
 }
 
 .hero__meta--muted {
-  color: var(--muted);
+  color: var(--ink-muted);
 }
 
 .hero__dates {
@@ -613,21 +703,24 @@ a:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem 0.9rem;
-  margin: 0.9rem 0 0;
-  font-size: 0.9rem;
+  margin: 0.85rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.85rem;
 }
 
 .hero__dates-range {
+  color: var(--ink);
   font-weight: 700;
 }
 
 .hero__dates-time {
   padding: 0.15rem 0.5rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--paper-raised);
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .hero__schedule {
@@ -636,16 +729,14 @@ a:hover {
 
 .hero__schedule-title {
   margin: 0;
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--muted);
+  color: var(--ink-muted);
+  font-size: 0.66rem;
+  font-weight: 700;
 }
 
 .schedule {
   list-style: none;
-  margin: 0.5rem 0 0;
+  margin: 0.55rem 0 0;
   padding: 0;
 }
 
@@ -654,34 +745,38 @@ a:hover {
   align-items: baseline;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.34rem 0;
-  border-bottom: 1px dashed var(--border);
-  font-size: 0.85rem;
+  padding: 0.32rem 0;
+  border-bottom: 1px dashed var(--line);
+  font-size: 0.8rem;
 }
 
 .schedule__row:last-child {
   border-bottom: 0;
 }
 
-.schedule__row--race {
-  font-weight: 700;
-}
-
 .schedule__label {
-  white-space: nowrap;
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+  font-weight: 700;
 }
 
 .schedule__when {
   display: flex;
   gap: 0.6rem;
-  color: var(--muted);
-  font-size: 0.78rem;
+  color: var(--ink-muted);
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
+/* The race is the weekend's headline, so it gets the one splash of red. */
+.schedule__row--race .schedule__label {
+  color: var(--red-deep);
+}
+
 .schedule__row--race .schedule__when {
-  color: var(--text);
+  color: var(--ink);
+  font-weight: 700;
 }
 
 /* ---------- Compact event bar (non-home sections) ---------- */
@@ -691,36 +786,37 @@ a:hover {
   align-items: center;
   gap: 0.6rem 1rem;
   width: 100%;
-  padding: 0.7rem 0.9rem 0.7rem 1rem;
+  padding: 0.62rem 0.85rem 0.62rem 0.95rem;
   margin-bottom: 1.25rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--red);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: var(--paper);
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  box-shadow: 0 14px 28px -26px rgba(43, 32, 12, 0.7);
+  transition: background-color 0.12s ease, border-color 0.12s ease;
 }
 
 .event-bar:hover {
-  border-color: var(--border-strong);
-  background: var(--surface-raised);
+  background: var(--paper-raised);
+  border-color: var(--line-strong);
+  border-left-color: var(--red);
 }
 
-.event-bar:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+.event-bar--upcoming {
+  border-left-color: var(--amber);
 }
 
-.event-bar--live,
-.event-bar--raceDay {
-  border-color: rgba(225, 6, 0, 0.35);
+.event-bar--final {
+  border-left-color: var(--line-strong);
 }
 
 .event-bar .pill {
-  padding: 0.18rem 0.5rem;
-  font-size: 0.62rem;
+  padding: 0.18rem 0.45rem;
+  font-size: 0.6rem;
 }
 
 .event-bar__name {
@@ -735,8 +831,8 @@ a:hover {
 .event-bar__meta {
   flex: 1 1 auto;
   min-width: 0;
-  color: var(--muted);
-  font-size: 0.82rem;
+  color: var(--ink-muted);
+  font-size: 0.8rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -746,18 +842,19 @@ a:hover {
 .event-bar__cta {
   flex: none;
   white-space: nowrap;
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   font-variant-numeric: tabular-nums;
-  color: var(--muted);
+  color: var(--ink-muted);
 }
 
 .event-bar__cta {
-  font-weight: 600;
+  color: var(--ink);
+  font-weight: 700;
 }
 
 .event-bar__chevron {
   flex: none;
-  color: var(--muted);
+  color: var(--ink-muted);
   font-size: 1.1rem;
   line-height: 1;
 }
@@ -770,10 +867,11 @@ a:hover {
   min-height: 11rem;
   margin: 1rem;
   padding: 1.5rem;
-  border: 1px dashed var(--border-strong);
+  border: 1px dashed var(--line-strong);
   border-radius: var(--radius-sm);
-  color: var(--muted);
-  font-size: 0.9rem;
+  background-color: var(--paper-raised);
+  color: var(--ink-muted);
+  font-size: 0.88rem;
   text-align: center;
 }
 
@@ -784,15 +882,15 @@ a:hover {
 /* ---------- Featured row in the calendar ---------- */
 
 .table tbody tr.is-featured {
-  background: rgba(225, 6, 0, 0.08);
+  background-color: rgba(228, 22, 28, 0.07);
 }
 
 .table tbody tr.is-featured:hover {
-  background: rgba(225, 6, 0, 0.13);
+  background-color: rgba(228, 22, 28, 0.12);
 }
 
 .table tbody tr.is-featured td:first-child {
-  box-shadow: inset 3px 0 0 var(--accent);
+  box-shadow: inset 4px 0 0 var(--red);
 }
 
 /* ---------- Responsive ---------- */
@@ -815,28 +913,25 @@ a:hover {
   }
 
   .header {
-    padding-top: 1.25rem;
+    padding-top: 1.15rem;
   }
 
   .brand__subtitle {
     display: none;
   }
 
-  .field {
-    width: 100%;
-  }
-
+  .field,
   .field__select {
     width: 100%;
   }
 
   .panel__head {
-    padding: 1rem;
+    padding: 0.9rem 1rem;
   }
 
   .table thead th,
   .table tbody td {
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
+    padding-left: 0.7rem;
+    padding-right: 0.7rem;
   }
 }

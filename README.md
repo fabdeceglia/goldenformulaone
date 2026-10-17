@@ -7,7 +7,7 @@ powered by the free [jolpica-f1](https://github.com/jolpica/jolpica-f1) API.
 
 - **Home** — the next or current race at full size, plus a placeholder for the news feed
 - **Calendar** — every round of the season with circuit, location and date
-- **Driver standings** — championship table, with team colour accents
+- **Driver standings** — championship table, with each position in a team-coloured chip
 - **Constructor standings** — team championship table
 - **Session results** — every session of a weekend: practice 1–3, sprint qualifying,
   qualifying, the sprint and the race
@@ -32,6 +32,31 @@ resolved from the API and shown in the Calendar, which is titled with it (for ex
 Every section except Home shows `FeaturedEventBar`, a one-line summary of the featured
 event. Clicking it returns to Home. The bar hides the circuit and date details on narrow
 screens, keeping the race name and countdown.
+
+## Look and feel
+
+The app is styled after the [Golden Lap](https://www.funselektor.com/goldenlap) interface:
+flat, warm and retro. Cream "paper" panels sit on a soft pastel haze, text is near-black
+ink, and a single warm red carries every call to action.
+
+- **Type** — one variable font, [Archivo](https://fonts.google.com/specimen/Archivo), served
+  from `public/fonts`. Its two axes do the whole job: headings and labels are set condensed
+  (`font-stretch: 78%`) in uppercase caps, while tables and body copy stay at normal width.
+  Self-hosting keeps a third party off the critical path, and the file is preloaded because
+  the stylesheet references it immediately.
+- **Colour** — the palette lives in custom properties at the top of `src/index.css`. Cream
+  `#f4efe2` paper, `#1b1b1b` ink, and Golden Lap's `#e4161c` red as the accent. Amber marks
+  an event still to come; magenta marks a fastest lap.
+- **Position chips** — every finishing position is a flat chip filled with that team's
+  colour, the way Golden Lap marks a car on the grid. Chip text flips between ink and paper
+  based on the livery's luminance (`readableInk` in `src/api/teams.ts`), so it stays legible
+  on both a near-white Haas and a near-black livery.
+- **Flat by default** — content surfaces carry no gradients or glows (the only gradient is the
+  pastel backdrop). Depth comes from a hairline border and one soft shadow. Every colour pair
+  used for text was checked against WCAG AA.
+
+There is no dark variant; the theme is defined on custom properties, so one could be added by
+overriding them.
 
 ## Session results
 
@@ -186,7 +211,7 @@ src/
 ├── api/
 │   ├── alpha.ts     # jolpica alpha client + the session codes we render
 │   ├── client.ts    # Ergast-compatible client (calendar, standings)
-│   ├── teams.ts     # constructorId -> team colour fallback
+│   ├── teams.ts     # team colours + readable chip ink
 │   └── types.ts     # response types for both API layers
 ├── components/
 │   ├── Calendar.tsx
@@ -194,22 +219,27 @@ src/
 │   ├── DriverStandings.tsx
 │   ├── FeaturedEvent.tsx        # full panel + compact bar
 │   ├── Feedback.tsx             # Loading / ErrorState / Empty
-│   ├── Header.tsx               # brand + current season
+│   ├── Header.tsx               # checkered-flag mark + wordmark
 │   ├── Home.tsx                 # featured event + news placeholder
 │   ├── NewsPlaceholder.tsx      # empty box for the future news feed
+│   ├── Position.tsx             # team-coloured position chip
 │   ├── RaceResults.tsx          # round + session selection
 │   ├── SeasonView.tsx           # tabs + shared season state
 │   ├── SessionResultTable.tsx   # one table per session format
-│   ├── Tabs.tsx
-│   └── TeamBar.tsx              # colour accent + position badge
+│   └── Tabs.tsx
 ├── hooks/
 │   └── useFetch.ts              # abortable fetch hook with reload
 ├── lib/
 │   ├── format.ts                # date, time and gap formatting
 │   └── schedule.ts              # weekend windows, session codes, featured event
 ├── App.tsx                      # resolves the current season
-├── index.css                    # all styling
+├── index.css                    # theme tokens + all styling
 └── main.tsx
+
+public/
+├── favicon.svg                  # checkered flag
+└── fonts/
+    └── archivo-latin-wdth-normal.woff2   # variable font: weight + width axes
 ```
 
 ## Notes
@@ -218,7 +248,9 @@ src/
   UTC and are converted for display, except for bare dates with no time attached, which are
   calendar days and are shown as written.
 - Team colours for the standings come from a small local map
-  (`src/api/teams.ts`); session results use the exact colour the alpha API returns.
+  (`src/api/teams.ts`); session results use the exact colour the alpha API returns. Either way
+  the colour fills the position chip, and the chip's text colour is chosen from the livery's
+  luminance so it stays readable.
 - Qualifying and practice positions show the numeric position. The alpha API marks drivers
   who set no time in a final segment as `NC` / not classified while still ordering them, so
   the numeric position keeps the table readable and a blank segment column shows the cause.

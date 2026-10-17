@@ -1,7 +1,7 @@
 import { api } from '../api/client'
 import { useFetch } from '../hooks/useFetch'
 import { Empty, ErrorState, Loading } from './Feedback'
-import { Position, TeamBar } from './TeamBar'
+import { Position } from './Position'
 
 interface ConstructorStandingsProps {
   season: string
@@ -50,11 +50,14 @@ export function ConstructorStandings({ season }: ConstructorStandingsProps) {
             {list.map((standing) => (
               <tr key={standing.Constructor.constructorId}>
                 <td className="table__pos">
-                  <Position value={standing.position} positionText={standing.positionText} />
+                  <Position
+                    value={standing.position}
+                    positionText={standing.positionText}
+                    constructorId={standing.Constructor.constructorId}
+                  />
                 </td>
                 <td>
                   <div className="driver">
-                    <TeamBar constructorId={standing.Constructor.constructorId} />
                     <span className="driver__name">{standing.Constructor.name}</span>
                   </div>
                 </td>

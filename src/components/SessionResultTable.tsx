@@ -1,6 +1,6 @@
 import type { AlphaSessionEntry, AlphaSessionResults, SessionCode } from '../api/types'
 import { formatGap, parseSessionTime, raceTimeLabel } from '../lib/format'
-import { Position, TeamBar } from './TeamBar'
+import { Position } from './Position'
 
 /** Segments rendered as their own columns, in order. */
 const SEGMENT_COLUMNS: Partial<Record<SessionCode, readonly string[]>> = {
@@ -56,7 +56,11 @@ function RaceTable({ session }: { session: AlphaSessionResults }) {
           {session.results.map((entry) => (
             <tr key={entry.driver.id}>
               <td className="table__pos">
-                <Position value={String(entry.position)} positionText={entry.position_text} />
+                <Position
+                  value={String(entry.position)}
+                  positionText={entry.position_text}
+                  color={entry.team?.primary_color}
+                />
               </td>
               <td>
                 <DriverCell entry={entry} />
@@ -105,7 +109,7 @@ function QualifyingTable({
           {session.results.map((entry) => (
             <tr key={entry.driver.id}>
               <td className="table__pos">
-                <Position value={String(entry.position)} />
+                <Position value={String(entry.position)} color={entry.team?.primary_color} />
               </td>
               <td>
                 <DriverCell entry={entry} />
@@ -162,7 +166,7 @@ function PracticeTable({ session }: { session: AlphaSessionResults }) {
           {session.results.map((entry) => (
             <tr key={entry.driver.id}>
               <td className="table__pos">
-                <Position value={String(entry.position)} />
+                <Position value={String(entry.position)} color={entry.team?.primary_color} />
               </td>
               <td>
                 <DriverCell entry={entry} />
@@ -184,7 +188,6 @@ function DriverCell({ entry }: { entry: AlphaSessionEntry }) {
 
   return (
     <div className="driver">
-      <TeamBar color={entry.team?.primary_color} />
       <span className="driver__name">
         {entry.driver.given_name} {entry.driver.family_name}
       </span>

@@ -3,7 +3,7 @@ import type { Constructor } from '../api/types'
 import { useFetch } from '../hooks/useFetch'
 import { driverName } from '../lib/format'
 import { Empty, ErrorState, Loading } from './Feedback'
-import { Position, TeamBar } from './TeamBar'
+import { Position } from './Position'
 
 interface DriverStandingsProps {
   season: string
@@ -55,11 +55,14 @@ export function DriverStandings({ season }: DriverStandingsProps) {
             {list.map((standing) => (
               <tr key={standing.Driver.driverId}>
                 <td className="table__pos">
-                  <Position value={standing.position} positionText={standing.positionText} />
+                  <Position
+                    value={standing.position}
+                    positionText={standing.positionText}
+                    constructorId={standing.Constructors[0]?.constructorId}
+                  />
                 </td>
                 <td>
                   <div className="driver">
-                    <TeamBar constructorId={standing.Constructors[0]?.constructorId} />
                     <span className="driver__name">{driverName(standing.Driver)}</span>
                     {standing.Driver.code && (
                       <span className="driver__code">{standing.Driver.code}</span>
