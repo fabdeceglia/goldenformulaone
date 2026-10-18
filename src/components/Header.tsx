@@ -1,28 +1,10 @@
-/** A 4x4 checkered flag — the one graphic motif the theme hangs on. */
-const CHECKER = 4
-const CELL = 24 / CHECKER
-
+/** The brand mark: the pit-wall operator who fronts the app. */
 export function Header() {
   return (
     <header className="header">
       <div className="brand">
-        <span className="brand__mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24" focusable="false">
-            {Array.from({ length: CHECKER * CHECKER }, (_, index) => {
-              const row = Math.floor(index / CHECKER)
-              const column = index % CHECKER
-              return (
-                <rect
-                  key={index}
-                  x={column * CELL}
-                  y={row * CELL}
-                  width={CELL}
-                  height={CELL}
-                  className={(row + column) % 2 === 0 ? 'brand__check--red' : 'brand__check--paper'}
-                />
-              )
-            })}
-          </svg>
+        <span className="brand__mark">
+          <img src="/logo.png" alt="" width={128} height={128} />
         </span>
 
         <div className="brand__text">

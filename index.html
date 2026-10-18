@@ -2,10 +2,30 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" href="/favicon-32x32.png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Live Formula 1 standings and updates from the pit wall." />
     <meta name="theme-color" content="#d9d3dc" />
+
+    <!-- Link previews (Open Graph + Twitter). og:url and og:image must be absolute,
+         so replace the boxthislap.example placeholder with the production origin once
+         the domain is live, then re-scrape the URL on each platform. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Box this Lap!" />
+    <meta property="og:title" content="Box this Lap!" />
+    <meta property="og:description" content="Live Formula 1 standings and updates from the pit wall." />
+    <meta property="og:url" content="https://boxthislap.example/" />
+    <meta property="og:image" content="https://boxthislap.example/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Box this Lap! — a headset-wearing pit-wall operator above the tagline" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Box this Lap!" />
+    <meta name="twitter:description" content="Live standings and updates from the pit wall." />
+    <meta name="twitter:image" content="https://boxthislap.example/og-image.png" />
     <title>Box this Lap!</title>
     <!-- Loaded with the document rather than after the CSS, since the stylesheet
          references it immediately. Same-origin, but fonts are always CORS. -->

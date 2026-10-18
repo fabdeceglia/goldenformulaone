@@ -45,9 +45,9 @@ narrow screens, keeping the race name and countdown.
 
 The app is styled after the [Golden Lap](https://www.funselektor.com/goldenlap) interface:
 flat, warm and retro. Cream "paper" panels sit on a soft pastel haze, text is near-black
-ink, and a single warm red carries every call to action. The header pairs a checkered-flag
-mark with the name **Box this Lap!** and its tagline, "Live standings and updates from the
-pit wall."
+ink, and a single warm red carries every call to action. The header pairs a headset-wearing
+pit-wall operator mark with the name **Box this Lap!** and its tagline, "Live standings and
+updates from the pit wall."
 
 - **Type** — one variable font, [Archivo](https://fonts.google.com/specimen/Archivo), served
   from `public/fonts`. Its two axes do the whole job: headings and labels are set condensed
@@ -237,7 +237,7 @@ src/
 │   ├── DriverStandings.tsx
 │   ├── FeaturedEvent.tsx        # full panel + compact bar
 │   ├── Feedback.tsx             # Loading / ErrorState / Empty
-│   ├── Header.tsx               # checkered-flag mark + wordmark
+│   ├── Header.tsx               # brand mark + wordmark
 │   ├── Home.tsx                 # featured event + news placeholder
 │   ├── Modal.tsx                # native <dialog> shell for the details popup
 │   ├── NewsPlaceholder.tsx      # empty box for the future news feed
@@ -256,7 +256,16 @@ src/
 └── main.tsx
 
 public/
-├── favicon.svg                  # checkered flag
+├── apple-touch-icon.png         # 180x180 touch icon
+├── favicon-32x32.png            # PNG favicon
+├── favicon.ico                  # multi-size favicon (16/32/48)
+├── icon-192.png                 # PWA icon
+├── icon-512.png                 # PWA icon
+├── icon-maskable-512.png        # maskable PWA icon
+├── logo.png                     # header brand mark
+├── og-image.png                 # social preview card (1200x630)
+├── og-image-square.png          # square social card (1080x1080)
+├── site.webmanifest             # web app manifest
 └── fonts/
     └── archivo-latin-wdth-normal.woff2   # variable font: weight + width axes
 ```
@@ -280,3 +289,7 @@ public/
   the lead lap, `+1 Lap` for cars a lap down, and the status for retirements.
 - The API is free and rate limited; responses are not cached, so each round and session
   selection refetches.
+- The link-preview tags in `index.html` (`og:*` and `twitter:*`) point at a placeholder
+  origin, `https://boxthislap.example`. Swap it for the real production domain before
+  deploying, since `og:url` and `og:image` have to be absolute URLs. The cards themselves
+  (`public/og-image.png`, `public/og-image-square.png`) are already in place.
