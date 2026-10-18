@@ -290,7 +290,7 @@ public/
   the lead lap, `+1 Lap` for cars a lap down, and the status for retirements.
 - The API is free and rate limited; responses are not cached, so each round and session
   selection refetches.
-- The link-preview tags in `index.html` (`og:*` and `twitter:*`) point at a placeholder
-  origin, `https://boxthislap.example`. Swap it for the real production domain before
-  deploying, since `og:url` and `og:image` have to be absolute URLs. The cards themselves
-  (`public/og-image.png`, `public/og-image-square.png`) are already in place.
+- The link-preview tags in `index.html` (`og:*` and `twitter:*`) are pinned to the deployed
+  origin, `https://boxthislap.vercel.app`, because `og:url` and `og:image` have to be
+  absolute URLs — update them if the site moves. The cards (`public/og-image.png`,
+  `public/og-image-square.png`) are rendered from the app's own tokens and font.
