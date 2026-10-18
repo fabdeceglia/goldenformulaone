@@ -1386,6 +1386,12 @@ a:hover {
   margin-top: 1.5rem;
 }
 
+/* The layout picker sits right under the map, so it keeps the map in view
+   while the reader flips between configurations. */
+.circuit__section--layouts {
+  margin-top: 0.9rem;
+}
+
 .circuit__section-title {
   margin: 0 0 0.8rem;
   padding-bottom: 0.4rem;

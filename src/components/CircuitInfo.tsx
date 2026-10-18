@@ -75,6 +75,29 @@ export function CircuitInfoPanel({ race }: { race: Race }) {
         )}
       </figure>
 
+      {layout && layout.layouts.length > 1 && (
+        <div className="circuit__section circuit__section--layouts">
+          <h3 className="circuit__section-title">Layout history</h3>
+          <ul className="circuit__layouts">
+            {layout.layouts.map((entry) => (
+              <li key={entry.layoutId}>
+                <button
+                  type="button"
+                  className={`circuit__layout${entry.layoutId === selectedId ? ' is-selected' : ''}`}
+                  onClick={() => setSelected(entry.layoutId)}
+                  aria-pressed={entry.layoutId === selectedId}
+                >
+                  <span className="circuit__layout-seasons">{seasonLabel(entry.seasons)}</span>
+                  {entry.layoutId === layout.current && (
+                    <span className="circuit__layout-tag">Current</span>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <dl className="circuit__facts">
         <div className="circuit__fact">
           <dt>Coordinates</dt>
@@ -163,29 +186,6 @@ export function CircuitInfoPanel({ race }: { race: Race }) {
           <p className="circuit__none">No races have been held at this circuit yet.</p>
         )}
       </div>
-
-      {layout && layout.layouts.length > 1 && (
-        <div className="circuit__section">
-          <h3 className="circuit__section-title">Layout history</h3>
-          <ul className="circuit__layouts">
-            {layout.layouts.map((entry) => (
-              <li key={entry.layoutId}>
-                <button
-                  type="button"
-                  className={`circuit__layout${entry.layoutId === selectedId ? ' is-selected' : ''}`}
-                  onClick={() => setSelected(entry.layoutId)}
-                  aria-pressed={entry.layoutId === selectedId}
-                >
-                  <span className="circuit__layout-seasons">{seasonLabel(entry.seasons)}</span>
-                  {entry.layoutId === layout.current && (
-                    <span className="circuit__layout-tag">Current</span>
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </section>
   )
 }
