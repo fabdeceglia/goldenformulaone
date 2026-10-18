@@ -1,20 +1,15 @@
 import { useState } from 'react'
 import type { AlphaSessionEntry, AlphaSessionResults, SessionCode } from '../api/types'
 import { formatGap, parseSessionTime, raceTimeLabel } from '../lib/format'
+import { QUALIFYING_SEGMENTS } from '../lib/grid'
 import { Position } from './Position'
-
-/** Segments rendered as their own columns, in order. */
-const SEGMENT_COLUMNS: Partial<Record<SessionCode, readonly string[]>> = {
-  Q: ['Q1', 'Q2', 'Q3'],
-  SQ: ['SQ1', 'SQ2', 'SQ3'],
-}
 
 const RACE_CODES: readonly SessionCode[] = ['R', 'SR']
 
 /** Classification for a single session, with columns suited to its format. */
 export function SessionResultTable({ session }: { session: AlphaSessionResults }) {
   if (RACE_CODES.includes(session.code)) return <RaceTable session={session} />
-  const segments = SEGMENT_COLUMNS[session.code]
+  const segments = QUALIFYING_SEGMENTS[session.code]
   if (segments) return <QualifyingTable session={session} segments={segments} />
   return <PracticeTable session={session} />
 }

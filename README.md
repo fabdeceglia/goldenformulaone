@@ -16,7 +16,8 @@ powered by the free [jolpica-f1](https://github.com/jolpica/jolpica-f1) API.
 - **The Grid** — driver championship table, with each position in a team-coloured chip
 - **Constructors** — team championship table
 - **Chequered Flag** — every session of a weekend: practice 1–3, sprint qualifying,
-  qualifying, the sprint and the race
+  qualifying, the sprint and the race. Qualifying can also be read as a **Starting
+  Grid**, laid out the way the cars line up
 - The featured event stays visible in every section as a compact bar that links back to
   The Pit Wall
 - Dates and times are shown in **your own timezone**, not the circuit's
@@ -97,6 +98,36 @@ Notes:
   1 rather than jumping ahead to the race.
 - Sessions with no data yet show an explicit "not available yet" notice, which is the normal
   case for rounds still to come.
+
+### The Starting Grid
+
+Qualifying and sprint qualifying can be read two ways. A **Table | Grid** toggle sits at the
+far end of the session bar — only for `Q` and `SQ`, because only they have a grid to show —
+and the table stays the default, so nothing changes for anyone who does not go looking.
+
+The grid is drawn from the payload already on screen: switching views makes **no new
+request**. Each plate carries the grid slot, the **car number** in the livery colour, the
+driver over the team, one dot per segment (filled when a time was set in it, hollow when the
+car was already out of that part of qualifying) and the gap to pole. Every car is measured
+against the pole, so the pole plate has no gap to show — it prints the **pole time** itself,
+in ink rather than as a muted delta. The pole-sitter also gets the heavier plate and a red
+slot label.
+
+Cars that set no time are not on the grid: they are pulled out of the classification and
+listed below it as **Did not qualify**, with no slot and an `NC` mark. Slots are numbered
+from 1 in grid order rather than taken from the API, so an excluded car does not leave a hole
+behind it — Singapore's sprint qualifying has two cars retire in SQ3, and the 20 that remain
+are grid slots 1–20.
+
+Two details worth knowing:
+
+- **The two columns are one ordered list.** The classification stays in reading order and CSS
+  drops every second plate half a row, which is what makes the columns interlock. A screen
+  reader, and the single-column layout a phone falls back to, both read the grid straight
+  down from pole.
+- **The car number is on the plate; the slot is what orders it.** The badge is decorative to
+  assistive tech, the `P1` label is not, so a plate reads as "P1, Max Verstappen, Red Bull" —
+  the number alone would be ambiguous out of context.
 
 ### Where the data comes from
 
@@ -301,14 +332,16 @@ src/
 │   ├── Modal.tsx                # native <dialog> shell for the details popup
 │   ├── NewsPanel.tsx            # the headline list, shared by home and the section
 │   ├── Position.tsx             # team-coloured position chip
-│   ├── RaceResults.tsx          # round + session selection
+│   ├── RaceResults.tsx          # round + session selection, Table | Grid toggle
 │   ├── SeasonView.tsx           # nav tabs + shared season state
 │   ├── SessionResultTable.tsx   # one table per session format
+│   ├── StartingGridView.tsx     # qualifying as a staggered grid of plates
 │   └── Tabs.tsx
 ├── hooks/
 │   └── useFetch.ts              # abortable fetch hook with reload
 ├── lib/
 │   ├── format.ts                # date, time and gap formatting
+│   ├── grid.ts                  # qualifying classification → grid slots and gaps
 │   └── schedule.ts              # weekend windows, session codes, race-day status
 ├── App.tsx                      # resolves the current season
 ├── index.css                    # theme tokens + all styling

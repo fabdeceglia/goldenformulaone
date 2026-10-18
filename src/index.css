@@ -140,6 +140,9 @@ a:hover {
 .event-bar__cta,
 .news__kicker,
 .panel__more,
+.view-toggle__button,
+.plate__slot,
+.plate__team,
 .table thead th {
   font-stretch: var(--condensed);
   text-transform: uppercase;
@@ -292,6 +295,41 @@ a:hover {
   font-size: 0.76rem;
 }
 
+/* Table | Grid. The same pill as the session tabs, pushed to the far end of the
+   subhead so the two controls read as one row: what session, and how to see it. */
+.view-toggle {
+  display: inline-flex;
+  gap: 0.2rem;
+  margin-left: auto;
+  padding: 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+}
+
+.view-toggle__button {
+  padding: 0.32rem 0.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.view-toggle__button:hover {
+  background: var(--paper-hover);
+  color: var(--ink);
+}
+
+.view-toggle__button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
 /* ---------- Panel ---------- */
 
 .panel {
@@ -419,6 +457,13 @@ a:hover {
   white-space: nowrap;
 }
 
+/* A numeric header labels the same column as the figures beneath it, so it has to
+   share their alignment. `.table thead th` outranks `.table__num` on specificity,
+   so the element has to appear in the selector for the override to take effect. */
+.table thead th.table__num {
+  text-align: right;
+}
+
 .table__num--strong {
   font-weight: 700;
 }
@@ -525,6 +570,158 @@ a:hover {
 .badge--fastest-detail:focus-visible .badge__bubble,
 .badge--fastest-detail.is-open .badge__bubble {
   display: block;
+}
+
+/* ---------- Starting grid ----------
+   Qualifying laid out as the cars line up. One ordered list, two columns: the
+   classification stays in reading order and only the even plates are dropped
+   half a row, which is what makes the columns interlock. */
+
+.grid-view {
+  padding: 1.1rem 1.15rem 1.3rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem 0.85rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The overhanging right column needs somewhere to land. */
+.grid--start {
+  padding-bottom: 1.7rem;
+}
+
+.grid--start > .plate:nth-child(even) {
+  transform: translateY(50%);
+}
+
+.plate {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.42rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper-raised);
+  box-shadow: 0 2px 0 var(--line);
+}
+
+.plate--pole {
+  border-color: var(--ink);
+  box-shadow: 0 2px 0 var(--ink);
+}
+
+.plate__slot {
+  flex: none;
+  /* Wide enough for "P21", so the badges stay on one rail. */
+  width: 2.4em;
+  color: var(--ink-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.plate--pole .plate__slot {
+  color: var(--red-deep);
+}
+
+/* The car number, in the livery colour — the mark the game puts on a plate. */
+.plate__badge {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.plate__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.plate__name {
+  overflow: hidden;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.plate__team {
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 0.66rem;
+  line-height: 1.25;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.plate__detail {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.plate__gap {
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The pole plate carries the pole time where the others carry a gap: the
+   reference itself, so it is set in ink rather than as a muted delta. */
+.plate__gap--pole {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* One dot per segment: filled when a time was set, hollow when the car was
+   already out of that part of qualifying. */
+.plate__dots {
+  display: inline-flex;
+  gap: 0.18rem;
+}
+
+.plate__dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+}
+
+.plate__dot.is-set {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+
+.grid__out {
+  margin-top: 0.4rem;
+}
+
+.grid__out-title {
+  margin: 0 0 0.5rem;
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-stretch: var(--condensed);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
 }
 
 .race-name {
@@ -1175,6 +1372,18 @@ a:hover {
   .table tbody td {
     padding-left: 0.7rem;
     padding-right: 0.7rem;
+  }
+
+  /* A phone has no room for two interlocking columns, so the grid flattens to a
+     single ordered column — which is the order the list already reads in. */
+  .grid,
+  .grid--start {
+    grid-template-columns: minmax(0, 1fr);
+    padding-bottom: 0;
+  }
+
+  .grid--start > .plate:nth-child(even) {
+    transform: none;
   }
 
   /* A phone stacks the hero above the news, and the tab bar runs to three rows,

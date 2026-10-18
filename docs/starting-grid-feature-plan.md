@@ -1,6 +1,7 @@
 # Starting Grid View — Feature Plan
 
-> Status: **planning**. No implementation yet.
+> Status: **implemented** (2026-10-18). See §13 for what shipped and which open
+> questions were answered.
 > Owner: Fabrizio · Created: 2026-10-18
 > Folder note: `docs/` sits outside the Vite build (the build only bundles
 > `index.html` + `src/` and copies `public/`), so this document is version-controlled
@@ -126,17 +127,16 @@ RaceResults (Chequered Flag)
 ```
 
 - **`src/lib/grid.ts`** (new) — pure helpers, unit-testable, no DOM:
-  - `gridRows(results)` → ordered entries + a trailing "did not qualify" bucket.
-  - `columnSplit(entries)` → `{ left: odd positions, right: even positions }`.
+  - `gridRows(results)` → the grid entries in order + a trailing "did not qualify" bucket.
   - `segmentParticipation(entry, segments)` → `boolean[]`.
   - `gapToPole(entry, leaderTime)` → string (wraps `parseSessionTime` + `formatGap`).
+  - `QUALIFYING_SEGMENTS` → the segment codes, shared with the table so the two cannot
+    drift.
 - **`src/components/StartingGridView.tsx`** (new) — renders the two columns of plates.
-  Reuses the `Position` chip idea (team colour + `readableInk`) for the number badge.
-- **Toggle placement** — a small `Tabs`-style or button-group control. Simplest: render it
-  from `RaceResults` in the existing `.panel__subhead` (right-aligned, mirroring the
-  Replay-button pattern already planned for that row), and pass the chosen view down.
-- **State** — a single `useState<'table' | 'grid'>('table')`, reset per session is fine;
-  persistence is an open question (§12 Q6).
+  Reuses the number-badge idea (team colour + `readableInk`).
+- **Toggle placement** — a small button group rendered from `RaceResults` in the existing
+  `.panel__subhead`, right-aligned with `margin-left: auto`.
+- **State** — a single `useState<'table' | 'grid'>('table')`, no persistence.
 
 No changes to `alpha.ts`, `types.ts`, `vite.config.ts` or the proxy layer.
 
@@ -191,10 +191,12 @@ Keep it in the app's **paper & ink** system rather than the game's frosted glass
 
 Goal: prove the layout against one hardcoded session.
 
-- [ ] `src/lib/grid.ts`: `gridRows`, `columnSplit`, `segmentParticipation`, `gapToPole`.
-- [ ] `src/components/StartingGridView.tsx`: two columns of plates, no toggle yet.
-- [ ] Drop it in behind a temporary flag, hardcoded to the 2026 Singapore `Q` payload.
-- [ ] Verify the stagger, badges, names and NC strip read correctly.
+> Folded into Phase 1: the layout was proven against live qualifying instead of a hardcoded
+> payload, so there was no throwaway flag to add and remove.
+
+- [x] `src/lib/grid.ts`: `gridRows`, `segmentParticipation`, `gapToPole` (+ `QUALIFYING_SEGMENTS`).
+- [x] `src/components/StartingGridView.tsx`: two columns of plates.
+- [x] Verify the stagger, badges, names and NC strip read correctly.
 
 **Acceptance:** a completed qualifying renders as a legible staggered grid.
 
@@ -202,21 +204,21 @@ Goal: prove the layout against one hardcoded session.
 
 Goal: the real feature, end to end, from existing data.
 
-- [ ] View toggle in `RaceResults` (`.panel__subhead`), shown only for `Q`/`SQ`.
-- [ ] Wire the toggle to render `StartingGridView` or `SessionResultTable`.
-- [ ] Segment dots + gap-to-pole in the plate detail cluster.
-- [ ] NC / retired strip.
-- [ ] Accessibility pass (ordered list, toggle semantics).
+- [x] View toggle in `RaceResults` (`.panel__subhead`), shown only for `Q`/`SQ`.
+- [x] Wire the toggle to render `StartingGridView` or `SessionResultTable`.
+- [x] Segment dots + gap-to-pole in the plate detail cluster.
+- [x] NC / retired strip.
+- [x] Accessibility pass (ordered list, toggle semantics).
 
 **Acceptance:** selecting qualifying offers a Table/Grid switch; the grid matches the
 classification and needs zero new fetches.
 
 ### Phase 2 — Polish / extend
 
-- [ ] Responsive single-column fallback.
-- [ ] Decide and implement the red-highlight meaning.
+- [x] Responsive single-column fallback.
+- [x] Decide and implement the red-highlight meaning (pole).
 - [ ] Optional: reuse the same plates for the **race** starting grid (`GRID` component).
-- [ ] Note the view in `README.md`.
+- [x] Note the view in `README.md`.
 
 ---
 
@@ -289,3 +291,60 @@ classification and needs zero new fetches.
   `session_id` is the required filter — `session` and `page_size` are rejected (400).
 - **No sector data exists**: `/Q/sectors/`, `/Q/laps/`, `/Q/components/` → **404**.
 - A round in the future returns an empty `results[]` (its `timestamp` is still ahead).
+
+---
+
+## 13. Implementation notes (2026-10-18)
+
+Shipped in one pass, Phase 0 folded into Phase 1 (the layout was proven directly against
+live qualifying rather than a hardcoded payload).
+
+**Files**
+
+- `src/lib/grid.ts` — `gridRows`, `gapToPole`, `segmentParticipation`, `QUALIFYING_SEGMENTS`.
+- `src/components/StartingGridView.tsx` — the plates and the did-not-qualify strip.
+- `src/components/RaceResults.tsx` — the toggle and the conditional render.
+- `src/components/SessionResultTable.tsx` — now imports `QUALIFYING_SEGMENTS` instead of
+  keeping its own copy, so the table and the grid read the segments off one map.
+- `src/index.css` — `.view-toggle`, `.grid*`, `.plate*`, plus the `≤640px` single-column
+  fallback.
+- `README.md` — "The Starting Grid" under *Session results*.
+
+**Open questions, answered**
+
+| # | Question | Decision |
+| --- | --- | --- |
+| 1 | Toggle placement & wording | `Table / Grid`, a `role="group"` of `aria-pressed` buttons, right-aligned in `.panel__subhead` |
+| 2 | Detail cluster | Segment dots + gap to pole; the pole plate prints the pole time, since its own gap would be zero |
+| 3 | Red highlight | Pole only: the heavier plate, and its slot label in red |
+| 4 | Race sessions too? | Not now — qualifying only, as scoped |
+| 5 | Default view | Table, unchanged |
+| 6 | Persistence | None — component state, no `localStorage` |
+| 7 | 20 vs 22 | A trailing "Did not qualify" strip outside the `<ol>` |
+
+**Deviations from the plan, and why**
+
+- **No `columnSplit`.** With `grid-template-columns: repeat(2, 1fr)` and the default
+  `grid-auto-flow: row`, DOM order 1…N already places odd slots left and even slots right, so
+  the split is free. Keeping one ordered list is what lets the reading order stay the
+  classification order while the stagger is done entirely in CSS.
+- **Slots are renumbered 1…N in grid order**, not taken from `entry.position`. Singapore's
+  *sprint* qualifying has two cars marked `NC` at API positions 9 and 10; using the API's
+  numbers would have produced P1–P8 and P11–P22 with a hole in the middle. A real grid closes
+  up behind an excluded car, so the grid is renumbered and the excluded cars drop to the
+  strip. Where nothing is excluded the two agree.
+- **The slot label sits beside the badge.** The plan put the car number on the badge, which
+  is right for the Golden Lap look, but a grid whose order is only implied is worse than one
+  that states it, so each plate also carries `P1`, `P2`, … The badge is `aria-hidden` (a bare
+  number is ambiguous out of context); the slot label is not.
+- **A button group, not a `Tabs` variant.** The session bar already holds a `role="tablist"`;
+  a second tablist in the same row would make the session tabs sound like they switch panels.
+
+**Verified** — `npm run build`, `npm run lint`, and `grid-check.mjs` (47 assertions: the
+toggle's visibility rules, the grid drawn with no new request, classification order and the
+interlock, plate contents including the pole time taken from the table, segment dots, the NC
+strip, list/toggle semantics, sprint qualifying renumbering, the phone single-column fallback
+and no sideways scroll, console clean), plus screenshots at 1280, 390 and 320 px.
+
+**Still open** — the race/sprint `GRID` reuse (§12 Q4), and whether the strip should show a
+reason (`RETIRED`) rather than a bare `NC`.

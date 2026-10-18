@@ -6,6 +6,7 @@ import { formatDateTime } from '../lib/format'
 import { NOW_MILLIS, defaultSession, raceSchedule } from '../lib/schedule'
 import { Empty, ErrorState, Loading } from './Feedback'
 import { SessionResultTable } from './SessionResultTable'
+import { StartingGridView } from './StartingGridView'
 import { Tabs } from './Tabs'
 import type { Tab } from './Tabs'
 
@@ -20,6 +21,7 @@ interface RaceResultsProps {
 
 export function RaceResults({ season, races, round, roundId, onRoundChange }: RaceResultsProps) {
   const [sessionChoice, setSessionChoice] = useState<SessionCode | null>(null)
+  const [view, setView] = useState<'table' | 'grid'>('table')
 
   const selectedRace = races.find((race) => race.round === round)
 
@@ -66,6 +68,11 @@ export function RaceResults({ season, races, round, roundId, onRoundChange }: Ra
 
   const sessionLabel = sessionTabs.find((tab) => tab.id === session)?.label ?? session
 
+  // Only qualifying has a starting grid to show, and the toggle is the only way
+  // to reach it: every other session stays on the table it has always had.
+  const gridAvailable = session === 'Q' || session === 'SQ'
+  const showingGrid = gridAvailable && view === 'grid'
+
   return (
     <section className="panel" aria-labelledby="results-title">
       <div className="panel__head panel__head--stack">
@@ -108,6 +115,27 @@ export function RaceResults({ season, races, round, roundId, onRoundChange }: Ra
             ariaLabel="Session"
             variant="compact"
           />
+
+          {gridAvailable && (
+            <div className="view-toggle" role="group" aria-label="Results view">
+              <button
+                type="button"
+                className="view-toggle__button"
+                aria-pressed={view === 'table'}
+                onClick={() => setView('table')}
+              >
+                Table
+              </button>
+              <button
+                type="button"
+                className="view-toggle__button"
+                aria-pressed={view === 'grid'}
+                onClick={() => setView('grid')}
+              >
+                Grid
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -130,7 +158,7 @@ export function RaceResults({ season, races, round, roundId, onRoundChange }: Ra
       )}
 
       {data && !loading && !error && data.results.length > 0 && (
-        <SessionResultTable session={data} />
+        showingGrid ? <StartingGridView session={data} /> : <SessionResultTable session={data} />
       )}
     </section>
   )
