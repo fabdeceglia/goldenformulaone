@@ -1551,6 +1551,14 @@ a:hover {
     font-size: 0.74rem;
   }
 
+  /* The session selector in the results head wraps to two rows on a phone, so it
+     squares off for the same reason as the section bar. The Table|Grid toggle
+     beside it follows, so the row reads as one control strip. */
+  .tabs--compact,
+  .view-toggle {
+    border-radius: 0;
+  }
+
   .table thead th,
   .table tbody td {
     padding-left: 0.7rem;
