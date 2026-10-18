@@ -1,7 +1,8 @@
+import { useState } from 'react'
 import type { Race } from '../api/types'
 import { api } from '../api/client'
 import { useFetch } from '../hooks/useFetch'
-import { CIRCUITS, circuitImage } from '../lib/circuits'
+import { CIRCUITS, circuitLayoutImage } from '../lib/circuits'
 import { summariseCircuit } from '../lib/circuitHistory'
 import { ErrorState, Loading } from './Feedback'
 
@@ -21,8 +22,18 @@ export function CircuitInfoPanel({ race }: { race: Race }) {
   const circuitId = Circuit.circuitId
 
   const layout = CIRCUITS[circuitId]
-  const image = circuitImage(circuitId)
-  const current = layout?.layouts.find((entry) => entry.layoutId === layout.current)
+
+  // Which configuration is on show: the circuit's current one until the reader
+  // picks another from the layout history. The guard means a stale id — from a
+  // different circuit — can never point at a missing file.
+  const [selected, setSelected] = useState<string | null>(null)
+  const selectedId =
+    selected && layout?.layouts.some((entry) => entry.layoutId === selected)
+      ? selected
+      : (layout?.current ?? null)
+  const shown = layout?.layouts.find((entry) => entry.layoutId === selectedId)
+  const isCurrentLayout = selectedId !== null && selectedId === layout?.current
+  const image = selectedId ? circuitLayoutImage(selectedId) : undefined
 
   const { data, loading, error, reload } = useFetch(
     (signal) => api.circuitWinners(circuitId, signal),
@@ -48,15 +59,20 @@ export function CircuitInfoPanel({ race }: { race: Race }) {
           <img
             className="circuit__map"
             src={image}
-            alt={`${Circuit.circuitName} track layout`}
-            loading="lazy"
+            alt={`${Circuit.circuitName} track layout${
+              shown ? ` from ${seasonLabel(shown.seasons)}` : ''
+            }`}
           />
         ) : (
           <p className="circuit__map circuit__map--missing">
             No track layout available for this circuit yet.
           </p>
         )}
-        {current && <figcaption className="circuit__caption">Layout in use · {seasonLabel(current.seasons)}</figcaption>}
+        {shown && (
+          <figcaption className="circuit__caption">
+            {isCurrentLayout ? 'Layout in use' : 'Layout used'} · {seasonLabel(shown.seasons)}
+          </figcaption>
+        )}
       </figure>
 
       <dl className="circuit__facts">
@@ -153,14 +169,18 @@ export function CircuitInfoPanel({ race }: { race: Race }) {
           <h3 className="circuit__section-title">Layout history</h3>
           <ul className="circuit__layouts">
             {layout.layouts.map((entry) => (
-              <li
-                key={entry.layoutId}
-                className={`circuit__layout${entry.layoutId === layout.current ? ' is-current' : ''}`}
-              >
-                <span className="circuit__layout-seasons">{seasonLabel(entry.seasons)}</span>
-                {entry.layoutId === layout.current && (
-                  <span className="circuit__layout-tag">Current</span>
-                )}
+              <li key={entry.layoutId}>
+                <button
+                  type="button"
+                  className={`circuit__layout${entry.layoutId === selectedId ? ' is-selected' : ''}`}
+                  onClick={() => setSelected(entry.layoutId)}
+                  aria-pressed={entry.layoutId === selectedId}
+                >
+                  <span className="circuit__layout-seasons">{seasonLabel(entry.seasons)}</span>
+                  {entry.layoutId === layout.current && (
+                    <span className="circuit__layout-tag">Current</span>
+                  )}
+                </button>
               </li>
             ))}
           </ul>

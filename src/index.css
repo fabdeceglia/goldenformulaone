@@ -1454,13 +1454,22 @@ a:hover {
   border: 1px solid var(--line);
   border-radius: 3px;
   background: var(--paper-raised);
+  color: var(--ink);
+  font: inherit;
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
 }
 
-.circuit__layout.is-current {
+.circuit__layout:hover {
+  border-color: var(--line-strong);
+  background: var(--paper-hover);
+}
+
+.circuit__layout.is-selected {
   border-color: var(--red-deep);
-  background: rgba(228, 22, 28, 0.08);
+  background: rgba(228, 22, 28, 0.1);
 }
 
 .circuit__layout-tag {
