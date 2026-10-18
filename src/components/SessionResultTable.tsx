@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { AlphaSessionEntry, AlphaSessionResults, SessionCode } from '../api/types'
 import { formatGap, parseSessionTime, raceTimeLabel } from '../lib/format'
 import { Position } from './Position'
@@ -185,20 +186,44 @@ function PracticeTable({ session }: { session: AlphaSessionResults }) {
 
 function DriverCell({ entry }: { entry: AlphaSessionEntry }) {
   const fastestLap = entry.components?.FLAP?.position === 1
+  const fastestLapTime = entry.components?.FLAP?.time
 
   return (
     <div className="driver">
-      <span className="driver__name">
-        {entry.driver.given_name} {entry.driver.family_name}
-      </span>
       {entry.driver.abbreviation && (
         <span className="driver__code">{entry.driver.abbreviation}</span>
       )}
-      {fastestLap && (
-        <span className="badge badge--fastest" title="Fastest lap">
-          FL
+      <span className="driver__name">
+        {entry.driver.given_name} {entry.driver.family_name}
+      </span>
+      {fastestLap && <FastestLapBadge time={fastestLapTime} />}
+    </div>
+  )
+}
+
+/**
+ * The fastest-lap marker, which carries the lap time in a bubble. It is a
+ * button so the bubble can be opened without a mouse: hover and keyboard focus
+ * are handled in CSS, but a tap does not focus a button in every browser
+ * (Safari notably), so tapping toggles it through state instead.
+ */
+function FastestLapBadge({ time }: { time?: string }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <button
+      type="button"
+      className={`badge badge--fastest badge--fastest-detail${open ? ' is-open' : ''}`}
+      aria-label={time ? `FL, fastest lap ${time}` : 'FL, fastest lap'}
+      onClick={() => setOpen((value) => !value)}
+      onBlur={() => setOpen(false)}
+    >
+      FL
+      {time && (
+        <span className="badge__bubble" aria-hidden="true">
+          {time}
         </span>
       )}
-    </div>
+    </button>
   )
 }

@@ -56,7 +56,8 @@ updates from the pit wall."
   the stylesheet references it immediately.
 - **Colour** — the palette lives in custom properties at the top of `src/index.css`. Cream
   `#f4efe2` paper, `#1b1b1b` ink, and Golden Lap's `#e4161c` red as the accent. Amber marks
-  an event still to come; magenta marks a fastest lap.
+  an event still to come; magenta marks a fastest lap, and the `FL` chip carries the lap time
+  in a bubble that opens on hover, on keyboard focus or on tap.
 - **Position chips** — every finishing position is a flat chip filled with that team's
   colour, the way Golden Lap marks a car on the grid. Chip text flips between ink and paper
   based on the livery's luminance (`readableInk` in `src/api/teams.ts`), so it stays legible

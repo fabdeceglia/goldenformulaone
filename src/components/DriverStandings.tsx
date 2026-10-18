@@ -63,10 +63,10 @@ export function DriverStandings({ season }: DriverStandingsProps) {
                 </td>
                 <td>
                   <div className="driver">
-                    <span className="driver__name">{driverName(standing.Driver)}</span>
                     {standing.Driver.code && (
                       <span className="driver__code">{standing.Driver.code}</span>
                     )}
+                    <span className="driver__name">{driverName(standing.Driver)}</span>
                   </div>
                 </td>
                 <td className="muted hide-sm">{teamNames(standing.Constructors)}</td>

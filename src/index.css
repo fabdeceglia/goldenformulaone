@@ -444,7 +444,13 @@ a:hover {
   white-space: nowrap;
 }
 
+/* The three-letter code leads the name, so every code sits on one vertical rail
+   rather than trailing each name at its own length. The width is fixed rather
+   than a minimum because condensed glyphs differ in width ("VER" is wider than
+   "ANT"), which would otherwise nudge the name start from row to row. */
 .driver__code {
+  flex: none;
+  width: 3.6em;
   padding: 0.08rem 0.34rem;
   border: 1px solid var(--line-strong);
   border-radius: 3px;
@@ -452,6 +458,8 @@ a:hover {
   color: var(--ink-muted);
   font-size: 0.64rem;
   font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .badge {
@@ -464,6 +472,42 @@ a:hover {
 .badge--fastest {
   background: var(--magenta);
   color: var(--paper-ink);
+}
+
+/* The badge is a button so its lap time can be opened by tap as well as hover.
+   It keeps the flat chip look: only the cursor and the bubble give it away. */
+.badge--fastest-detail {
+  position: relative;
+  border: 0;
+  font-family: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+/* Sits above the chip rather than below, because `.table-wrap` scrolls
+   horizontally and therefore clips on the vertical axis too: above the chip
+   there is always the header row's worth of room. */
+.badge__bubble {
+  position: absolute;
+  bottom: calc(100% + 0.35rem);
+  left: 50%;
+  z-index: 2;
+  display: none;
+  padding: 0.28rem 0.5rem;
+  border-radius: 4px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.badge--fastest-detail:hover .badge__bubble,
+.badge--fastest-detail:focus-visible .badge__bubble,
+.badge--fastest-detail.is-open .badge__bubble {
+  display: block;
 }
 
 .race-name {
