@@ -189,7 +189,7 @@ function DriverCell({ entry }: { entry: AlphaSessionEntry }) {
   const fastestLapTime = entry.components?.FLAP?.time
 
   return (
-    <div className="driver">
+    <div className={`driver${entry.driver.abbreviation ? ' driver--coded' : ''}`}>
       {entry.driver.abbreviation && (
         <span className="driver__code">{entry.driver.abbreviation}</span>
       )}

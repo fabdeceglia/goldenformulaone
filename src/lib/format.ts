@@ -109,6 +109,27 @@ export function formatDateTime(date: string | undefined, time?: string): string 
   return clock ? `${day} · ${clock}` : day
 }
 
+/* ---------- News timestamps ---------- */
+
+/**
+ * News is read as an age rather than a date: "12 min ago" up close, and a plain
+ * day — "Sat 11 Oct" — once a story is more than a week old.
+ */
+export function formatRelativeTime(millis: number, now: number = Date.now()): string {
+  const minutes = Math.round((now - millis) / 60_000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes} min ago`
+
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours} h ago`
+
+  const days = Math.round(hours / 24)
+  if (days === 1) return 'yesterday'
+  if (days < 7) return `${days} d ago`
+
+  return localCompact.format(new Date(millis))
+}
+
 /**
  * Human-friendly weekend range, e.g. "Fri 23 – Sun 25 Oct 2026". Takes calendar
  * days, which are already local by the time they get here.

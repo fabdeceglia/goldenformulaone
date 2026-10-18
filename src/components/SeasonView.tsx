@@ -8,12 +8,14 @@ import { ConstructorStandings } from './ConstructorStandings'
 import { DriverStandings } from './DriverStandings'
 import { FeaturedEventBar } from './FeaturedEvent'
 import { Home } from './Home'
+import { NewsPanel } from './NewsPanel'
 import { RaceResults } from './RaceResults'
 import { Tabs } from './Tabs'
 import type { Tab } from './Tabs'
 
 const TABS = [
   { id: 'home', label: 'The Pit Wall' },
+  { id: 'news', label: 'Paddock and Coffee' },
   { id: 'calendar', label: 'The Schedule' },
   { id: 'drivers', label: 'The Grid' },
   { id: 'constructors', label: 'Constructors' },
@@ -70,7 +72,11 @@ export function SeasonView({ season, races }: SeasonViewProps) {
       )}
 
       <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`}>
-        {tab === 'home' && <Home season={season} featured={featured} />}
+        {tab === 'home' && (
+          <Home season={season} featured={featured} onOpenNews={() => setTab('news')} />
+        )}
+
+        {tab === 'news' && <NewsPanel variant="full" />}
 
         {tab === 'calendar' && (
           <Calendar

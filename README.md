@@ -7,7 +7,9 @@ powered by the free [jolpica-f1](https://github.com/jolpica/jolpica-f1) API.
 
 ## Features
 
-- **The Pit Wall** — the next or current race at full size, plus a placeholder for the news feed
+- **The Pit Wall** — the next or current race at full size, plus the five newest headlines
+  from the paddock
+- **Paddock and Coffee** — the paddock press, merged from five outlets and sorted newest first
 - **The Schedule** — every round of the season with circuit, location and date. Completed rounds
   open their results; rounds still to come open a details panel instead, since there is
   nothing to show yet
@@ -24,14 +26,15 @@ The app follows the **season in progress**. There is no season picker: the curre
 resolved from the API and shown in The Schedule panel, which is titled with it (for example
 `2026 Calendar`).
 
-The section names above are the tab labels. Each tab keeps a stable id (`home`, `calendar`,
-`drivers`, `constructors`, `results`) for its ARIA wiring.
+The section names above are the tab labels. Each tab keeps a stable id (`home`, `news`,
+`calendar`, `drivers`, `constructors`, `results`) for its ARIA wiring.
 
 ## Navigation
 
 | Section | Content |
 | --- | --- |
-| **The Pit Wall** | Full-size featured-event panel + news placeholder |
+| **The Pit Wall** | Full-size featured-event panel + the five newest headlines |
+| **Paddock and Coffee** | Every headline the feeds are carrying, newest first |
 | **The Schedule** | Round list with the featured race highlighted; future rounds open a details panel |
 | **The Grid** | Driver championship table |
 | **Constructors** | Constructor championship table |
@@ -167,6 +170,54 @@ Worked example, 2026 season — Singapore runs 9–11 Oct and the USA 23–25 Oc
 `TODAY` is resolved once at module load in `src/lib/schedule.ts`. For a long-running
 deployment you would want to refresh it (for example on an interval or on tab focus).
 
+## News
+
+**Paddock and Coffee** reads the trade press directly, from the publishers' own RSS feeds:
+
+| Outlet | Feed |
+| --- | --- |
+| **Autosport** | `https://www.autosport.com/rss/f1/news/` |
+| **Motorsport.com** | `https://www.motorsport.com/rss/f1/news/` |
+| **RaceFans** | `https://www.racefans.net/feed/` |
+| **BBC Sport** | `https://feeds.bbci.co.uk/sport/formula1/rss.xml` |
+| **The Race** | `https://www.the-race.com/rss/` |
+
+Every row is the outlet, how long ago the story went up, the headline, and the standfirst the
+publisher supplies. No article text is copied, and each headline links out to the publisher in
+a new tab. The official site is not in the list: formula1.com has no RSS feed.
+
+Decisions worth knowing about:
+
+- **No RSS-to-JSON service.** `src/api/news.ts` fetches, merges, sorts and parses the feeds in
+  the browser, using the native `DOMParser` — the files are already XML, and a service such as
+  rss2json would put a third party in the path of every page load (its free tier also refuses
+  to limit how many items it returns without an API key).
+- **The requests are proxied, because RSS has no CORS.** No feed sends an
+  `Access-Control-Allow-Origin` header, so a browser cannot read one directly. Each feed is
+  requested from `/news/<id>` instead, and both `vite.config.ts` (`dev` and `preview`) and
+  `vercel.json` (production) rewrite those paths onto the real feed. The two files have to be
+  kept in step; **on a host other than Vercel the same rewrites must be reproduced**, or the
+  section shows its error state.
+- **The merge.** Newest first. Duplicates are dropped by headline, and also by standfirst,
+  because Autosport and Motorsport.com are the same newsroom and run one story under two
+  different headlines. The home screen shows the newest five; the section shows up to 60.
+- **Freshness, and what it costs.** The merged list is cached in memory for ten minutes, so
+  moving between tabs re-reads nothing, and `vercel.json` asks the Vercel CDN to cache each
+  proxied feed for the same ten minutes. Reading all five costs about 80 kB gzipped in
+  parallel, most of it The Race's feed, which carries full article bodies the app ignores.
+- **One feed failing is not a failure.** If some sources are unreachable the rest still
+  render; only losing all of them shows the retry state.
+- **No images.** The feeds disagree on where a picture goes — `enclosure`, `media:thumbnail`,
+  `media:content`, or nowhere — and a text-only list keeps the panel flat and quick.
+- **The list is the scroll box, not the page.** Both the home panel and the section give the
+  headlines the room the window leaves them (the `max-height` figures in `src/index.css` are
+  the surrounding furniture — brand, tabs, featured event, panel head, footer — measured on
+  screen), so the page itself stays still: the head holds its place and only the list moves,
+  and a short window falls back to a floor of 12–14rem rather than a sliver. On a phone there
+  is no room to box the home list in beside a full-size featured event, so it flows with the
+  page instead and the head sticks to the top as the page scrolls under it. The section still
+  fits a phone screen, so its list keeps the box.
+
 ## Getting started
 
 ```bash
@@ -190,15 +241,20 @@ Open http://localhost:5173.
 The jolpica-f1 API asks clients to send a custom `User-Agent`, but browsers forbid
 JavaScript from setting that header. To satisfy the API without adding a backend,
 `vite.config.ts` proxies two prefixes to `https://api.jolpi.ca` and attaches the header
-server-side:
+server-side. The news feeds go through the same proxy for a different reason — RSS is served
+without CORS headers — and are listed with the rest:
 
 | Prefix | Upstream |
 | --- | --- |
 | `/ergast` | the Ergast-compatible endpoints |
 | `/f1` | jolpica's own alpha endpoints |
+| `/news/<id>` | one feed per outlet, one path each |
 
 The same proxies are configured for `vite preview`, so both `dev` and `preview` work out of
-the box.
+the box. Production is a static build on Vercel, which has no dev server: `vercel.json`
+rewrites the five `/news/<id>` paths to the feeds there, and the app talks to jolpica
+directly, because that API does send CORS headers (set `VITE_API_BASE` and `VITE_ALPHA_BASE`
+to the absolute URLs at build time).
 
 Endpoints used:
 
@@ -210,6 +266,7 @@ Endpoints used:
 | Round ids for the season | `/f1/alpha/core/rounds/?year={season}` |
 | Sessions a round has | `/f1/alpha/results/{roundId}/` |
 | One session's results | `/f1/alpha/results/{roundId}/{code}/` |
+| Paddock and Coffee | `/news/{outlet}`, proxied to that outlet's RSS feed |
 
 The alpha results endpoints are keyed by an opaque round id (`round_JqmngOvt`), not by season
 and round number, so `/f1/alpha/core/rounds/?year={season}` is fetched once to map the
@@ -230,6 +287,7 @@ src/
 ├── api/
 │   ├── alpha.ts     # jolpica alpha client + the session codes we render
 │   ├── client.ts    # Ergast-compatible client (calendar, standings)
+│   ├── news.ts      # the trade press: feeds, parsing, the merged list
 │   ├── teams.ts     # team colours + readable chip ink
 │   └── types.ts     # response types for both API layers
 ├── components/
@@ -239,9 +297,9 @@ src/
 │   ├── FeaturedEvent.tsx        # full panel + compact bar
 │   ├── Feedback.tsx             # Loading / ErrorState / Empty
 │   ├── Header.tsx               # brand mark + wordmark
-│   ├── Home.tsx                 # featured event + news placeholder
+│   ├── Home.tsx                 # featured event + the newest headlines
 │   ├── Modal.tsx                # native <dialog> shell for the details popup
-│   ├── NewsPlaceholder.tsx      # empty box for the future news feed
+│   ├── NewsPanel.tsx            # the headline list, shared by home and the section
 │   ├── Position.tsx             # team-coloured position chip
 │   ├── RaceResults.tsx          # round + session selection
 │   ├── SeasonView.tsx           # nav tabs + shared season state
@@ -269,6 +327,8 @@ public/
 ├── site.webmanifest             # web app manifest
 └── fonts/
     └── archivo-latin-wdth-normal.woff2   # variable font: weight + width axes
+
+vercel.json                          # production: proxies the news feeds
 ```
 
 ## Notes

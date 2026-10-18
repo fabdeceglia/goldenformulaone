@@ -62,7 +62,7 @@ export function DriverStandings({ season }: DriverStandingsProps) {
                   />
                 </td>
                 <td>
-                  <div className="driver">
+                  <div className={`driver${standing.Driver.code ? ' driver--coded' : ''}`}>
                     {standing.Driver.code && (
                       <span className="driver__code">{standing.Driver.code}</span>
                     )}
