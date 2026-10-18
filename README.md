@@ -22,6 +22,8 @@ powered by the free [jolpica-f1](https://github.com/jolpica/jolpica-f1) API.
 - The featured event stays visible in every section as a compact bar that links back to
   The Pit Wall
 - Dates and times are shown in **your own timezone**, not the circuit's
+- **Light and dark themes**, switched from the header and remembered, following your system
+  preference until you choose
 - Loading, empty and error states with retry, and full keyboard/ARIA support
 
 The app follows the **season in progress**. There is no season picker: the current season is
@@ -71,8 +73,24 @@ updates from the pit wall."
   pastel backdrop). Depth comes from a hairline border and one soft shadow. Every colour pair
   used for text was checked against WCAG AA.
 
-There is no dark variant; the theme is defined on custom properties, so one could be added by
-overriding them.
+### Light and dark
+
+The theme comes in **light and dark**, switched from the button in the header's top-right. The
+icon shows the theme a press will bring — a moon in light mode, a sun in dark mode — so it
+reads as the action rather than the current state, and the choice is remembered on the device.
+
+A first visit follows the **system** preference; once a visitor chooses, that choice sticks.
+The whole palette lives on custom properties, so dark mode is a second token block in
+`src/index.css` that turns the paper to a warm near-black and the ink to a warm off-white,
+leaving the brand colours and the team liveries untouched. Two things sit outside the tokens
+and are handled on their own: the pastel page haze gets a dark twin, and the vendored track
+layouts — black strokes on transparent — are inverted, so a circuit map reads as a light
+outline at night.
+
+The theme is one attribute on `<html>` (`data-theme`). It is applied before first paint by a
+small inline script in `index.html`, so the page never flashes the wrong theme, and React picks
+the attribute back up in `src/hooks/useTheme.ts`. The `theme-color` meta tag follows it too, so
+the browser chrome matches.
 
 ## Circuit info
 
@@ -360,7 +378,7 @@ src/
 │   ├── DriverStandings.tsx
 │   ├── FeaturedEvent.tsx        # full panel + compact bar
 │   ├── Feedback.tsx             # Loading / ErrorState / Empty
-│   ├── Header.tsx               # brand mark + wordmark
+│   ├── Header.tsx               # brand mark + wordmark + theme switch
 │   ├── Home.tsx                 # featured event + the newest headlines
 │   ├── Modal.tsx                # native <dialog> shell for the details popup
 │   ├── NewsPanel.tsx            # the headline list, shared by home and the section
@@ -371,7 +389,8 @@ src/
 │   ├── StartingGridView.tsx     # qualifying as a staggered grid of plates
 │   └── Tabs.tsx
 ├── hooks/
-│   └── useFetch.ts              # abortable fetch hook with reload
+│   ├── useFetch.ts              # abortable fetch hook with reload
+│   └── useTheme.ts              # light/dark theme: read, toggle, remember
 ├── lib/
 │   ├── circuitHistory.ts        # past winners → editions, records, recent winners
 │   ├── circuits.ts              # circuit track layouts: Ergast id → vendored SVG
@@ -411,6 +430,10 @@ vercel.json                          # production: proxies the news feeds
   (`src/api/teams.ts`); session results use the exact colour the alpha API returns. Either way
   the colour fills the position chip, and the chip's text colour is chosen from the livery's
   luminance so it stays readable.
+- On a phone the driver column drops the full name and keeps only the three-letter code. The
+  name is the widest thing in the row and is what would otherwise push the qualifying table
+  into sideways scroll; it stays in the markup for screen readers, so nothing is lost to
+  assistive tech. Constructors have no code to fall back on, so they keep their full name.
 - Qualifying and practice positions show the numeric position. The alpha API marks drivers
   who set no time in a final segment as `NC` / not classified while still ordering them, so
   the numeric position keeps the table readable and a blank segment column shows the cause.

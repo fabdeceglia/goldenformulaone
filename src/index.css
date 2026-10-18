@@ -40,6 +40,9 @@
   /* Golden Lap accents */
   --red: #e4161c;
   --red-deep: #ac1016;
+  /* Red used as text on paper. It matches the deep fill here, but it has to
+     brighten on the dark ground, so it is named separately. */
+  --red-ink: #ac1016;
   --on-red: #ffffff;
   --amber: #ff960b;
   --amber-ink: #8a4a00;
@@ -55,6 +58,55 @@
 
   font-family: var(--font-sans);
   line-height: 1.5;
+}
+
+/* ==========================================================================
+   Dark theme — the same paper & ink system after dark. The paper turns to a warm
+   near-black and the ink to a warm off-white, so every surface and every piece
+   of text flips at once; the two accent inks brighten to stay legible on the
+   dark ground. The brand colours (red, amber, magenta) and the team liveries are
+   left alone: they are the theme's character, not its light.
+   ========================================================================== */
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Paper */
+  --paper: #1b1915;
+  --paper-raised: #24211a;
+  --paper-sunken: #131210;
+  --paper-hover: #2b2721;
+
+  /* Rules and edges */
+  --line: #37322a;
+  --line-strong: #4d4638;
+
+  /* Ink */
+  --ink: #f3edde;
+  --ink-soft: #d6cfbc;
+  --ink-muted: #a69c85;
+
+  /* Accent text */
+  --red-ink: #ff7a70;
+  --amber-ink: #ffb765;
+}
+
+/* The pastel haze after dark: the same warm glows, dimmed from paper in daylight
+   to light in a room. */
+[data-theme='dark'] body::before {
+  background-color: #0d0c0a;
+  background-image:
+    radial-gradient(880px 620px at 8% 2%, rgba(48, 76, 54, 0.5), transparent 62%),
+    radial-gradient(960px 680px at 94% 10%, rgba(60, 48, 82, 0.5), transparent 64%),
+    radial-gradient(920px 640px at 76% 98%, rgba(90, 68, 28, 0.45), transparent 62%),
+    radial-gradient(760px 560px at 10% 92%, rgba(32, 56, 76, 0.45), transparent 62%);
+}
+
+/* Track layouts are drawn as single-colour black outlines; inverted, they read
+   as light strokes on the dark ground. Scoped to the image so the "no layout"
+   text message is not caught by it. */
+[data-theme='dark'] img.circuit__map {
+  filter: invert(1);
 }
 
 * {
@@ -111,8 +163,8 @@ a {
 }
 
 a:hover {
-  color: var(--red-deep);
-  text-decoration-color: var(--red-deep);
+  color: var(--red-ink);
+  text-decoration-color: var(--red-ink);
 }
 
 :focus-visible {
@@ -204,6 +256,35 @@ a:hover {
   margin: 0.15rem 0 0;
   color: var(--ink-soft);
   font-size: 0.85rem;
+}
+
+/* The theme switch, parked in the header's top-right. The icon shows the theme a
+   press will bring, so it reads as the action rather than the current state. */
+.theme-toggle {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.4rem;
+  height: 2.4rem;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.theme-toggle:hover {
+  border-color: var(--ink-muted);
+  background: var(--paper-hover);
+  color: var(--ink);
+}
+
+.theme-toggle svg {
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 /* ---------- Fields ---------- */
@@ -379,7 +460,7 @@ a:hover {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--red-deep);
+  color: var(--red-ink);
   font: inherit;
   font-size: 0.68rem;
   font-weight: 700;
@@ -634,7 +715,7 @@ a:hover {
 }
 
 .plate--pole .plate__slot {
-  color: var(--red-deep);
+  color: var(--red-ink);
 }
 
 /* The car number, in the livery colour — the mark the game puts on a plate. */
@@ -794,7 +875,7 @@ a:hover {
 .feedback--error {
   border-color: rgba(228, 22, 28, 0.45);
   background: rgba(228, 22, 28, 0.07);
-  color: var(--red-deep);
+  color: var(--red-ink);
 }
 
 .feedback--empty {
@@ -1023,7 +1104,7 @@ a:hover {
 
 /* The race is the weekend's headline, so it gets the one splash of red. */
 .schedule__row--race .schedule__label {
-  color: var(--red-deep);
+  color: var(--red-ink);
 }
 
 .schedule__row--race .schedule__when {
@@ -1209,7 +1290,7 @@ a:hover {
 }
 
 .news__item:hover .news__headline {
-  color: var(--red-deep);
+  color: var(--red-ink);
 }
 
 .news__excerpt {
@@ -1479,7 +1560,7 @@ a:hover {
 }
 
 .circuit__layout-tag {
-  color: var(--red-deep);
+  color: var(--red-ink);
   font-size: 0.6rem;
   font-weight: 800;
   text-transform: uppercase;
