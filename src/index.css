@@ -185,7 +185,6 @@ a:hover {
 .tabs__button,
 .button,
 .panel__meta,
-.hero__dates-time,
 .schedule__label,
 .driver__code,
 .badge,
@@ -858,6 +857,70 @@ a:hover {
   color: var(--paper);
 }
 
+/* ---------- Row menu ("kebab") ----------
+   A phone has no width to spare for an inline Info and Results button on every
+   schedule row, so both fold into one menu behind a kebab. The trigger borrows
+   the ghost button's colours, so the row still reads as one set of controls. */
+
+.row-menu__trigger {
+  display: inline-grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.row-menu__trigger:hover,
+.row-menu__trigger[aria-expanded='true'] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.row-menu__trigger svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+/* Portalled to the body and fixed to the viewport: the schedule table scrolls
+   inside an `overflow: hidden` panel, which would clip a menu anchored to a row. */
+.row-menu {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  min-width: 9.5rem;
+  padding: 0.28rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  box-shadow: 0 18px 32px -20px rgba(20, 14, 4, 0.6);
+}
+
+.row-menu__item {
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.row-menu__item:hover,
+.row-menu__item:focus-visible {
+  background: var(--paper-hover);
+}
+
 /* ---------- Feedback ---------- */
 
 .feedback {
@@ -1015,6 +1078,14 @@ a:hover {
   font-weight: 700;
 }
 
+/* The circuit's info popup, under the venue line. A size down from a row button:
+   it is a footnote to where the race is, not an action in its own right. */
+.hero__info {
+  margin-top: 0.75rem;
+  padding: 0.26rem 0.6rem;
+  font-size: 0.66rem;
+}
+
 .hero__title {
   margin: 0.65rem 0 0.3rem;
   font-size: clamp(1.5rem, 3.6vw, 2.15rem);
@@ -1029,31 +1100,6 @@ a:hover {
 
 .hero__meta--muted {
   color: var(--ink-muted);
-}
-
-.hero__dates {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.9rem;
-  margin: 0.85rem 0 0;
-  color: var(--ink-muted);
-  font-size: 0.85rem;
-}
-
-.hero__dates-range {
-  color: var(--ink);
-  font-weight: 700;
-}
-
-.hero__dates-time {
-  padding: 0.15rem 0.5rem;
-  border: 1px solid var(--line-strong);
-  border-radius: 3px;
-  background: var(--paper-raised);
-  color: var(--ink-soft);
-  font-size: 0.72rem;
-  font-weight: 700;
 }
 
 .hero__schedule {
@@ -1626,8 +1672,9 @@ a:hover {
   }
 
   /* Six long section names is a lot of pill; a tighter one keeps the bar to
-     three rows on a phone rather than four or five. The corners square off too:
-     a pill wrapping three rows reads as a broken shape rather than a control. */
+     three rows on a phone rather than four or five. The corners square off too,
+     chips as well as bar: a pill wrapping three rows reads as a broken shape,
+     and the selected chip rounded inside a squared bar reads as a stray pill. */
   .tabs:not(.tabs--compact) {
     gap: 0.22rem;
     border-radius: 0;
@@ -1635,15 +1682,27 @@ a:hover {
 
   .tabs:not(.tabs--compact) .tabs__button {
     padding: 0.4rem 0.68rem;
+    border-radius: 0;
     font-size: 0.74rem;
   }
 
   /* The session selector in the results head wraps to two rows on a phone, so it
-     squares off for the same reason as the section bar. The Table|Grid toggle
-     beside it follows, so the row reads as one control strip. */
+     squares off for the same reason as the section bar — chips included. The
+     Table|Grid toggle beside it follows, so the row reads as one control strip. */
   .tabs--compact,
   .view-toggle {
     border-radius: 0;
+  }
+
+  .tabs--compact .tabs__button,
+  .view-toggle__button {
+    border-radius: 0;
+  }
+
+  /* The kebab stands in for the two inline buttons, so the action column can
+     drop from the width of a word to the width of the icon. */
+  .table__action {
+    width: 2.3rem;
   }
 
   .table thead th,

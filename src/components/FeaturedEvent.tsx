@@ -27,11 +27,17 @@ function countdownLabel(days: number): string {
 export function FeaturedEventPanel({
   featured,
   showBadge = true,
+  onOpenCircuitInfo,
 }: {
   featured: FeaturedEvent
   showBadge?: boolean
+  /**
+   * When given, the panel offers the circuit's info popup. Home passes it; the
+   * schedule's details popup does not, since that row already has its own Info.
+   */
+  onOpenCircuitInfo?: () => void
 }) {
-  const { race, status, start, end, daysUntilStart } = featured
+  const { race, status, daysUntilStart } = featured
   const schedule = raceSchedule(race)
   const circuit = race.Circuit
 
@@ -62,12 +68,18 @@ export function FeaturedEventPanel({
           {circuit.Location.locality}, {circuit.Location.country}
         </p>
 
-        <p className="hero__dates">
-          <span className="hero__dates-range">{formatDateRange(start, end)}</span>
-          {race.time && (
-            <span className="hero__dates-time">Race {formatTime(race.date, race.time)}</span>
-          )}
-        </p>
+        {/* The weekend schedule already carries the dates and the race time, so
+            the left column spends that space on the way into the circuit. */}
+        {onOpenCircuitInfo && (
+          <button
+            type="button"
+            className="button button--ghost hero__info"
+            onClick={onOpenCircuitInfo}
+            aria-label={`${circuit.circuitName} information`}
+          >
+            Circuit info
+          </button>
+        )}
       </div>
 
       <div className="hero__schedule">

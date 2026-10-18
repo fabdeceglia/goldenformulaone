@@ -7,8 +7,8 @@ powered by the free [jolpica-f1](https://github.com/jolpica/jolpica-f1) API.
 
 ## Features
 
-- **The Pit Wall** — the next or current race at full size, plus the five newest headlines
-  from the paddock
+- **The Pit Wall** — the next or current race at full size, with the circuit's **Info** popup,
+  plus the five newest headlines from the paddock
 - **Paddock and Coffee** — the paddock press, merged from five outlets and sorted newest first
 - **The Schedule** — every round of the season with circuit, location and date. Completed rounds
   open their results; rounds still to come open a details panel instead, since there is
@@ -384,12 +384,14 @@ src/
 │   ├── NewsPanel.tsx            # the headline list, shared by home and the section
 │   ├── Position.tsx             # team-coloured position chip
 │   ├── RaceResults.tsx          # round + session selection, Table | Grid toggle
-│   ├── SeasonView.tsx           # nav tabs + shared season state
+│   ├── RowMenu.tsx              # schedule row actions behind a kebab on a phone
+│   ├── SeasonView.tsx           # nav tabs, shared season state, circuit info dialog
 │   ├── SessionResultTable.tsx   # one table per session format
 │   ├── StartingGridView.tsx     # qualifying as a staggered grid of plates
 │   └── Tabs.tsx
 ├── hooks/
 │   ├── useFetch.ts              # abortable fetch hook with reload
+│   ├── useMediaQuery.ts         # width queries, for layout CSS cannot switch
 │   └── useTheme.ts              # light/dark theme: read, toggle, remember
 ├── lib/
 │   ├── circuitHistory.ts        # past winners → editions, records, recent winners
@@ -434,6 +436,11 @@ vercel.json                          # production: proxies the news feeds
   name is the widest thing in the row and is what would otherwise push the qualifying table
   into sideways scroll; it stays in the markup for screen readers, so nothing is lost to
   assistive tech. Constructors have no code to fall back on, so they keep their full name.
+- On a phone the schedule's two row buttons fold into a kebab menu (`RowMenu`), because an
+  inline Info and Results button on every row leaves no width for the race name and date;
+  desktop keeps them inline. The menu is portalled to the body and pinned to the viewport,
+  since the table scrolls inside an `overflow: hidden` panel that would otherwise clip
+  anything anchored to a row.
 - Qualifying and practice positions show the numeric position. The alpha API marks drivers
   who set no time in a final segment as `NC` / not classified while still ordering them, so
   the numeric position keeps the table readable and a blank segment column shows the cause.

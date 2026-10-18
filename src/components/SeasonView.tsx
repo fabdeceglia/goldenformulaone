@@ -4,10 +4,12 @@ import type { Race } from '../api/types'
 import { useFetch } from '../hooks/useFetch'
 import { TODAY, findFeaturedEvent, raceDayKey } from '../lib/schedule'
 import { Calendar } from './Calendar'
+import { CircuitInfoPanel } from './CircuitInfo'
 import { ConstructorStandings } from './ConstructorStandings'
 import { DriverStandings } from './DriverStandings'
 import { FeaturedEventBar } from './FeaturedEvent'
 import { Home } from './Home'
+import { Modal } from './Modal'
 import { NewsPanel } from './NewsPanel'
 import { RaceResults } from './RaceResults'
 import { Tabs } from './Tabs'
@@ -32,6 +34,10 @@ interface SeasonViewProps {
 export function SeasonView({ season, races }: SeasonViewProps) {
   const [tab, setTab] = useState<TabId>('home')
   const [requestedRound, setRequestedRound] = useState<string | null>(null)
+
+  // The circuit info popup belongs to the season rather than to a section: the
+  // home hero and every schedule row open the same dialog.
+  const [infoRace, setInfoRace] = useState<Race | null>(null)
 
   const featured = useMemo(() => findFeaturedEvent(races, TODAY), [races])
 
@@ -73,7 +79,12 @@ export function SeasonView({ season, races }: SeasonViewProps) {
 
       <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`}>
         {tab === 'home' && (
-          <Home season={season} featured={featured} onOpenNews={() => setTab('news')} />
+          <Home
+            season={season}
+            featured={featured}
+            onOpenNews={() => setTab('news')}
+            onShowCircuitInfo={setInfoRace}
+          />
         )}
 
         {tab === 'news' && <NewsPanel variant="full" />}
@@ -84,6 +95,7 @@ export function SeasonView({ season, races }: SeasonViewProps) {
             races={races}
             featuredRound={featured?.race.round ?? null}
             onSelectRace={openRace}
+            onShowCircuitInfo={setInfoRace}
           />
         )}
 
@@ -100,6 +112,15 @@ export function SeasonView({ season, races }: SeasonViewProps) {
           />
         )}
       </div>
+
+      {infoRace && (
+        <Modal
+          label={`${infoRace.Circuit.circuitName} information`}
+          onClose={() => setInfoRace(null)}
+        >
+          <CircuitInfoPanel race={infoRace} />
+        </Modal>
+      )}
     </>
   )
 }

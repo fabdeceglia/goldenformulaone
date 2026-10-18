@@ -1,3 +1,4 @@
+import type { Race } from '../api/types'
 import type { FeaturedEvent } from '../lib/schedule'
 import { Empty } from './Feedback'
 import { FeaturedEventPanel } from './FeaturedEvent'
@@ -10,13 +11,17 @@ interface HomeProps {
   season: string
   featured: FeaturedEvent | null
   onOpenNews: () => void
+  onShowCircuitInfo: (race: Race) => void
 }
 
-export function Home({ season, featured, onOpenNews }: HomeProps) {
+export function Home({ season, featured, onOpenNews, onShowCircuitInfo }: HomeProps) {
   return (
     <div className="home">
       {featured ? (
-        <FeaturedEventPanel featured={featured} />
+        <FeaturedEventPanel
+          featured={featured}
+          onOpenCircuitInfo={() => onShowCircuitInfo(featured.race)}
+        />
       ) : (
         <Empty message={`No events found for the ${season} season.`} />
       )}

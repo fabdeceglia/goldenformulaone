@@ -2,10 +2,11 @@ import { useState } from 'react'
 import type { Race } from '../api/types'
 import { formatDate, formatDateTime } from '../lib/format'
 import { TODAY, eventFor, eventWindow } from '../lib/schedule'
-import { CircuitInfoPanel } from './CircuitInfo'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import { Empty } from './Feedback'
 import { FeaturedEventPanel } from './FeaturedEvent'
 import { Modal } from './Modal'
+import { RowMenu } from './RowMenu'
 
 interface CalendarProps {
   season: string
@@ -13,18 +14,27 @@ interface CalendarProps {
   /** Round of the featured event, highlighted in the list. */
   featuredRound: string | null
   onSelectRace: (round: string) => void
+  /** Opens the circuit info popup, which lives on the season so the home hero
+      and the schedule share the one dialog. */
+  onShowCircuitInfo: (race: Race) => void
 }
 
-export function Calendar({ season, races, featuredRound, onSelectRace }: CalendarProps) {
+export function Calendar({
+  season,
+  races,
+  featuredRound,
+  onSelectRace,
+  onShowCircuitInfo,
+}: CalendarProps) {
   // A future round has no results to open, so it shows the weekend instead.
   const [detailsRound, setDetailsRound] = useState<string | null>(null)
   const detailsRace = detailsRound
     ? races.find((race) => race.round === detailsRound)
     : undefined
 
-  // The circuit info popup is available for every round, past or future.
-  const [infoRound, setInfoRound] = useState<string | null>(null)
-  const infoRace = infoRound ? races.find((race) => race.round === infoRound) : undefined
+  // A phone has no width to spare for two buttons on every row, so at the usual
+  // mobile breakpoint the row actions fold into a kebab menu instead.
+  const compactActions = useMediaQuery('(max-width: 640px)')
 
   if (races.length === 0) {
     return <Empty message={`No races found for the ${season} season.`} />
@@ -80,34 +90,46 @@ export function Calendar({ season, races, featuredRound, onSelectRace }: Calenda
                       {formatDate(race.date, race.time)}
                     </td>
                     <td className="table__action">
-                      <div className="table__actions">
-                        <button
-                          type="button"
-                          className="button button--ghost"
-                          onClick={() => setInfoRound(race.round)}
-                          aria-label={`${race.Circuit.circuitName} information`}
-                        >
-                          Info
-                        </button>
-                        {isUpcoming ? (
+                      {compactActions ? (
+                        <RowMenu
+                          label={`${race.raceName} actions`}
+                          items={[
+                            { label: 'Info', onSelect: () => onShowCircuitInfo(race) },
+                            isUpcoming
+                              ? { label: 'Details', onSelect: () => setDetailsRound(race.round) }
+                              : { label: 'Results', onSelect: () => onSelectRace(race.round) },
+                          ]}
+                        />
+                      ) : (
+                        <div className="table__actions">
                           <button
                             type="button"
                             className="button button--ghost"
-                            onClick={() => setDetailsRound(race.round)}
-                            aria-label={`${race.raceName} session details`}
+                            onClick={() => onShowCircuitInfo(race)}
+                            aria-label={`${race.Circuit.circuitName} information`}
                           >
-                            Details
+                            Info
                           </button>
-                        ) : (
-                          <button
-                            type="button"
-                            className="button button--ghost"
-                            onClick={() => onSelectRace(race.round)}
-                          >
-                            Results
-                          </button>
-                        )}
-                      </div>
+                          {isUpcoming ? (
+                            <button
+                              type="button"
+                              className="button button--ghost"
+                              onClick={() => setDetailsRound(race.round)}
+                              aria-label={`${race.raceName} session details`}
+                            >
+                              Details
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="button button--ghost"
+                              onClick={() => onSelectRace(race.round)}
+                            >
+                              Results
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 )
@@ -125,15 +147,6 @@ export function Calendar({ season, races, featuredRound, onSelectRace }: Calenda
             // rounds just carry their countdown.
             showBadge={detailsRace.round === featuredRound}
           />
-        </Modal>
-      )}
-
-      {infoRace && (
-        <Modal
-          label={`${infoRace.Circuit.circuitName} information`}
-          onClose={() => setInfoRound(null)}
-        >
-          <CircuitInfoPanel race={infoRace} />
         </Modal>
       )}
     </>
