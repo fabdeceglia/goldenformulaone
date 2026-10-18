@@ -12,7 +12,8 @@ powered by the free [jolpica-f1](https://github.com/jolpica/jolpica-f1) API.
 - **Paddock and Coffee** — the paddock press, merged from five outlets and sorted newest first
 - **The Schedule** — every round of the season with circuit, location and date. Completed rounds
   open their results; rounds still to come open a details panel instead, since there is
-  nothing to show yet
+  nothing to show yet. Every round also offers an **Info** popup with the circuit's track
+  layout and racing history
 - **The Grid** — driver championship table, with each position in a team-coloured chip
 - **Constructors** — team championship table
 - **Chequered Flag** — every session of a weekend: practice 1–3, sprint qualifying,
@@ -36,7 +37,7 @@ The section names above are the tab labels. Each tab keeps a stable id (`home`, 
 | --- | --- |
 | **The Pit Wall** | Full-size featured-event panel + the five newest headlines |
 | **Paddock and Coffee** | Every headline the feeds are carrying, newest first |
-| **The Schedule** | Round list with the featured race highlighted; future rounds open a details panel |
+| **The Schedule** | Round list with the featured race highlighted; future rounds open a details panel, every round opens a circuit info popup |
 | **The Grid** | Driver championship table |
 | **Constructors** | Constructor championship table |
 | **Chequered Flag** | Every session of a selected round |
@@ -72,6 +73,19 @@ updates from the pit wall."
 
 There is no dark variant; the theme is defined on custom properties, so one could be added by
 overriding them.
+
+## Circuit info
+
+Every row of The Schedule carries an **Info** button (alongside Details/Results) that opens a
+popup about the circuit — available whether the round is past or still to come. It shows the
+circuit's vendored track layout (see "Circuit images"), its coordinates and Wikipedia link, its
+**racing history** (how many Grands Prix it has held, the first and most recent, the
+drivers and teams with the most wins, and the five most recent editions with each winner's
+fastest lap), and its **layout history** when the track has changed shape over the seasons.
+
+The only extra request is the circuit's past winners from
+`/ergast/f1/circuits/{circuitId}/results/1/?limit=100`, summarised in `src/lib/circuitHistory.ts`
+and rendered by `src/components/CircuitInfo.tsx` inside the shared `Modal`.
 
 ## Session results
 
@@ -145,6 +159,23 @@ every session is rendered from one response shape.
 > **Heads up:** the alpha API is explicitly unfinished and its responses have been observed
 > changing between requests (sometimes wrapped in `{ metadata, data }`, sometimes not).
 > `src/api/alpha.ts` normalises the envelope, but the shape may still change without notice.
+
+## Circuit images
+
+The API does not serve circuit artwork, so the track layouts are **vendored as static SVGs**
+in `public/circuits/`. They come from the [f1-circuits-svg](https://github.com/MisterSix2295/f1-circuits-svg)
+project (a fork of julesr0y/f1-circuits-svg by Jules Roy), which is licensed **MIT** — see
+`public/circuits/LICENSE.txt`. Every historical layout is included (e.g. `monza-1` … `monza-6`),
+so a circuit's evolution over the seasons is available too.
+
+`src/lib/circuits.ts` bridges the two naming worlds: its keys are the Ergast/jolpica
+`circuitId`s the app already uses, while the files are named by the source project's own
+layout ids (Ergast `spa` → `spa-francorchamps-4.svg`). `circuitImage(circuitId)` returns the
+URL of a circuit's current layout, or `undefined` when it is not vendored — notably the 2026
+**Madring** (Madrid) circuit, which postdates the source data.
+
+The vendored set is not auto-updated. To refresh it, re-download the source's `black/` folder
+into `public/circuits/` and regenerate `src/lib/circuits.ts`.
 
 ## Dates and times
 
@@ -294,6 +325,7 @@ Endpoints used:
 | The Schedule + current season | `/ergast/f1/current/races/?limit=100` |
 | The Grid | `/ergast/f1/{season}/driverstandings/?limit=100` |
 | Constructors | `/ergast/f1/{season}/constructorstandings/?limit=100` |
+| Circuit info (history) | `/ergast/f1/circuits/{circuitId}/results/1/?limit=100` |
 | Round ids for the season | `/f1/alpha/core/rounds/?year={season}` |
 | Sessions a round has | `/f1/alpha/results/{roundId}/` |
 | One session's results | `/f1/alpha/results/{roundId}/{code}/` |
@@ -323,6 +355,7 @@ src/
 │   └── types.ts     # response types for both API layers
 ├── components/
 │   ├── Calendar.tsx
+│   ├── CircuitInfo.tsx          # circuit info popup: layout, facts, racing history
 │   ├── ConstructorStandings.tsx
 │   ├── DriverStandings.tsx
 │   ├── FeaturedEvent.tsx        # full panel + compact bar
@@ -340,6 +373,8 @@ src/
 ├── hooks/
 │   └── useFetch.ts              # abortable fetch hook with reload
 ├── lib/
+│   ├── circuitHistory.ts        # past winners → editions, records, recent winners
+│   ├── circuits.ts              # circuit track layouts: Ergast id → vendored SVG
 │   ├── format.ts                # date, time and gap formatting
 │   ├── grid.ts                  # qualifying classification → grid slots and gaps
 │   └── schedule.ts              # weekend windows, session codes, race-day status
@@ -358,8 +393,11 @@ public/
 ├── og-image.png                 # social preview card (1200x630)
 ├── og-image-square.png          # square social card (1080x1080)
 ├── site.webmanifest             # web app manifest
-└── fonts/
-    └── archivo-latin-wdth-normal.woff2   # variable font: weight + width axes
+├── fonts/
+│   └── archivo-latin-wdth-normal.woff2   # variable font: weight + width axes
+└── circuits/                    # vendored circuit track layouts (see "Circuit images")
+    ├── LICENSE.txt              # MIT licence of the layout artwork
+    └── *.svg                    # one file per historical layout, e.g. monza-6.svg
 
 vercel.json                          # production: proxies the news feeds
 ```

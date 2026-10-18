@@ -469,9 +469,15 @@ a:hover {
 }
 
 .table__action {
-  width: 6rem;
+  width: 8.75rem;
   text-align: right;
   white-space: nowrap;
+}
+
+.table__actions {
+  display: inline-flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
 }
 
 .muted {
@@ -1299,6 +1305,172 @@ a:hover {
   color: var(--paper);
 }
 
+/* ---------- Circuit info modal ---------- */
+
+.circuit {
+  padding: 1.4rem 1.5rem 1.7rem;
+}
+
+/* Keep the title clear of the close button. */
+.circuit__head {
+  padding-right: 2.5rem;
+}
+
+.circuit__title {
+  margin: 0;
+  font-size: clamp(1.3rem, 3vw, 1.7rem);
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.circuit__subtitle {
+  margin: 0.3rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+}
+
+.circuit__figure {
+  margin: 1.1rem 0 0;
+  padding: 1.15rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-sunken);
+  text-align: center;
+}
+
+.circuit__map {
+  display: block;
+  width: 100%;
+  max-width: 20rem;
+  height: auto;
+  margin: 0 auto;
+}
+
+.circuit__map--missing {
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+}
+
+.circuit__caption {
+  margin-top: 0.8rem;
+  color: var(--ink-muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.circuit__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.85rem 1.25rem;
+  margin: 1.15rem 0 0;
+}
+
+.circuit__fact dt,
+.circuit__stat dt {
+  color: var(--ink-muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.circuit__fact dd {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.circuit__section {
+  margin-top: 1.5rem;
+}
+
+.circuit__section-title {
+  margin: 0 0 0.8rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.circuit__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.9rem 1.25rem;
+  margin: 0 0 1.15rem;
+}
+
+.circuit__stat dd {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0.2rem 0 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.circuit__count {
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+}
+
+.circuit__subhead {
+  margin: 0 0 0.5rem;
+  color: var(--ink-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.circuit__recent {
+  font-size: 0.82rem;
+}
+
+.circuit__none {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+}
+
+.circuit__layouts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.circuit__layout {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--paper-raised);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.circuit__layout.is-current {
+  border-color: var(--red-deep);
+  background: rgba(228, 22, 28, 0.08);
+}
+
+.circuit__layout-tag {
+  color: var(--red-deep);
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 780px) {
@@ -1358,9 +1530,11 @@ a:hover {
   }
 
   /* Six long section names is a lot of pill; a tighter one keeps the bar to
-     three rows on a phone rather than four or five. */
+     three rows on a phone rather than four or five. The corners square off too:
+     a pill wrapping three rows reads as a broken shape rather than a control. */
   .tabs:not(.tabs--compact) {
     gap: 0.22rem;
+    border-radius: 0;
   }
 
   .tabs:not(.tabs--compact) .tabs__button {

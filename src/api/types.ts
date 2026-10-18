@@ -129,6 +129,46 @@ export interface ConstructorStandingsResponse {
   }
 }
 
+/**
+ * One past edition of a race, carrying just its winning entry (from
+ * `/circuits/{circuitId}/results/1/`). The winner's `FastestLap` is present
+ * only when they also set the race's fastest lap, i.e. `rank` is `"1"`.
+ */
+export interface CircuitWinnerRace {
+  season: string
+  round: string
+  url: string
+  raceName: string
+  Circuit: Circuit
+  date: string
+  time?: string
+  Results: Array<{
+    position: string
+    Driver: Driver
+    Constructor: Constructor
+    grid?: string
+    laps?: string
+    status?: string
+    Time?: { millis?: string; time?: string }
+    FastestLap?: {
+      rank?: string
+      lap?: string
+      Time?: { time?: string }
+      AverageSpeed?: { units?: string; speed?: string }
+    }
+  }>
+}
+
+/** Every past winner at one circuit, oldest first. */
+export interface CircuitResultsResponse {
+  MRData: MRData & {
+    RaceTable: {
+      circuitId: string
+      Races: CircuitWinnerRace[]
+    }
+  }
+}
+
 /* ---------- Alpha layer (session results) ---------- */
 
 /**

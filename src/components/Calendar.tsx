@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Race } from '../api/types'
 import { formatDate, formatDateTime } from '../lib/format'
 import { TODAY, eventFor, eventWindow } from '../lib/schedule'
+import { CircuitInfoPanel } from './CircuitInfo'
 import { Empty } from './Feedback'
 import { FeaturedEventPanel } from './FeaturedEvent'
 import { Modal } from './Modal'
@@ -20,6 +21,10 @@ export function Calendar({ season, races, featuredRound, onSelectRace }: Calenda
   const detailsRace = detailsRound
     ? races.find((race) => race.round === detailsRound)
     : undefined
+
+  // The circuit info popup is available for every round, past or future.
+  const [infoRound, setInfoRound] = useState<string | null>(null)
+  const infoRace = infoRound ? races.find((race) => race.round === infoRound) : undefined
 
   if (races.length === 0) {
     return <Empty message={`No races found for the ${season} season.`} />
@@ -48,7 +53,7 @@ export function Calendar({ season, races, featuredRound, onSelectRace }: Calenda
                 </th>
                 <th scope="col">Date</th>
                 <th scope="col" className="table__action">
-                  <span className="sr-only">Session details</span>
+                  <span className="sr-only">Row actions</span>
                 </th>
               </tr>
             </thead>
@@ -75,24 +80,34 @@ export function Calendar({ season, races, featuredRound, onSelectRace }: Calenda
                       {formatDate(race.date, race.time)}
                     </td>
                     <td className="table__action">
-                      {isUpcoming ? (
+                      <div className="table__actions">
                         <button
                           type="button"
                           className="button button--ghost"
-                          onClick={() => setDetailsRound(race.round)}
-                          aria-label={`${race.raceName} details`}
+                          onClick={() => setInfoRound(race.round)}
+                          aria-label={`${race.Circuit.circuitName} information`}
                         >
-                          Details
+                          Info
                         </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="button button--ghost"
-                          onClick={() => onSelectRace(race.round)}
-                        >
-                          Results
-                        </button>
-                      )}
+                        {isUpcoming ? (
+                          <button
+                            type="button"
+                            className="button button--ghost"
+                            onClick={() => setDetailsRound(race.round)}
+                            aria-label={`${race.raceName} session details`}
+                          >
+                            Details
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="button button--ghost"
+                            onClick={() => onSelectRace(race.round)}
+                          >
+                            Results
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )
@@ -110,6 +125,15 @@ export function Calendar({ season, races, featuredRound, onSelectRace }: Calenda
             // rounds just carry their countdown.
             showBadge={detailsRace.round === featuredRound}
           />
+        </Modal>
+      )}
+
+      {infoRace && (
+        <Modal
+          label={`${infoRace.Circuit.circuitName} information`}
+          onClose={() => setInfoRound(null)}
+        >
+          <CircuitInfoPanel race={infoRace} />
         </Modal>
       )}
     </>

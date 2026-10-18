@@ -1,4 +1,5 @@
 import type {
+  CircuitResultsResponse,
   ConstructorStandingsResponse,
   DriverStandingsResponse,
   RacesResponse,
@@ -27,4 +28,11 @@ export const api = {
 
   constructorStandings: (season: string, signal: AbortSignal) =>
     get<ConstructorStandingsResponse>(`/${season}/constructorstandings/?limit=100`, signal),
+
+  /**
+   * Every past winner at a circuit, oldest first — the circuit's history. No
+   * circuit has hosted more than 100 races, so one request carries them all.
+   */
+  circuitWinners: (circuitId: string, signal: AbortSignal) =>
+    get<CircuitResultsResponse>(`/circuits/${circuitId}/results/1/?limit=100`, signal),
 }
