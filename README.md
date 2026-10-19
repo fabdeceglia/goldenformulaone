@@ -221,27 +221,60 @@ every session is rendered from one response shape.
 
 ### Measuring results readiness
 
-jolpica does not expose when a result was published. `metadata.timestamp` is when the
-response was generated, and a session's `timestamp` is its scheduled start, so the delay
-between the chequered flag and usable results has to be sampled rather than reconstructed.
-`scripts/results-readiness.mjs` does that: it polls the alpha endpoint around a session and
-records the first non-empty and first complete payload in `.readiness/results.jsonl`
-(git-ignored).
+Neither API exposes when a result was published. jolpica's `metadata.timestamp`
+is when the response was generated, a session's `timestamp` is its scheduled
+start, and OpenF1's `session_result` has no timestamp at all. The delay between
+the chequered flag and usable results therefore has to be sampled, not
+reconstructed.
+
+`scripts/results-readiness.mjs` polls both sources around a session and records
+the first non-empty and first complete payload in `.readiness/results.jsonl`
+(git-ignored):
+
+- **jolpica** — `/f1/alpha/results/{roundId}/{code}/`, the same endpoint the
+  results view uses.
+- **OpenF1** — `/v1/session_result?session_key=…`, matched to the jolpica
+  session by session name and scheduled start from `/v1/sessions?year=…`.
+  OpenF1 returns 404 until results exist; the probe treats that as an empty
+  sample.
 
 ```sh
-# Watch the next round: wait for each session, then poll until results are complete
+# Watch the next round: wait for each session, then poll both sources
 npm run readiness -- --round 18 --loop
+
+# Watch only OpenF1 for one session
+npm run readiness -- --round 18 --session R --source openf1
 
 # Summarise what has been collected so far
 npm run readiness:report
 ```
 
-`--loop` starts five minutes before each session's estimated end and backs off from 30
-seconds to five minutes. A payload counts as complete when its classified entries reach the
-round's driver count (falling back to 20). `--once` is suitable for an external scheduler:
-run it at least once before the session ends, otherwise the first sample is already
-published and the report can only show an upper bound. The probe is independent of the app
-and reads the same alpha endpoint the results view uses.
+`--loop` starts five minutes before each session's estimated end and backs off
+from 30 seconds to five minutes. A payload counts as complete when it contains
+at least the round's driver count (falling back to 20) and at least one
+positioned entry; retirements may legitimately have no position. `--once` is
+suitable for an external scheduler: run it at least once before the session
+ends, otherwise the first sample is already published and the report can only
+show an upper bound. `--source` selects `both` (the default), `jolpica`, or
+`openf1`.
+
+The report prints one row per source and, when both sources have a first
+non-empty sample for the same session, a direct comparison of how much earlier
+or later OpenF1 was.
+
+OpenF1's `session_result` is not its live-timing feed: the public OpenF1 repo
+scrapes it from the official Formula 1 results page, and OpenF1 documents it as
+becoming available "a few minutes after the official results are published on
+the official Formula 1 website." That makes it a useful candidate for a
+provisional fallback, but it also means the probe is measuring F1's publication
+delay plus OpenF1's scrape cadence, not a real-time feed. The probe records
+first-seen times, not the actual publication time, so a run that starts late can
+only produce an upper bound.
+
+OpenF1's historical data is free under CC BY-NC-SA 4.0, and its real-time feed
+requires a paid subscription. It is therefore a candidate for a provisional,
+non-commercial results fallback, not an automatic replacement for every jolpica
+endpoint.
 
 ## Circuit images
 
@@ -396,6 +429,8 @@ Open http://localhost:5173.
 | `npm run build` | Type-check and build for production into `dist/` |
 | `npm run preview` | Serve the production build locally |
 | `npm run lint` | Run oxlint |
+| `npm run readiness` | Sample jolpica and OpenF1 result readiness (see above) |
+| `npm run readiness:report` | Summarise the readiness samples |
 
 ## How the API is called
 
