@@ -1,7 +1,8 @@
 import type { Race, SessionCode } from '../api/types'
+import { clockNow } from './clock'
 import { parseUtcInstant, toDateKey } from './format'
 
-const LOADED_AT = new Date()
+const LOADED_AT = new Date(clockNow())
 
 /**
  * Captured once at module load. Keeping it out of the render path avoids
@@ -56,6 +57,23 @@ export interface ScheduleEntry {
   date: string
   time?: string
   isRace?: boolean
+}
+
+/**
+ * Longest a session can plausibly run before it is treated as over, in minutes.
+ * Deliberately generous: a red flag or a safety car can stretch one well past
+ * its scheduled slot, and the live marker should only clear once the session is
+ * genuinely done. The race is the one that can really run long, so it gets the
+ * widest allowance.
+ */
+const SESSION_MINUTES: Record<SessionCode, number> = {
+  FP1: 60,
+  FP2: 60,
+  FP3: 60,
+  SQ: 30,
+  SR: 45,
+  Q: 60,
+  R: 120,
 }
 
 /** Every session of a race weekend, including the race itself, in order. */
@@ -172,6 +190,50 @@ export function findFeaturedEvent(races: Race[], today: string = TODAY): Feature
 function daysBetween(from: string, to: string): number {
   const millis = Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)
   return Math.round(millis / 86_400_000)
+}
+
+/* ---------- Weekend progress ---------- */
+
+export type SessionPhase = 'upcoming' | 'live' | 'finished'
+
+/**
+ * Where one session sits relative to the clock. Durations are estimates (see
+ * `SESSION_MINUTES`), so a session only stops counting as live once it is
+ * comfortably over.
+ */
+export function sessionPhase(entry: ScheduleEntry, now: number = Date.now()): SessionPhase {
+  const start = sessionStart(entry)
+  if (!Number.isFinite(start)) return 'upcoming'
+
+  const end = start + SESSION_MINUTES[entry.code] * 60_000
+  if (now < start) return 'upcoming'
+  if (now < end) return 'live'
+  return 'finished'
+}
+
+export interface WeekendProgress {
+  /** The session on track right now, if the clock falls inside one. */
+  live: ScheduleEntry | null
+  /** The most recently finished session, if any. */
+  finished: ScheduleEntry | null
+}
+
+/**
+ * Where a weekend stands judged by the clock rather than the calendar day: which
+ * session is on track and which one just ended.
+ */
+export function weekendProgress(race: Race, now: number = Date.now()): WeekendProgress {
+  let live: ScheduleEntry | null = null
+  let finished: ScheduleEntry | null = null
+
+  // Sessions come back in running order, so the last one that has ended wins.
+  for (const entry of raceSchedule(race)) {
+    const phase = sessionPhase(entry, now)
+    if (phase === 'live') live = entry
+    else if (phase === 'finished') finished = entry
+  }
+
+  return { live, finished }
 }
 
 /* ---------- Session results ---------- */

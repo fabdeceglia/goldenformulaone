@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { alpha } from '../api/alpha'
-import type { Race } from '../api/types'
+import type { Race, SessionCode } from '../api/types'
 import { useFetch } from '../hooks/useFetch'
 import { TODAY, findFeaturedEvent, raceDayKey } from '../lib/schedule'
 import { Calendar } from './Calendar'
@@ -34,6 +34,9 @@ interface SeasonViewProps {
 export function SeasonView({ season, races }: SeasonViewProps) {
   const [tab, setTab] = useState<TabId>('home')
   const [requestedRound, setRequestedRound] = useState<string | null>(null)
+  // A session the hero asked for, so "Qualifying results" lands on qualifying
+  // rather than whatever the round's default session happens to be.
+  const [requestedSession, setRequestedSession] = useState<SessionCode | null>(null)
 
   // The circuit info popup belongs to the season rather than to a section: the
   // home hero and every schedule row open the same dialog.
@@ -62,19 +65,27 @@ export function SeasonView({ season, races }: SeasonViewProps) {
 
   const round = requestedRound ?? defaultRound
 
-  const openRace = (selected: string) => {
+  const openRace = (selected: string, session?: SessionCode) => {
     setRequestedRound(selected)
+    setRequestedSession(session ?? null)
     setTab('results')
+  }
+
+  // Leaving the results tab forgets the session the hero asked for; a fresh
+  // visit should fall back to the round's most recent session.
+  const changeTab = (next: TabId) => {
+    setTab(next)
+    if (next !== 'results') setRequestedSession(null)
   }
 
   return (
     <>
-      <Tabs tabs={TABS} active={tab} onChange={setTab} />
+      <Tabs tabs={TABS} active={tab} onChange={changeTab} />
 
       {/* Every section keeps the upcoming/current event in view, except home
           where it is rendered at full size. */}
       {tab !== 'home' && featured && (
-        <FeaturedEventBar featured={featured} onOpen={() => setTab('home')} />
+        <FeaturedEventBar featured={featured} onOpen={() => changeTab('home')} />
       )}
 
       <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`}>
@@ -82,8 +93,9 @@ export function SeasonView({ season, races }: SeasonViewProps) {
           <Home
             season={season}
             featured={featured}
-            onOpenNews={() => setTab('news')}
+            onOpenNews={() => changeTab('news')}
             onShowCircuitInfo={setInfoRace}
+            onOpenResults={openRace}
           />
         )}
 
@@ -108,6 +120,7 @@ export function SeasonView({ season, races }: SeasonViewProps) {
             races={races}
             round={round}
             roundId={round ? roundIds.get(round) : undefined}
+            initialSession={requestedSession}
             onRoundChange={setRequestedRound}
           />
         )}

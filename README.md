@@ -280,8 +280,24 @@ Worked example, 2026 season — Singapore runs 9–11 Oct and the USA 23–25 Oc
 | 17 Oct 2026 | United States Grand Prix (`upcoming`, in 6 days) |
 | 7 Dec 2026 | Abu Dhabi Grand Prix (`final`) |
 
-`TODAY` is resolved once at module load in `src/lib/schedule.ts`. For a long-running
-deployment you would want to refresh it (for example on an interval or on tab focus).
+The date-only window decides **which** round is featured; the clock decides what the panel
+says about the moment. `weekendProgress` walks the same weekend schedule and compares each
+session's start against a running `now` (`useNow`, refreshed every 30 seconds and whenever the
+tab regains focus):
+
+- While a session is on track, the badge becomes **Live · Qualifying** (or Practice, Sprint,
+  Race) in red, and that row in the weekend schedule carries a pulsing red dot.
+- Every finished session carries a **Results** button at the end of its row in the weekend
+  schedule (dates and buttons line up as columns), which opens that round on **Chequered Flag**
+  with the session already selected. After the race itself the badge reads **Race complete**.
+
+Session lengths are estimates (`SESSION_MINUTES` in `src/lib/schedule.ts`), deliberately
+generous so a red flag or a safety car does not make a live session look finished early.
+
+`TODAY` — the round to feature — is resolved once at module load in `src/lib/schedule.ts`.
+The live-session marker and the results button use `useNow`, so they keep up for the length of
+a browsing session; a page opened across midnight would need a reload to re-pick the featured
+round.
 
 ## News
 

@@ -994,6 +994,10 @@ a:hover {
   .pill__dot {
     animation: none;
   }
+
+  .schedule__dot {
+    animation: none;
+  }
 }
 
 /* ---------- Footer ---------- */
@@ -1104,10 +1108,16 @@ a:hover {
   font-weight: 700;
 }
 
-/* The circuit's info popup, under the venue line. A size down from a row button:
-   it is a footnote to where the race is, not an action in its own right. */
-.hero__info {
+/* The hero's footnote action, under the venue line: only the way into the
+   circuit, now that results sit next to each finished session. */
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   margin-top: 0.75rem;
+}
+
+.hero__info {
   padding: 0.26rem 0.6rem;
   font-size: 0.66rem;
 }
@@ -1147,7 +1157,6 @@ a:hover {
 .schedule__row {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
   gap: 1rem;
   padding: 0.32rem 0;
   border-bottom: 1px dashed var(--line);
@@ -1159,18 +1168,69 @@ a:hover {
 }
 
 .schedule__label {
+  flex: 1 1 auto;
+  min-width: 0;
   color: var(--ink-soft);
   font-size: 0.7rem;
   font-weight: 700;
 }
 
+/* The session on track right now: a pulsing red dot beside its label, so the
+   schedule reads as the moment, not just the timetable. */
+.schedule__dot {
+  display: inline-block;
+  width: 0.42rem;
+  height: 0.42rem;
+  margin-right: 0.4rem;
+  border-radius: 50%;
+  background: var(--red);
+  vertical-align: middle;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.schedule__row--live .schedule__label {
+  color: var(--red-ink);
+}
+
+/* Every finished session carries its own way into the results, in the row's
+   right-hand slot so it lines up down the weekend. */
+.schedule__results {
+  padding: 0.04rem 0.34rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--red-ink);
+  font: inherit;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.schedule__results:hover {
+  border-color: var(--red-deep);
+  background: var(--red);
+  color: var(--on-red);
+}
+
 .schedule__when {
+  flex: none;
   display: flex;
   gap: 0.6rem;
   color: var(--ink-muted);
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* A reserved right-hand slot, present on every row, so the dates and the
+   results chips form columns instead of floating next to names of odd widths. */
+.schedule__action {
+  flex: none;
+  min-width: 3.9rem;
+  text-align: right;
+  align-self: center;
 }
 
 /* The race is the weekend's headline, so it gets the one splash of red. */

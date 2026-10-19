@@ -16,11 +16,20 @@ interface RaceResultsProps {
   round: string
   /** Alpha round id for the selected round, when one could be resolved. */
   roundId: string | undefined
+  /** Session to open first, e.g. the one the hero sent the visitor to see. */
+  initialSession?: SessionCode | null
   onRoundChange: (round: string) => void
 }
 
-export function RaceResults({ season, races, round, roundId, onRoundChange }: RaceResultsProps) {
-  const [sessionChoice, setSessionChoice] = useState<SessionCode | null>(null)
+export function RaceResults({
+  season,
+  races,
+  round,
+  roundId,
+  initialSession,
+  onRoundChange,
+}: RaceResultsProps) {
+  const [sessionChoice, setSessionChoice] = useState<SessionCode | null>(initialSession ?? null)
   const [view, setView] = useState<'table' | 'grid'>('table')
 
   const selectedRace = races.find((race) => race.round === round)
@@ -146,15 +155,19 @@ export function RaceResults({ season, races, round, roundId, onRoundChange }: Ra
       {roundId && indexLoading && <Loading message="Loading sessions…" />}
       {indexError && <ErrorState message={indexError} onRetry={reloadIndex} />}
 
+      {/* A round can be on the calendar before the API lists any of its
+          sessions, which is the other half of "not published yet". */}
+      {roundId && !indexLoading && !indexError && sessionTabs.length === 0 && (
+        <Empty message="Results will be ready soon — stay tuned!" />
+      )}
+
       {loading && !error && (
         <Loading message={`Loading ${sessionLabel.toLowerCase()} results…`} />
       )}
       {error && <ErrorState message={error} onRetry={reload} />}
 
       {data && !loading && !error && data.results.length === 0 && (
-        <Empty
-          message={`${sessionLabel} results for round ${round} are not available yet.`}
-        />
+        <Empty message={`${sessionLabel} results will be ready soon — stay tuned!`} />
       )}
 
       {data && !loading && !error && data.results.length > 0 && (
