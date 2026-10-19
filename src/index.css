@@ -4,8 +4,9 @@
    pastel haze, condensed caps for display type, and flat colour-coded chips.
    ========================================================================== */
 
-/* One variable font covers the whole system: weight for emphasis, width for
-   the condensed caps that give the theme its character. */
+/* One variable family covers the whole system: weight for emphasis, width for
+   the condensed caps that give the theme its character, and a true italic face
+   for the poster-lean titles. */
 @font-face {
   font-family: 'Archivo Variable';
   font-style: normal;
@@ -13,6 +14,18 @@
   font-weight: 100 900;
   font-stretch: 62% 125%;
   src: url('/fonts/archivo-latin-wdth-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Archivo Variable';
+  font-style: italic;
+  font-display: swap;
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  src: url('/fonts/archivo-latin-wdth-italic.woff2') format('woff2-variations');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
     U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
     U+FEFF, U+FFFD;
@@ -200,6 +213,22 @@ a:hover {
   letter-spacing: 0.07em;
 }
 
+/* First-level titles take the film-poster voice: heavy, italic and set tight,
+   so each heading leans forward. Archivo's true italic keeps the letterforms
+   drawn rather than skewing the upright face. */
+.brand__title,
+.hero__title,
+.panel__title,
+.circuit__title,
+.event-bar__name {
+  font-style: italic;
+  font-weight: 900;
+  font-stretch: 92%;
+  letter-spacing: 0.005em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
 /* ---------- Layout ---------- */
 
 .app {
@@ -246,9 +275,7 @@ a:hover {
 .brand__title {
   margin: 0;
   font-size: 1.45rem;
-  font-weight: 800;
   line-height: 1.05;
-  letter-spacing: 0.06em;
 }
 
 .brand__subtitle {
@@ -438,7 +465,6 @@ a:hover {
 .panel__title {
   margin: 0;
   font-size: 1.05rem;
-  font-weight: 800;
   line-height: 1.15;
 }
 
@@ -1089,7 +1115,6 @@ a:hover {
 .hero__title {
   margin: 0.65rem 0 0.3rem;
   font-size: clamp(1.5rem, 3.6vw, 2.15rem);
-  font-weight: 800;
   line-height: 1.08;
 }
 
@@ -1201,7 +1226,7 @@ a:hover {
 .event-bar__name {
   flex: 0 1 auto;
   min-width: 0;
-  font-weight: 700;
+  font-size: 0.95rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1446,7 +1471,6 @@ a:hover {
 .circuit__title {
   margin: 0;
   font-size: clamp(1.3rem, 3vw, 1.7rem);
-  font-weight: 800;
   line-height: 1.1;
 }
 
@@ -1624,6 +1648,34 @@ a:hover {
   .event-bar__meta,
   .event-bar__when {
     display: none;
+  }
+}
+
+/* The collapsed hero on a phone: the countdown drops to a second line so the
+   race name keeps the width its display face needs instead of ellipsizing. */
+@media (max-width: 640px) {
+  .event-bar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.3rem 0.75rem;
+  }
+
+  .event-bar .pill {
+    grid-area: 1 / 1;
+    white-space: nowrap;
+  }
+
+  .event-bar__name {
+    grid-area: 1 / 2;
+    font-size: 0.9rem;
+  }
+
+  .event-bar__cta {
+    grid-area: 2 / 2 / 3 / -1;
+  }
+
+  .event-bar__chevron {
+    grid-area: 1 / 3;
   }
 }
 

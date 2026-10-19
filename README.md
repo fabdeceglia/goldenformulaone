@@ -44,9 +44,9 @@ The section names above are the tab labels. Each tab keeps a stable id (`home`, 
 | **Constructors** | Constructor championship table |
 | **Chequered Flag** | Every session of a selected round |
 
-Every section except The Pit Wall shows `FeaturedEventBar`, a one-line summary of the featured
-event. Clicking it returns to The Pit Wall. The bar hides the circuit and date details on
-narrow screens, keeping the race name and countdown.
+Every section except The Pit Wall shows `FeaturedEventBar`, a compact summary of the featured
+event. Clicking it returns to The Pit Wall. On narrow screens the bar hides the circuit and
+date details and drops the countdown to a second line, so the race name keeps its full width.
 
 ## Look and feel
 
@@ -56,11 +56,9 @@ ink, and a single warm red carries every call to action. The header pairs a head
 pit-wall operator mark with the name **Box this Lap!** and its tagline, "Live standings and
 updates from the pit wall."
 
-- **Type** — one variable font, [Archivo](https://fonts.google.com/specimen/Archivo), served
-  from `public/fonts`. Its two axes do the whole job: headings and labels are set condensed
-  (`font-stretch: 78%`) in uppercase caps, while tables and body copy stay at normal width.
-  Self-hosting keeps a third party off the critical path, and the file is preloaded because
-  the stylesheet references it immediately.
+- **Type** — one variable family, [Archivo](https://fonts.google.com/specimen/Archivo), in
+  roman and italic. Three voices carry the interface; the hierarchy and the rules that keep it
+  coherent are set out under [Typography](#typography).
 - **Colour** — the palette lives in custom properties at the top of `src/index.css`. Cream
   `#f4efe2` paper, `#1b1b1b` ink, and Golden Lap's `#e4161c` red as the accent. Amber marks
   an event still to come; magenta marks a fastest lap, and the `FL` chip carries the lap time
@@ -72,6 +70,41 @@ updates from the pit wall."
 - **Flat by default** — content surfaces carry no gradients or glows (the only gradient is the
   pastel backdrop). Depth comes from a hairline border and one soft shadow. Every colour pair
   used for text was checked against WCAG AA.
+
+### Typography
+
+One family, [Archivo](https://fonts.google.com/specimen/Archivo), self-hosted from
+`public/fonts` in roman and italic. Its weight and width axes do the work, and three voices
+cover the interface:
+
+| Voice | Setting | Used for |
+| --- | --- | --- |
+| **Display** | Italic, weight 900, 92% width, uppercase, 0.005em tracking | The subject of a block: brand, hero race name, collapsed event bar, panel headings, dialog titles |
+| **Workhorse** | Upright, condensed 78%, weight 700–800, uppercase, 0.07em tracking | Second-level headings, column heads, tabs, buttons, chips, kickers |
+| **Reading** | Upright, normal width, weight 400–700 | Body copy, excerpts, row names, headlines, numbers |
+
+The display face is the poster voice: heavy and leaning, set tight so a title reads as one
+block of motion rather than spaced-out signage. These rules keep it coherent:
+
+- **One display line per block.** The eye should land on one leaning title; a second one in
+  the same block cancels the first out.
+- **Never below ~14px.** All-caps italic is hard to read small, so the collapsed event bar at
+  `0.9rem` on phones is the floor.
+- **Subject only.** The name of the page, panel, dialog or event takes the display face. A
+  row, an article, a label or a control does not.
+- **No italic for data or controls.** Numbers, times, points, column headers, tabs and buttons
+  stay upright: slanting tabular figures breaks their alignment, and slanted controls read as
+  emphasis rather than affordance.
+- **Let the second tier recede.** Sub-headings (`Weekend schedule`, `Layout history`, `Did not
+  qualify`) stay upright and condensed, as do article headlines, which are 700 upright rather
+  than a second display line.
+- **True italic, not a skew.** The italic cut is drawn, not synthesised — no `transform:
+  skew` and no oblique fallback.
+- **Balanced wrapping.** Display titles use `text-wrap: balance`, so a two-line mobile hero
+  breaks evenly (`UNITED STATES / GRAND PRIX`) instead of orphaning its last word.
+
+Self-hosting keeps a third party off the critical path, and both cuts are preloaded from
+`index.html` because the stylesheet references them immediately.
 
 ### Light and dark
 
@@ -415,7 +448,8 @@ public/
 ├── og-image-square.png          # square social card (1080x1080)
 ├── site.webmanifest             # web app manifest
 ├── fonts/
-│   └── archivo-latin-wdth-normal.woff2   # variable font: weight + width axes
+│   ├── archivo-latin-wdth-normal.woff2    # variable font: weight + width axes
+│   └── archivo-latin-wdth-italic.woff2    # true italic face for first-level titles
 └── circuits/                    # vendored circuit track layouts (see "Circuit images")
     ├── LICENSE.txt              # MIT licence of the layout artwork
     └── *.svg                    # one file per historical layout, e.g. monza-6.svg
