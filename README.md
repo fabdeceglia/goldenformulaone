@@ -163,6 +163,14 @@ Notes:
   1 rather than jumping ahead to the race.
 - Sessions with no data yet show an explicit "not available yet" notice, which is the normal
   case for rounds still to come.
+- **Inside a session's results window** — from ten minutes before its estimated end until 24
+  hours after it — the view re-checks the API on its own: every 30 seconds around the flag,
+  then every minute, then every five. Polling stops as soon as the classification arrives,
+  and a hidden tab is checked immediately when it comes back into view. Outside that window
+  the view makes a single request, so opening an old round or a race weeks away does not
+  keep the API busy. The window and cadence live in `resultsPollDelay` in
+  `src/lib/schedule.ts`; the development clock override (`?now=2026-10-25T22:05:00Z`)
+  exercises it without waiting for a race.
 
 ### The Starting Grid
 
@@ -210,6 +218,30 @@ every session is rendered from one response shape.
 > **Heads up:** the alpha API is explicitly unfinished and its responses have been observed
 > changing between requests (sometimes wrapped in `{ metadata, data }`, sometimes not).
 > `src/api/alpha.ts` normalises the envelope, but the shape may still change without notice.
+
+### Measuring results readiness
+
+jolpica does not expose when a result was published. `metadata.timestamp` is when the
+response was generated, and a session's `timestamp` is its scheduled start, so the delay
+between the chequered flag and usable results has to be sampled rather than reconstructed.
+`scripts/results-readiness.mjs` does that: it polls the alpha endpoint around a session and
+records the first non-empty and first complete payload in `.readiness/results.jsonl`
+(git-ignored).
+
+```sh
+# Watch the next round: wait for each session, then poll until results are complete
+npm run readiness -- --round 18 --loop
+
+# Summarise what has been collected so far
+npm run readiness:report
+```
+
+`--loop` starts five minutes before each session's estimated end and backs off from 30
+seconds to five minutes. A payload counts as complete when its classified entries reach the
+round's driver count (falling back to 20). `--once` is suitable for an external scheduler:
+run it at least once before the session ends, otherwise the first sample is already
+published and the report can only show an upper bound. The probe is independent of the app
+and reads the same alpha endpoint the results view uses.
 
 ## Circuit images
 
@@ -439,7 +471,7 @@ src/
 │   ├── StartingGridView.tsx     # qualifying as a staggered grid of plates
 │   └── Tabs.tsx
 ├── hooks/
-│   ├── useFetch.ts              # abortable fetch hook with reload
+│   ├── useFetch.ts              # abortable fetch hook with reload + background refresh
 │   ├── useMediaQuery.ts         # width queries, for layout CSS cannot switch
 │   └── useTheme.ts              # light/dark theme: read, toggle, remember
 ├── lib/

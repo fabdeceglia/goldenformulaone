@@ -1,9 +1,17 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { SESSION_CODES, alpha } from '../api/alpha'
 import type { Race, SessionCode } from '../api/types'
 import { useFetch } from '../hooks/useFetch'
+import { useNow } from '../hooks/useNow'
+import { clockNow } from '../lib/clock'
 import { formatDateTime } from '../lib/format'
-import { NOW_MILLIS, defaultSession, raceSchedule } from '../lib/schedule'
+import {
+  NOW_MILLIS,
+  defaultSession,
+  raceSchedule,
+  resultsPollDelay,
+  sessionPhase,
+} from '../lib/schedule'
 import { Empty, ErrorState, Loading } from './Feedback'
 import { SessionResultTable } from './SessionResultTable'
 import { StartingGridView } from './StartingGridView'
@@ -42,6 +50,7 @@ export function RaceResults({
     loading: indexLoading,
     error: indexError,
     reload: reloadIndex,
+    refresh: refreshIndex,
   } = useFetch(roundId ? (signal) => alpha.resultsIndex(roundId, signal) : null, [roundId])
 
   const sessionTabs = useMemo<readonly Tab<SessionCode>[]>(() => {
@@ -68,7 +77,13 @@ export function RaceResults({
     return codes[codes.length - 1] ?? 'R'
   }, [sessionChoice, sessionTabs, fallback])
 
-  const { data, loading, error, reload } = useFetch(
+  const {
+    data,
+    loading,
+    error,
+    reload,
+    refresh: refreshSession,
+  } = useFetch(
     roundId && sessionTabs.length > 0
       ? (signal) => alpha.session(roundId, session, signal)
       : null,
@@ -76,6 +91,84 @@ export function RaceResults({
   )
 
   const sessionLabel = sessionTabs.find((tab) => tab.id === session)?.label ?? session
+
+  const now = useNow()
+  const selectedEntry = useMemo(
+    () =>
+      selectedRace
+        ? raceSchedule(selectedRace).find((entry) => entry.code === session)
+        : undefined,
+    [selectedRace, session],
+  )
+
+  // The API gives no "published at" signal, so the app only polls inside the
+  // window where a result can plausibly arrive. Opening Abu Dhabi in October
+  // therefore stays a single request; leaving the results tab open after the
+  // flag keeps checking until the classification appears.
+  const pollDelay = selectedEntry ? resultsPollDelay(selectedEntry, now) : null
+  const hasResults = (data?.results.length ?? 0) > 0
+
+  const pollTarget: 'index' | 'session' | null =
+    pollDelay === null || !roundId
+      ? null
+      : sessionTabs.length === 0
+        ? !indexLoading && !indexError
+          ? 'index'
+          : null
+        : !loading && !error && !hasResults
+          ? 'session'
+          : null
+
+  useEffect(() => {
+    if (pollTarget === null || pollDelay === null) return
+
+    let cancelled = false
+    let timer = 0
+
+    const check = async () => {
+      if (cancelled) return
+      if (pollTarget === 'index') await refreshIndex()
+      else await refreshSession()
+
+      if (cancelled) return
+      const next = selectedEntry ? resultsPollDelay(selectedEntry, clockNow()) : null
+      if (next !== null) timer = window.setTimeout(check, next)
+    }
+
+    // Timers are throttled in a hidden tab. Checking as soon as the visitor
+    // comes back avoids making them wait for the next five-minute slot.
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return
+      if (pollTarget === 'index') void refreshIndex()
+      else void refreshSession()
+    }
+
+    timer = window.setTimeout(check, pollDelay)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [pollTarget, pollDelay, selectedEntry, refreshIndex, refreshSession])
+
+  const pendingMessage = (label: string) => {
+    if (pollDelay !== null) {
+      return `${label} results are not published yet — checking again automatically.`
+    }
+    if (selectedEntry && sessionPhase(selectedEntry, now) !== 'finished') {
+      return `${label} results will be available after the session.`
+    }
+    return `${label} results are not available.`
+  }
+
+  const pendingRoundMessage =
+    pollDelay !== null
+      ? 'Results are not published yet — checking again automatically.'
+      : selectedEntry && sessionPhase(selectedEntry, now) !== 'finished'
+        ? 'Results will be available after the session.'
+        : 'Results are not available for this round.'
 
   // Only qualifying has a starting grid to show, and the toggle is the only way
   // to reach it: every other session stays on the table it has always had.
@@ -158,7 +251,7 @@ export function RaceResults({
       {/* A round can be on the calendar before the API lists any of its
           sessions, which is the other half of "not published yet". */}
       {roundId && !indexLoading && !indexError && sessionTabs.length === 0 && (
-        <Empty message="Results will be ready soon — stay tuned!" />
+        <Empty message={pendingRoundMessage} />
       )}
 
       {loading && !error && (
@@ -167,7 +260,7 @@ export function RaceResults({
       {error && <ErrorState message={error} onRetry={reload} />}
 
       {data && !loading && !error && data.results.length === 0 && (
-        <Empty message={`${sessionLabel} results will be ready soon — stay tuned!`} />
+        <Empty message={pendingMessage(sessionLabel)} />
       )}
 
       {data && !loading && !error && data.results.length > 0 && (

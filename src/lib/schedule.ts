@@ -196,6 +196,11 @@ function daysBetween(from: string, to: string): number {
 
 export type SessionPhase = 'upcoming' | 'live' | 'finished'
 
+/** Estimated end of a session, in epoch milliseconds. */
+function sessionEnd(entry: ScheduleEntry): number {
+  return sessionStart(entry) + SESSION_MINUTES[entry.code] * 60_000
+}
+
 /**
  * Where one session sits relative to the clock. Durations are estimates (see
  * `SESSION_MINUTES`), so a session only stops counting as live once it is
@@ -205,10 +210,40 @@ export function sessionPhase(entry: ScheduleEntry, now: number = Date.now()): Se
   const start = sessionStart(entry)
   if (!Number.isFinite(start)) return 'upcoming'
 
-  const end = start + SESSION_MINUTES[entry.code] * 60_000
+  const end = sessionEnd(entry)
   if (now < start) return 'upcoming'
   if (now < end) return 'live'
   return 'finished'
+}
+
+/**
+ * How long the app keeps expecting results to appear after a session ends.
+ * Generous enough to cover a race day and the following morning, but bounded so
+ * browsing an old round does not turn the results view into a permanent poller.
+ */
+const RESULTS_WINDOW_MINUTES = 24 * 60
+
+/**
+ * Delay before the next background check for a session's results, or `null`
+ * when the clock is outside the window where a result could plausibly arrive.
+ *
+ * The session is considered close enough to poll from ten minutes before its
+ * estimated end (a red flag can finish one early). Checks are frequent around
+ * the flag, then relax quickly so a tab left open on race day is cheap.
+ */
+export function resultsPollDelay(
+  entry: ScheduleEntry,
+  now: number = Date.now(),
+): number | null {
+  const end = sessionEnd(entry)
+  if (!Number.isFinite(end)) return null
+
+  const afterEnd = now - end
+  if (afterEnd < -10 * 60_000) return null
+  if (afterEnd < 15 * 60_000) return 30_000
+  if (afterEnd < 60 * 60_000) return 60_000
+  if (afterEnd < RESULTS_WINDOW_MINUTES * 60_000) return 5 * 60_000
+  return null
 }
 
 export interface WeekendProgress {
