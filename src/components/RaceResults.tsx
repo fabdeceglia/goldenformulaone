@@ -25,6 +25,10 @@ interface RaceResultsProps {
   round: string
   /** Alpha round id for the selected round, when one could be resolved. */
   roundId: string | undefined
+  /** The season-wide round-id lookup is still in flight or failed. */
+  roundsLoading: boolean
+  roundsError: string | null
+  onRetryRounds: () => void
   /** Session to open first, e.g. the one the hero sent the visitor to see. */
   initialSession?: SessionCode | null
   onRoundChange: (round: string) => void
@@ -35,6 +39,9 @@ export function RaceResults({
   races,
   round,
   roundId,
+  roundsLoading,
+  roundsError,
+  onRetryRounds,
   initialSession,
   onRoundChange,
 }: RaceResultsProps) {
@@ -282,7 +289,13 @@ export function RaceResults({
       )}
 
       {!round && <Empty message="Select a round to see its results." />}
-      {round && !roundId && (
+      {round && !roundId && roundsLoading && (
+        <Loading message="Loading the results index…" />
+      )}
+      {round && !roundId && !roundsLoading && roundsError && (
+        <ErrorState message={roundsError} onRetry={onRetryRounds} />
+      )}
+      {round && !roundId && !roundsLoading && !roundsError && (
         <Empty message={`Results are not available for round ${round}.`} />
       )}
       {roundId && indexLoading && <Loading message="Loading sessions…" />}

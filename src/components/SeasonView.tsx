@@ -46,10 +46,12 @@ export function SeasonView({ season, races }: SeasonViewProps) {
 
   // Results are keyed by the alpha API's own opaque round ids, so resolve the
   // whole season's mapping once rather than per round.
-  const { data: rounds } = useFetch(
-    season ? (signal) => alpha.rounds(season, signal) : null,
-    [season],
-  )
+  const {
+    data: rounds,
+    loading: roundsLoading,
+    error: roundsError,
+    reload: reloadRounds,
+  } = useFetch(season ? (signal) => alpha.rounds(season, signal) : null, [season])
 
   const roundIds = useMemo(
     () => new Map((rounds ?? []).map((item) => [String(item.number), item.id])),
@@ -120,6 +122,9 @@ export function SeasonView({ season, races }: SeasonViewProps) {
             races={races}
             round={round}
             roundId={round ? roundIds.get(round) : undefined}
+            roundsLoading={roundsLoading}
+            roundsError={roundsError}
+            onRetryRounds={reloadRounds}
             initialSession={requestedSession}
             onRoundChange={setRequestedRound}
           />
