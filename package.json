@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "readiness": "node scripts/results-readiness.mjs",
-    "readiness:report": "node scripts/results-readiness.mjs --report"
+    "readiness:report": "node scripts/results-readiness.mjs --report",
+    "replays": "node scripts/build-replays.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

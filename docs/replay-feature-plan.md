@@ -1,6 +1,6 @@
 # Race Replay — Feature Plan
 
-> Status: **planning**. No implementation yet.
+> Status: **implemented** (Phases 0–2). See [Implementation notes](#14-implementation-notes).
 > Owner: Fabrizio · Created: 2026-10-18
 > Folder note: this `docs/` folder is deliberately outside the Vite build (the build
 > only bundles `index.html` + `src/` and copies `public/`), so this document is
@@ -230,11 +230,11 @@ Result: `toScreen(x, y) → { sx, sy }` used for outline and cars alike.
 
 Goal: prove the map + moving dots + playhead against one hardcoded session.
 
-- [ ] `src/api/openf1.ts`: minimal client (direct to `api.openf1.org`).
-- [ ] `src/lib/circuit.ts`: transform + shape for one circuit.
-- [ ] `src/lib/replay.ts`: timeline, interpolation, standings-at-`t`.
-- [ ] Throwaway `<ReplayMap>` on a hidden route/flag, hardcoded to the Singapore 2026 race.
-- [ ] Verify cars sit on the outline across the whole lap and that the tower animates.
+- [x] `src/api/openf1.ts`: minimal client (direct to `api.openf1.org`).
+- [x] `src/lib/circuit.ts`: transform + shape for one circuit.
+- [x] `src/lib/replay.ts`: timeline, interpolation, standings-at-`t`.
+- [x] Throwaway `<ReplayMap>` on a hidden route/flag, hardcoded to the Singapore 2026 race.
+- [x] Verify cars sit on the outline across the whole lap and that the tower animates.
 
 **Acceptance:** cars track the circuit for a full race; tower reorders at real overtakes.
 
@@ -242,12 +242,12 @@ Goal: prove the map + moving dots + playhead against one hardcoded session.
 
 Goal: the real feature, end to end, on free data.
 
-- [ ] `Replay` button in `RaceResults` + wide `Modal` variant.
-- [ ] `resolveSessionKey(race, code)` + `/sessions` cache.
-- [ ] Full loader: drivers + position + per-driver location; downsample; IndexedDB cache.
-- [ ] `ReplayMap`, `ReplayLeaderboard`, `ReplayControls`.
-- [ ] States: loading progress, live-window disabled, partial/error handling.
-- [ ] Accessibility pass (keyboard, ARIA, reduced motion).
+- [x] `Replay` button in `RaceResults` + wide `Modal` variant.
+- [x] `resolveSessionKey(race, code)` + `/sessions` cache.
+- [x] Full loader: drivers + position + per-driver location; downsample; IndexedDB cache.
+- [x] `ReplayMap`, `ReplayLeaderboard`, `ReplayControls`.
+- [x] States: loading progress, live-window disabled, partial/error handling.
+- [x] Accessibility pass (keyboard, ARIA, reduced motion).
 
 **Acceptance:** from a finished race's results, Replay opens, loads, plays, scrubs, and the
 tower tracks the race — with no subscription.
@@ -256,12 +256,12 @@ tower tracks the race — with no subscription.
 
 Goal: fast, small, offline-capable.
 
-- [ ] `scripts/build-replays.mjs`: fetch → downsample → quantise → simplify → write
+- [x] `scripts/build-replays.mjs`: fetch → downsample → quantise → simplify → write
       `public/replays/{session_key}.json`.
-- [ ] `public/circuits.json` for all circuits in use.
-- [ ] `ReplaySource` abstraction with a B-first, A-fallback loader.
+- [x] `public/circuits.json` for all circuits in use.
+- [x] `ReplaySource` abstraction with a B-first, A-fallback loader.
 - [ ] Optional scheduled GitHub Action to bake new races after each weekend.
-- [ ] Budget check: per-file size, total asset weight.
+- [x] Budget check: per-file size, total asset weight.
 
 **Acceptance:** a race replay loads from one static file, no OpenF1 calls at runtime.
 
@@ -285,7 +285,8 @@ Goal: fast, small, offline-capable.
 - `src/components/ReplayLeaderboard.tsx` — standings tower.
 - `src/components/ReplayControls.tsx` — transport bar.
 - `scripts/build-replays.mjs` — Option B generation (Phase 2).
-- `public/circuits.json`, `public/replays/*.json` — Option B assets (Phase 2).
+- `public/circuits.json`, `public/replays/index.json`, `public/replays/*.json` — Option B
+  assets (Phase 2).
 
 **Changed**
 
@@ -335,3 +336,66 @@ Goal: fast, small, offline-capable.
 - Singapore 2026 race (`11388`): 22 drivers; one driver = 4.41 MB JSON / 2.12 MB CSV;
   `/position` = 396 rows; `/intervals` = 28,131 rows (4 MB).
 - Multiviewer `circuits/61/2023`: 544 outline points, `rotation: 335`.
+
+---
+
+## 14. Implementation notes
+
+Everything in Phases 0–2 shipped in the existing app structure; there is no hidden route or
+feature flag. This section records where the build differs from the plan above.
+
+### Deviations
+
+- **Asset size is larger than estimated.** The plan guessed 30–80 KB gzipped per race. Real
+  location feeds at 2 Hz are about 60 k points across the field, and the compact encoding
+  still lands at **0.5–0.9 MB gzipped per race** (Singapore 2026: 2.12 MB raw, 19/22 cars,
+  ~920 KB gzipped). The estimate assumed a much more aggressive line simplification; the
+  implemented encoding keeps every downsample point so cornering stays smooth. The full
+  2026 season is **40 MB raw / ~14 MB gzipped**. They are served as individual files, so
+  only the race being watched is downloaded.
+- **Simplification is quantisation, not Douglas–Peucker.** Coordinates are rounded to whole
+  metres and encoded as base36 zig-zag deltas (`dt.dx.dy`), which removes the need for a
+  polyline simplifier and keeps interpolation deterministic. The circuit outline is rounded
+  the same way.
+- **The map uses the circuit endpoint's `rotation` directly.** Both the outline and the car
+  points are rotated once in `src/lib/circuit.ts` and then y-flipped into SVG space. The
+  first implementation rotated twice (outline and transform), which put cars off the track;
+  that is fixed and noted here because the same mistake is easy to reintroduce.
+- **Missing geometry degrades to a traced line.** Multiviewer returns 404 for Madring
+  (`circuit_key=153`) and Kuala Lumpur (`12`), a known upstream gap. Rather than refusing
+  those replays, the bake and the live fallback trace the fastest car's first lap
+  (`traceOutline`) and mark the circuit `approximate`, so the map shows the driven line and
+  the caption says so. All 23 finished 2026 sessions now have an asset.
+- **Replay start is robust to stragglers.** `replayWindow` starts at the 90th percentile of
+  each driver's first location sample and ends at the latest sample. Starting at the minimum
+  let a pit-lane or delayed car open the replay minutes before the field, which looked like a
+  broken clock. Position records from before the start are kept so the tower has the opening
+  order.
+- **A local index keeps baked replays off OpenF1.** `public/replays/index.json` maps
+  season + date + session code to the OpenF1 key, so a baked replay makes no third-party
+  request at all. Without it the app still had to call OpenF1 `/sessions` just to discover
+  which local file to open, which broke the Phase 2 acceptance criterion. The OpenF1 path
+  remains for races that have not been baked.
+- **The baked file embeds its own circuit.** `public/circuits.json` is written for reuse and
+  inspection, but the runtime reads geometry from the replay file, so there is no second
+  request and no version skew between the two.
+- **IndexedDB fallback cache is versioned.** `CACHE_VERSION = 2`; bump it when the fallback
+  payload shape changes. Baked files are preferred over a cached fallback, so re-baking a race
+  takes effect without clearing storage.
+
+### Measured facts
+
+- Singapore 2026 (`11388`): 22 drivers, 19 with usable location, replay window ~1 h 47 m,
+  2.12 MB raw / ~920 KB gzipped, 22 tower entries.
+- Fallback load on Monza 2026 (`11361`): ~90–120 s at 2.1 s per request on the free tier,
+  cached after the first open.
+- `public/replays/` contains every finished 2026 race and sprint (23 sessions, 21 with
+  published geometry and 2 traced); 40 MB on disk, ~14 MB gzipped in total.
+- Build and lint pass with the new modules; the replay code adds no runtime dependencies.
+
+### Follow-ups not done
+
+- Scheduled baking (GitHub Action) after each weekend; today the assets are refreshed by
+  running `npm run replays -- --season <year>`.
+- Richness items in Phase 3 (gaps, laps, tyres, flags, qualifying replays).
+- A pit-lane path: cars on the pit lane are drawn on the racing line, as accepted in §11.

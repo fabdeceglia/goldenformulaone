@@ -30,7 +30,10 @@ export default function App() {
           <a href="https://github.com/jolpica/jolpica-f1" target="_blank" rel="noreferrer">
             jolpica-f1
           </a>{' '}
-          API
+          API · Replays from{' '}
+          <a href="https://openf1.org" target="_blank" rel="noreferrer">
+            OpenF1
+          </a>
         </span>
       </footer>
     </div>

@@ -202,6 +202,53 @@ Two details worth knowing:
   assistive tech, the `P1` label is not, so a plate reads as "P1, Max Verstappen, Red Bull" —
   the number alone would be ambiguous out of context.
 
+### Race replay
+
+A finished **Race** or **Sprint** can be replayed. The **Replay** button sits at the far end of
+the session bar, next to the Table | Grid toggle, and opens a wide version of the same cream
+dialog used for circuit info. It shows the circuit outline with every car in its team colour,
+a live standings tower on the right, and a transport bar underneath.
+
+The button is enabled from **thirty minutes after the chequered flag** — the point at which
+OpenF1's historical data becomes free — and disabled with an explanation before that, or
+when the selected session is practice/qualifying. Keyboard: **space** plays/pauses and
+**←/→** scrubs ten seconds. The replay starts paused.
+
+How the data gets there:
+
+- **Pre-baked assets first.** `public/replays/index.json` maps the season, session code and
+  date to an OpenF1 key, so the app does not have to ask OpenF1 which session a race is.
+  `public/replays/{session_key}.json` then carries the timeline (downsampled to 2 Hz,
+  coordinates quantised to metres), the circuit outline and the position feed in one file.
+  Nothing third-party is called for a baked race.
+- **OpenF1 fallback.** If a race has not been baked, the browser calls OpenF1 directly
+  (CORS is open), one location request per car, throttled to the free tier's 30 requests a
+  minute. The dialog shows progress and caches the result in IndexedDB, so the next visit is
+  instant.
+- **No live streaming.** OpenF1's free tier only serves a session after the flag; during the
+  live window the button states when the replay will be available.
+
+Bake or refresh the assets with:
+
+```bash
+npm run replays -- --season 2026              # every finished race/sprint of the season
+npm run replays -- --season 2026 --latest 3   # the three most recent only
+npm run replays -- --session 11388 --force    # one session, overwrite
+```
+
+The script spaces requests two seconds apart, caches raw responses under `.cache/`
+(git-ignored), and writes `public/replays/index.json` and `public/circuits.json` alongside
+the replay files. Most races are **0.5–0.9 MB gzipped** at 2 Hz; the 2026 season is about
+**14 MB gzipped** (40 MB on disk). `--hz 1` roughly halves that at the cost of smoother
+cornering. Baked files are committed, so the feature works with no runtime OpenF1 dependency.
+
+Two 2026 circuits — Madring and Kuala Lumpur — have no published geometry in Multiviewer.
+For those the bake traces the line one car took on its first lap and the map says **outline
+traced from cars**; the replay still plays, with the tower and transport unchanged.
+
+OpenF1 data is licensed **CC BY-NC-SA 4.0** (personal, non-commercial use). The footer credits
+it next to jolpica.
+
 ### Where the data comes from
 
 jolpica exposes two layers, and the app uses both:
@@ -431,6 +478,7 @@ Open http://localhost:5173.
 | `npm run lint` | Run oxlint |
 | `npm run readiness` | Sample jolpica and OpenF1 result readiness (see above) |
 | `npm run readiness:report` | Summarise the readiness samples |
+| `npm run replays` | Bake static replay assets from OpenF1 (see "Race replay") |
 
 ## How the API is called
 
@@ -485,6 +533,7 @@ src/
 │   ├── alpha.ts     # jolpica alpha client + the session codes we render
 │   ├── client.ts    # Ergast-compatible client (calendar, standings)
 │   ├── news.ts      # the trade press: feeds, parsing, the merged list
+│   ├── openf1.ts    # OpenF1 client, session-key resolution, rate limiting
 │   ├── teams.ts     # team colours + readable chip ink
 │   └── types.ts     # response types for both API layers
 ├── components/
@@ -500,6 +549,10 @@ src/
 │   ├── NewsPanel.tsx            # the headline list, shared by home and the section
 │   ├── Position.tsx             # team-coloured position chip
 │   ├── RaceResults.tsx          # round + session selection, Table | Grid toggle
+│   ├── ReplayControls.tsx       # replay transport: play, speed, scrubber
+│   ├── ReplayDialog.tsx         # replay shell: loading states + playback clock
+│   ├── ReplayLeaderboard.tsx    # replay standings tower
+│   ├── ReplayMap.tsx            # replay circuit outline + moving cars
 │   ├── RowMenu.tsx              # schedule row actions behind a kebab on a phone
 │   ├── SeasonView.tsx           # nav tabs, shared season state, circuit info dialog
 │   ├── SessionResultTable.tsx   # one table per session format
@@ -510,10 +563,14 @@ src/
 │   ├── useMediaQuery.ts         # width queries, for layout CSS cannot switch
 │   └── useTheme.ts              # light/dark theme: read, toggle, remember
 ├── lib/
+│   ├── circuit.ts               # replay geometry: rotate, fit, project x/y to SVG
 │   ├── circuitHistory.ts        # past winners → editions, records, recent winners
 │   ├── circuits.ts              # circuit track layouts: Ergast id → vendored SVG
 │   ├── format.ts                # date, time and gap formatting
 │   ├── grid.ts                  # qualifying classification → grid slots and gaps
+│   ├── replay.ts               # replay timeline, interpolation, standings, encoding
+│   ├── replayCache.ts          # IndexedDB cache for fallback downloads
+│   ├── replaySource.ts         # baked-first loader with OpenF1 fallback
 │   └── schedule.ts              # weekend windows, session codes, race-day status
 ├── App.tsx                      # resolves the current season
 ├── index.css                    # theme tokens + all styling
@@ -533,9 +590,17 @@ public/
 ├── fonts/
 │   ├── archivo-latin-wdth-normal.woff2    # variable font: weight + width axes
 │   └── archivo-latin-wdth-italic.woff2    # true italic face for first-level titles
+├── circuits.json                # baked replay geometry, one entry per circuit
+├── replays/                     # baked replays, one file per session_key
+│   ├── index.json               # season + date + code → session_key
+│   └── {session_key}.json       # timeline + circuit + positions (see "Race replay")
 └── circuits/                    # vendored circuit track layouts (see "Circuit images")
     ├── LICENSE.txt              # MIT licence of the layout artwork
     └── *.svg                    # one file per historical layout, e.g. monza-6.svg
+
+scripts/
+├── build-replays.mjs            # bakes public/replays from OpenF1
+└── results-readiness.mjs        # samples how soon results are published
 
 vercel.json                          # production: proxies the news feeds
 ```

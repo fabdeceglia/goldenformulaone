@@ -6,6 +6,8 @@ interface ModalProps {
   label: string
   onClose: () => void
   children: ReactNode
+  /** `wide` is for the replay, which needs a map, a tower and a transport bar. */
+  size?: 'default' | 'wide'
 }
 
 /**
@@ -13,7 +15,7 @@ interface ModalProps {
  * Esc handling and top-layer backdrop for free, so this stays a thin shell.
  * The caller mounts it only while something is selected, hence the open-on-mount.
  */
-export function Modal({ label, onClose, children }: ModalProps) {
+export function Modal({ label, onClose, children, size = 'default' }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
@@ -31,7 +33,7 @@ export function Modal({ label, onClose, children }: ModalProps) {
   return (
     <dialog
       ref={ref}
-      className="modal"
+      className={`modal${size === 'wide' ? ' modal--wide' : ''}`}
       tabIndex={-1}
       aria-label={label}
       // Esc fires `cancel`; take it over so the parent owns the open state.

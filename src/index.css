@@ -505,6 +505,38 @@ a:hover {
   border-bottom: 1px solid var(--line);
 }
 
+/* Session tabs on the left; the view toggle and Replay on the right. The
+   wrapper owns the push so the two controls stay together whether or not the
+   Table | Grid toggle is present. */
+.results-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.results-actions .view-toggle {
+  margin-left: 0;
+}
+
+.replay-open {
+  white-space: nowrap;
+}
+
+/* `aria-disabled`, not `disabled`: the button stays focusable so a keyboard or
+   screen-reader visitor can reach the explanation it is described by. */
+.replay-open[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.replay-open[aria-disabled='true']:hover {
+  border-color: var(--line-strong);
+  background: transparent;
+  color: var(--ink);
+}
+
 /* ---------- Table ---------- */
 
 .table-wrap {
@@ -1481,6 +1513,15 @@ a:hover {
   overflow: auto;
 }
 
+/* The replay needs the width for a circuit and a standings tower side by side. */
+.modal--wide {
+  width: min(1180px, 96vw);
+}
+
+.modal--wide .modal__scroll {
+  max-height: 92vh;
+}
+
 /* The featured panel is designed as a full-width card; inside the dialog it
    fills the frame edge to edge instead of floating on it. */
 .modal .hero {
@@ -1697,7 +1738,334 @@ a:hover {
   letter-spacing: 0.04em;
 }
 
+/* ---------- Race replay ---------- */
+
+.replay {
+  padding: 1.2rem 1.3rem 1.35rem;
+}
+
+.replay__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-right: 2.6rem;
+}
+
+.replay__kicker {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.64rem;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.replay__title {
+  margin: 0.15rem 0 0;
+  font-size: clamp(1.25rem, 2.5vw, 1.65rem);
+  font-style: italic;
+  font-weight: 900;
+  font-stretch: 92%;
+  line-height: 1.08;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.replay__subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.82rem;
+}
+
+.replay__source {
+  flex: none;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper-sunken);
+  color: var(--ink-muted);
+  font-size: 0.6rem;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.replay__note {
+  margin: 0.8rem 0 0;
+  padding: 0.45rem 0.65rem;
+  border-left: 3px solid var(--amber);
+  background: rgba(255, 150, 11, 0.1);
+  font-size: 0.76rem;
+}
+
+.replay__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
+  gap: 1rem;
+  align-items: start;
+  margin-top: 0.9rem;
+}
+
+.replay__figure {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+  margin: 0;
+}
+
+.replay__map {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 64vh;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background-color: var(--paper-sunken);
+  background-image: radial-gradient(var(--line) 0.75px, transparent 0.75px);
+  background-size: 16px 16px;
+}
+
+.replay__outline {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.82;
+}
+
+.replay__car-dot {
+  filter: drop-shadow(0 1px 1px rgba(20, 14, 4, 0.4));
+}
+
+.replay__car-code {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 800;
+  font-stretch: 82%;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+}
+
+.replay__map-caption {
+  color: var(--ink-muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.replay__tower-wrap {
+  min-width: 0;
+  padding: 0.55rem 0.6rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+}
+
+.replay__tower-title {
+  margin: 0 0 0.4rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 0.66rem;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.replay__tower {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 58vh;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.replay__tower-row {
+  display: grid;
+  grid-template-columns: auto 2.6rem minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    'pos code name'
+    'pos code team';
+  align-items: center;
+  column-gap: 0.45rem;
+  padding: 0.18rem 0.2rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.replay__tower-row:last-child {
+  border-bottom: 0;
+}
+
+.replay__tower-row .position {
+  grid-area: pos;
+}
+
+.replay__tower-code {
+  grid-area: code;
+  font-size: 0.78rem;
+  font-weight: 800;
+  font-stretch: 80%;
+  letter-spacing: 0.03em;
+}
+
+.replay__tower-name {
+  grid-area: name;
+  overflow: hidden;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replay__tower-team {
+  grid-area: team;
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 0.62rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replay__tower-empty {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+}
+
+.replay__transport {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+
+.replay__play {
+  min-width: 4.4rem;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--red-deep);
+  border-radius: var(--radius-sm);
+  background: var(--red);
+  color: var(--on-red);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  font-stretch: var(--condensed);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.replay__play:hover {
+  background: var(--red-deep);
+}
+
+.replay__scrubber-wrap {
+  display: flex;
+  flex: 1 1 12rem;
+}
+
+.replay__scrubber {
+  width: 100%;
+  accent-color: var(--red);
+  cursor: pointer;
+}
+
+.replay__clock {
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.replay__speeds {
+  display: inline-flex;
+  gap: 0.15rem;
+  padding: 0.15rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+}
+
+.replay__speed {
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.replay__speed:hover {
+  background: var(--paper-hover);
+  color: var(--ink);
+}
+
+.replay__speed[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.replay__hint {
+  margin: 0.7rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.66rem;
+}
+
+.replay__loading {
+  display: flex;
+  min-height: 20rem;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.replay__progress {
+  width: 100%;
+  max-width: 22rem;
+  margin: 0.6rem auto 0;
+  accent-color: var(--red);
+}
+
+.replay__error {
+  padding: 1rem 0;
+}
+
 /* ---------- Responsive ---------- */
+
+@media (max-width: 860px) {
+  .replay__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .replay__tower {
+    max-height: 14rem;
+  }
+
+  .replay__map {
+    max-height: 48vh;
+  }
+}
 
 @media (max-width: 780px) {
   .hero {
@@ -1781,6 +2149,34 @@ a:hover {
 
   .panel__head {
     padding: 0.9rem 1rem;
+  }
+
+  /* The session tabs and the actions each take a row, with the actions still
+     reading as a right-aligned strip rather than floating mid-width. */
+  .results-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .modal--wide {
+    width: 96vw;
+  }
+
+  .replay {
+    padding: 1rem 0.9rem 1.1rem;
+  }
+
+  .replay__head {
+    padding-right: 2.2rem;
+  }
+
+  .replay__transport {
+    gap: 0.5rem;
+  }
+
+  .replay__clock {
+    order: 4;
+    width: 100%;
   }
 
   /* Six long section names is a lot of pill; a tighter one keeps the bar to
