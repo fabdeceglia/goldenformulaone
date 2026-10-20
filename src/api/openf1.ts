@@ -68,6 +68,14 @@ export interface OpenF1Location {
   z?: number
 }
 
+export interface OpenF1Lap {
+  session_key: number
+  driver_number: number
+  lap_number: number
+  date_start: string
+  lap_duration?: number | null
+}
+
 /** The circuit geometry as the Multiviewer API returns it. */
 export interface MultiviewerCircuit {
   circuitKey: number
@@ -209,6 +217,10 @@ export const openf1 = {
 
   positions: (sessionKey: number, signal?: AbortSignal) =>
     request<OpenF1Position[]>(`/position?session_key=${sessionKey}`, signal),
+
+  /** Lap start/end times, used for the lap counter and the replay window. */
+  laps: (sessionKey: number, signal?: AbortSignal) =>
+    request<OpenF1Lap[]>(`/laps?session_key=${sessionKey}`, signal),
 
   /**
    * One driver's location feed. The endpoint refuses an unfiltered query

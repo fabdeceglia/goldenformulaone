@@ -6,6 +6,8 @@ interface ReplayControlsProps {
   current: number
   playing: boolean
   speed: number
+  lap: number | null
+  totalLaps?: number
   onToggle: () => void
   onSeek: (value: number) => void
   onSpeed: (value: number) => void
@@ -23,6 +25,8 @@ export function ReplayControls({
   current,
   playing,
   speed,
+  lap,
+  totalLaps,
   onToggle,
   onSeek,
   onSpeed,
@@ -46,8 +50,15 @@ export function ReplayControls({
         />
       </label>
 
-      <span className="replay__clock">
-        {formatReplayClock(current - start)} / {formatReplayClock(end - start)}
+      <span className="replay__time">
+        {lap !== null && totalLaps ? (
+          <span className="replay__lap" aria-label={`Lap ${lap} of ${totalLaps}`}>
+            Lap {lap} / {totalLaps}
+          </span>
+        ) : null}
+        <span className="replay__clock">
+          {formatReplayClock(current - start)} / {formatReplayClock(end - start)}
+        </span>
       </span>
 
       <div className="replay__speeds" role="group" aria-label="Playback speed">

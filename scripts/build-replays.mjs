@@ -214,6 +214,49 @@ function replayWindow(driverSamples) {
 }
 
 /**
+ * Leader lap starts and the end of the last recorded lap. Mirrors
+ * `lapTimeline` in src/lib/replay.ts.
+ */
+function lapTimeline(rows) {
+  const starts = new Map()
+  let end = Number.NEGATIVE_INFINITY
+
+  for (const row of rows) {
+    if (!Number.isFinite(row.lap_number) || row.lap_number < 1) continue
+    const t = Date.parse(row.date_start)
+    if (!Number.isFinite(t)) continue
+
+    const current = starts.get(row.lap_number)
+    if (current === undefined || t < current) starts.set(row.lap_number, t)
+
+    const duration = Number(row.lap_duration)
+    if (Number.isFinite(duration) && duration > 0) end = Math.max(end, t + duration * 1_000)
+  }
+
+  if (starts.size === 0) return null
+
+  const ordered = [...starts]
+    .sort(([a], [b]) => a - b)
+    .map(([lap, t]) => ({ lap, t }))
+
+  return {
+    laps: { total: ordered[ordered.length - 1].lap, starts: ordered },
+    end: Number.isFinite(end) ? end : null,
+  }
+}
+
+function encodeLaps(starts, start) {
+  let previousT = start
+  return starts
+    .map(({ lap, t }) => {
+      const dt = Math.round((t - previousT) / 100)
+      previousT = t
+      return `${base36(dt)}.${base36(lap)}`
+    })
+    .join(',')
+}
+
+/**
  * A racing-line outline from one car's first lap, for circuits with no
  * published geometry (Madring returns 404 from Multiviewer). Mirrors
  * `traceOutline` in src/lib/replay.ts.
@@ -395,6 +438,16 @@ async function main() {
         request(`${OPENF1}/position?session_key=${key}`, `positions-${key}`),
       ])
 
+      // The lap feed gives the real race start (lights out), the distance and
+      // the flag, so the replay does not open in the garage or on the formation
+      // lap. Treat it as optional: a session without laps still has locations.
+      let lapRows = []
+      try {
+        lapRows = await request(`${OPENF1}/laps?session_key=${key}`, `laps-${key}`)
+      } catch (cause) {
+        console.warn(`\n  laps: ${cause instanceof Error ? cause.message : cause}`)
+      }
+
       // Geometry is published per circuit, not per session, and a new circuit
       // can be on the calendar before Multiviewer has a layout for it. Treat it
       // as optional: the cars are enough to trace a line if it is missing.
@@ -454,15 +507,33 @@ async function main() {
         throw new Error('no car positions were available')
       }
 
-      // Start when the field is running, not when the earliest outlier moves:
-      // a pit-lane car or a delayed starter can be minutes ahead of the pack.
+      // Fallback only: if a session has no lap feed, start when the field is
+      // running rather than when the earliest pit-lane outlier moves.
       const window = replayWindow(driverSamples)
       if (!window) throw new Error('no usable replay window')
-      const { start, end } = window
+
+      const timeline = lapTimeline(lapRows)
+      const scheduledStart = Number.isFinite(sessionStart) ? sessionStart : null
+      const start = timeline?.laps.starts[0]?.t ?? scheduledStart ?? window.start
+      const end = timeline?.end && timeline.end > start ? timeline.end : window.end
+
+      if (end <= start) throw new Error('no usable replay window')
+
+      // Crop the garage and formation-lap rows before encoding. Without this the
+      // file carries ~40 minutes of pre-race movement and the replay opens with
+      // cars leaving their garages.
+      for (const entry of driverSamples) {
+        entry.samples = entry.samples.filter((sample) => sample.t >= start && sample.t <= end)
+      }
+
+      const playable = driverSamples.filter((entry) => entry.samples.length > 1)
+      missing += driverSamples.length - playable.length
+
+      if (playable.length === 0) throw new Error('no car positions inside the race window')
 
       const outline = info
         ? info.x.map((x, index) => [Math.round(x), Math.round(info.y[index])])
-        : traceOutline(driverSamples, start)
+        : traceOutline(playable, start)
 
       if (outline.length < 3) throw new Error('no circuit geometry was available')
 
@@ -478,7 +549,7 @@ async function main() {
       // specific to the race it came from.
       if (info) circuits[String(session.circuit_key)] = { ...circuit, year: session.year }
 
-      const bakedDrivers = driverSamples.map(({ driver, samples }) => ({
+      const bakedDrivers = playable.map(({ driver, samples }) => ({
         n: driver.driver_number,
         a: driver.name_acronym,
         name: driver.full_name,
@@ -487,12 +558,12 @@ async function main() {
         s: encodeLocations(samples, start),
       }))
 
-      // Keep the position records from before the replay start: the latest one
-      // at `start` is the opening order, even across a formation lap.
+      // Keep the position records before the replay start: the latest one at
+      // `start` is the opening order, usually the starting grid.
       const positionByDriver = new Map()
       for (const row of positionRows) {
         const t = Date.parse(row.date)
-        if (!Number.isFinite(t) || t < fetchStart || t > fetchEnd) continue
+        if (!Number.isFinite(t) || t < fetchStart || t > end) continue
         if (!Number.isFinite(row.position) || row.position < 1) continue
 
         let list = positionByDriver.get(row.driver_number)
@@ -524,6 +595,9 @@ async function main() {
         circuit,
         start,
         end,
+        laps: timeline
+          ? { total: timeline.laps.total, starts: encodeLaps(timeline.laps.starts, start) }
+          : undefined,
         drivers: bakedDrivers,
         positions: bakedPositions,
       }

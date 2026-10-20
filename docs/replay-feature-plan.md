@@ -107,7 +107,7 @@ The loader is behind one interface (`ReplaySource`) so switching A→B is a swap
 | Positions | `/v1/position?session_key=` | 46 KB | 1 | timestamped → drives the tower |
 | **Locations** | `/v1/location?session_key=&driver_number=` | **4.4 MB JSON / 2.1 MB CSV per driver** | **22** | the heavyweight; gzip on wire |
 | Intervals (optional) | `/v1/intervals?session_key=` | 4 MB | 1 | gaps; heavy — defer |
-| Laps (optional) | `/v1/laps?session_key=&driver_number=` | 30 KB | 22 | lap counter / tyres; defer |
+| Laps | `/v1/laps?session_key=` | ~200 KB | 1 | lap counter, race distance and true start |
 | Session window | `/v1/sessions?year=` | small | 1 | resolve `session_key`, start/end |
 
 Estimated full-field wire cost (A): **~8–12 MB compressed**, ~700 k raw points across the
@@ -155,7 +155,9 @@ Result: `toScreen(x, y) → { sx, sy }` used for outline and cars alike.
 
 ### 6.2 Timeline & interpolation (`src/lib/replay.ts`)
 
-- Build a timeline `[t0, t1]` from min/max location timestamps (or the session window).
+- Build a timeline `[t0, t1]` from the lap feed: `t0` is the first car's lap 1 start
+  (lights out) and `t1` is the last recorded lap end. Locations before/after are cropped.
+  Without laps, fall back to the scheduled session start and the latest location sample.
 - Each driver's samples become `{ t, x, y }[]`, sorted by `t`.
 - At playhead `t`: binary-search the bracketing pair per driver and **lerp** `x, y`.
 - Filter out `x=0 && y=0` samples (garage / no-signal rows observed in the data).
@@ -168,9 +170,10 @@ Result: `toScreen(x, y) → { sx, sy }` used for outline and cars alike.
 - It animates automatically through overtakes because records carry timestamps.
 - Render with the existing `Position` chip + `team_colour`, plus acronym.
 
-### 6.4 Optional enrichments (later)
+### 6.4 Optional enrichments
 
-- Lap number from `/laps`; gap from `/intervals`; retire/bring-back-state when a driver
+- [x] Leader lap counter and race distance from `/laps`.
+- [ ] Gap from `/intervals`; tyre compounds; flags; retire/bring-back-state when a driver
   stops sending location.
 
 ---
@@ -200,7 +203,7 @@ Result: `toScreen(x, y) → { sx, sy }` used for outline and cars alike.
 - Play / pause.
 - Speed: 1× / 2× / 4× / 8×.
 - Scrubber spanning the session; shows elapsed / total.
-- Optional lap counter.
+- Leader lap counter, e.g. **Lap 23 / 56**, at the start of the transport.
 
 ### 7.4 States
 
@@ -267,7 +270,8 @@ Goal: fast, small, offline-capable.
 
 ### Phase 3 — Richness / live
 
-- [ ] Gaps (`/intervals`), laps, tyre compounds, flags (`/race_control`).
+- [x] Leader lap counter and race distance (`/laps`).
+- [ ] Gaps (`/intervals`), tyre compounds, flags (`/race_control`).
 - [ ] Qualifying / practice replays.
 - [ ] True live via MQTT/WebSocket (paid tier + backend token flow) behind the same UI.
 
@@ -348,11 +352,11 @@ feature flag. This section records where the build differs from the plan above.
 
 - **Asset size is larger than estimated.** The plan guessed 30–80 KB gzipped per race. Real
   location feeds at 2 Hz are about 60 k points across the field, and the compact encoding
-  still lands at **0.5–0.9 MB gzipped per race** (Singapore 2026: 2.12 MB raw, 19/22 cars,
-  ~920 KB gzipped). The estimate assumed a much more aggressive line simplification; the
-  implemented encoding keeps every downsample point so cornering stays smooth. The full
-  2026 season is **40 MB raw / ~14 MB gzipped**. They are served as individual files, so
-  only the race being watched is downloaded.
+  still lands at **0.5–0.8 MB gzipped per race** (Singapore 2026: 1.58 MB raw, 22/22 cars,
+  765 KB gzipped after cropping the pre-race feed). The estimate assumed a much more
+  aggressive line simplification; the implemented encoding keeps every downsample point so
+  cornering stays smooth. The full 2026 season is **29 MB raw / 11.5 MB gzipped**. They are
+  served as individual files, so only the race being watched is downloaded.
 - **Simplification is quantisation, not Douglas–Peucker.** Coordinates are rounded to whole
   metres and encoded as base36 zig-zag deltas (`dt.dx.dy`), which removes the need for a
   polyline simplifier and keeps interpolation deterministic. The circuit outline is rounded
@@ -366,11 +370,19 @@ feature flag. This section records where the build differs from the plan above.
   those replays, the bake and the live fallback trace the fastest car's first lap
   (`traceOutline`) and mark the circuit `approximate`, so the map shows the driven line and
   the caption says so. All 23 finished 2026 sessions now have an asset.
-- **Replay start is robust to stragglers.** `replayWindow` starts at the 90th percentile of
-  each driver's first location sample and ends at the latest sample. Starting at the minimum
-  let a pit-lane or delayed car open the replay minutes before the field, which looked like a
-  broken clock. Position records from before the start are kept so the tower has the opening
-  order.
+- **The replay starts at lights out, not at the first location row.** OpenF1's location feed
+  opens about forty minutes before the session, while the scheduled `date_start` includes
+  the formation lap (and can be early for a delayed start). Both made the old 90th-percentile
+  start show cars leaving the garages or touring to the grid. The bake and fallback now read
+  `/laps`: the earliest lap 1 `date_start` is the race start, and the last recorded lap end is
+  the finish. Location rows are cropped to that window before encoding, which also cuts the
+  file size. Position records from before the start are kept so the tower has the opening
+  order. Without laps, `replayWindow` remains the fallback.
+- **The lap counter is the leader's lap.** Each lap begins when the first car crosses the
+  line, so `Lap n` stays correct for lapped traffic even when a car's own lap row is later.
+  Race distance is the highest lap number in the feed (Singapore 2026: 62). Lap starts are
+  stored as `dt.lap` base36 frames, adding about 500 bytes per file. The transport renders
+  `Lap n / total` and the replay opens on lap 1.
 - **A local index keeps baked replays off OpenF1.** `public/replays/index.json` maps
   season + date + session code to the OpenF1 key, so a baked replay makes no third-party
   request at all. Without it the app still had to call OpenF1 `/sessions` just to discover
@@ -379,23 +391,23 @@ feature flag. This section records where the build differs from the plan above.
 - **The baked file embeds its own circuit.** `public/circuits.json` is written for reuse and
   inspection, but the runtime reads geometry from the replay file, so there is no second
   request and no version skew between the two.
-- **IndexedDB fallback cache is versioned.** `CACHE_VERSION = 2`; bump it when the fallback
-  payload shape changes. Baked files are preferred over a cached fallback, so re-baking a race
+- **IndexedDB fallback cache is versioned.** `CACHE_VERSION = 3`; bump it when the fallback
+  payload shape changes (v3 adds the lap timeline and crops the pre-race window). Baked files are preferred over a cached fallback, so re-baking a race
   takes effect without clearing storage.
 
 ### Measured facts
 
-- Singapore 2026 (`11388`): 22 drivers, 19 with usable location, replay window ~1 h 47 m,
-  2.12 MB raw / ~920 KB gzipped, 22 tower entries.
+- Singapore 2026 (`11388`): 22 drivers, all with usable location, replay window 1 h 43 m,
+  1.58 MB raw / 765 KB gzipped, 22 tower entries, 62 laps.
 - Fallback load on Monza 2026 (`11361`): ~90–120 s at 2.1 s per request on the free tier,
   cached after the first open.
 - `public/replays/` contains every finished 2026 race and sprint (23 sessions, 21 with
-  published geometry and 2 traced); 40 MB on disk, ~14 MB gzipped in total.
+  published geometry and 2 traced); 29 MB on disk, 11.5 MB gzipped in total.
 - Build and lint pass with the new modules; the replay code adds no runtime dependencies.
 
 ### Follow-ups not done
 
 - Scheduled baking (GitHub Action) after each weekend; today the assets are refreshed by
   running `npm run replays -- --season <year>`.
-- Richness items in Phase 3 (gaps, laps, tyres, flags, qualifying replays).
+- Remaining Phase 3 richness (gaps, tyres, flags) and qualifying replays.
 - A pit-lane path: cars on the pit lane are drawn on the racing line, as accepted in §11.

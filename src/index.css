@@ -1987,6 +1987,23 @@ a:hover {
   cursor: pointer;
 }
 
+.replay__time {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  white-space: nowrap;
+}
+
+.replay__lap {
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .replay__clock {
   color: var(--ink-soft);
   font-size: 0.76rem;
@@ -2174,9 +2191,10 @@ a:hover {
     gap: 0.5rem;
   }
 
-  .replay__clock {
+  .replay__time {
     order: 4;
     width: 100%;
+    justify-content: space-between;
   }
 
   /* Six long section names is a lot of pill; a tighter one keeps the bar to

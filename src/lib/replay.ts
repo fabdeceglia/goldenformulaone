@@ -36,6 +36,19 @@ export interface ReplayPosition {
 
 export type ReplaySource = 'baked' | 'live'
 
+export interface ReplayLapStart {
+  /** Lap number the race leader started at `t`. */
+  lap: number
+  t: number
+}
+
+export interface ReplayLaps {
+  /** Race distance, from the highest lap number in the feed. */
+  total: number
+  /** Ordered by lap; the first entry is lap 1, i.e. lights out. */
+  starts: ReplayLapStart[]
+}
+
 export interface ReplayData {
   sessionKey: number
   title: string
@@ -46,9 +59,31 @@ export interface ReplayData {
   /** First and last moment of the replay, epoch milliseconds. */
   start: number
   end: number
+  /** Lap count and the moments each leader lap began, when available. */
+  laps?: ReplayLaps
   source: ReplaySource
   /** Drivers whose feed could not be fetched; the replay still plays. */
   missing?: number
+}
+
+/** The leader's lap at `t`, from the timestamped lap starts. */
+export function lapAt(laps: ReplayLaps | undefined, t: number): number | null {
+  if (!laps || laps.starts.length === 0) return null
+
+  let low = 0
+  let high = laps.starts.length - 1
+  let found = -1
+  while (low <= high) {
+    const mid = (low + high) >> 1
+    if (laps.starts[mid].t <= t) {
+      found = mid
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
+  }
+
+  return found < 0 ? null : laps.starts[found].lap
 }
 
 /** Index of the latest sample at or before `t`, or `-1` before the first one. */
@@ -124,8 +159,8 @@ export function standingsAt(data: ReplayData, t: number): Standing[] {
     if (!driver) continue
 
     const latest = sampleAt(position.samples, t)
-    // Before the first record (the grid formation lap) use the opening order
-    // rather than showing an empty tower.
+    // Before a driver's first record, use its earliest known position rather
+    // than showing an empty tower row.
     const value = latest ?? position.samples[0]
     if (!value) continue
 
@@ -143,6 +178,48 @@ export function formatReplayClock(millis: number): string {
   const seconds = total % 60
   const pad = (value: number) => String(value).padStart(2, '0')
   return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`
+}
+
+/**
+ * Turns OpenF1's per-driver lap rows into one leader timeline: each lap starts
+ * when the first car crosses the line, and the race ends with the last recorded
+ * lap. The first entry is the race start — not the scheduled session start,
+ * which can be minutes earlier (formation lap) or later (a delayed start).
+ */
+export function lapTimeline(
+  rows: ReadonlyArray<{
+    lap_number: number
+    date_start: string
+    lap_duration?: number | null
+  }>,
+): { laps: ReplayLaps; end: number | null } | null {
+  const starts = new Map<number, number>()
+  let end = Number.NEGATIVE_INFINITY
+
+  for (const row of rows) {
+    if (!Number.isFinite(row.lap_number) || row.lap_number < 1) continue
+    const t = Date.parse(row.date_start)
+    if (!Number.isFinite(t)) continue
+
+    const current = starts.get(row.lap_number)
+    if (current === undefined || t < current) starts.set(row.lap_number, t)
+
+    const duration = Number(row.lap_duration)
+    if (Number.isFinite(duration) && duration > 0) {
+      end = Math.max(end, t + duration * 1_000)
+    }
+  }
+
+  if (starts.size === 0) return null
+
+  const ordered = [...starts]
+    .sort(([a], [b]) => a - b)
+    .map(([lap, t]) => ({ lap, t }))
+
+  return {
+    laps: { total: ordered[ordered.length - 1].lap, starts: ordered },
+    end: Number.isFinite(end) ? end : null,
+  }
 }
 
 /* ---------- Baked asset format ---------- */
@@ -176,6 +253,8 @@ export interface BakedReplay {
   circuit: ReplayCircuit
   start: number
   end: number
+  /** `dt.lap` frames, base36; dt in deciseconds from the replay start. */
+  laps?: { total: number; starts: string }
   drivers: BakedReplayDriver[]
   positions: BakedReplayPosition[]
 }
@@ -246,6 +325,12 @@ export function decodeBakedReplay(baked: BakedReplay): ReplayData {
     circuit: baked.circuit,
     start: baked.start,
     end: baked.end,
+    laps: baked.laps
+      ? {
+          total: baked.laps.total,
+          starts: decodeLapStarts(baked.laps.starts, baked.start),
+        }
+      : undefined,
     source: 'baked',
     drivers: baked.drivers.map((driver) => ({
       number: driver.n,
@@ -273,6 +358,33 @@ function decodePositionSamples(encoded: string, start: number): ReplayPositionSa
     samples.push({ t, position: fromBase36(position) })
   }
   return samples
+}
+
+/** Encodes leader lap starts relative to the replay start; used by the bake script. */
+export function encodeLapStarts(starts: readonly ReplayLapStart[], start: number): string {
+  let previousT = start
+  const frames: string[] = []
+
+  for (const entry of starts) {
+    const dt = Math.round((entry.t - previousT) / 100)
+    frames.push(`${base36(dt)}.${base36(entry.lap)}`)
+    previousT = entry.t
+  }
+
+  return frames.join(',')
+}
+
+function decodeLapStarts(encoded: string, start: number): ReplayLapStart[] {
+  if (!encoded) return []
+
+  let t = start
+  const starts: ReplayLapStart[] = []
+  for (const frame of encoded.split(',')) {
+    const [dt, lap] = frame.split('.')
+    t += fromBase36(dt) * 100
+    starts.push({ lap: fromBase36(lap), t })
+  }
+  return starts
 }
 
 /* ---------- Ingest helpers (OpenF1 fallback and the bake script) ---------- */

@@ -5,6 +5,7 @@ import type { ReplayCircuit } from './circuit'
 import {
   decodeBakedReplay,
   downsample,
+  lapTimeline,
   replayWindow,
   traceOutline,
   usableLocations,
@@ -203,6 +204,17 @@ async function loadFromOpenF1({
   const positions = await openf1.positions(sessionKey, signal)
   signal?.throwIfAborted()
 
+  // The lap feed supplies the race distance and the real start: the scheduled
+  // time includes the formation lap, while location rows begin in the garage
+  // about forty minutes before the session.
+  let timeline: ReturnType<typeof lapTimeline> = null
+  try {
+    timeline = lapTimeline(await openf1.laps(sessionKey, signal))
+  } catch (cause) {
+    if (signal?.aborted) throw cause
+  }
+  signal?.throwIfAborted()
+
   progress({ phase: 'circuit', label: 'Loading the circuit…', loaded: 0, total: 1 })
   let info: Awaited<ReturnType<typeof openf1.circuit>> | null = null
   try {
@@ -214,10 +226,9 @@ async function loadFromOpenF1({
   }
   signal?.throwIfAborted()
 
-  // The position feed can open well before the cars move (grid, red flag,
-  // formation lap), and the location feed can carry a stray row from the day
-  // before. The session window bounds the fetch; the replay itself starts at
-  // the first real car coordinate, once every driver is in.
+  // The location feed opens in the garage about forty minutes before the
+  // session and can carry a stray row from the day before. This generous fetch
+  // window bounds every request; the lap feed later crops it to the race.
   const sessionStart = Date.parse(session.date_start)
   const sessionEnd = Date.parse(session.date_end)
   const fetchStart = Number.isFinite(sessionStart)
@@ -267,11 +278,30 @@ async function loadFromOpenF1({
 
   const window = replayWindow(replayDrivers)
   if (!window) throw new Error('No car positions were available for this session.')
-  const { start, end } = window
+
+  // Start at lights out, not at the first location row (garage) and not at the
+  // scheduled slot (formation lap). The lap feed knows both; the scheduled time
+  // is the fallback for a session without laps.
+  const scheduledStart = Number.isFinite(sessionStart) ? sessionStart : null
+  const start = timeline?.laps.starts[0]?.t ?? scheduledStart ?? window.start
+  const end = timeline?.end && timeline.end > start ? timeline.end : window.end
+
+  if (end <= start) throw new Error('No usable replay window was available for this session.')
+
+  for (const driver of replayDrivers) {
+    driver.samples = driver.samples.filter((sample) => sample.t >= start && sample.t <= end)
+  }
+
+  const playable = replayDrivers.filter((driver) => driver.samples.length > 1)
+  missing += replayDrivers.length - playable.length
+
+  if (playable.length === 0) {
+    throw new Error('No car positions were available inside the race window.')
+  }
 
   const outline = info
     ? info.x.map((x, index) => [x, info.y[index]] as const)
-    : traceOutline(replayDrivers, start)
+    : traceOutline(playable, start)
 
   if (outline.length < 3) {
     throw new Error('No circuit geometry was available for this session.')
@@ -286,13 +316,12 @@ async function loadFromOpenF1({
   }
 
   // Keep the position records from before the replay start: the latest one at
-  // `start` is the opening order, even when the first few minutes are a grid or
-  // a formation lap.
+  // `start` is the opening order, usually the starting grid.
   const replayPositions: ReplayPosition[] = []
   for (const row of positions) {
     if (row.position < 1) continue
     const t = Date.parse(row.date)
-    if (!Number.isFinite(t) || t < fetchStart || t > fetchEnd) continue
+    if (!Number.isFinite(t) || t < fetchStart || t > end) continue
 
     let entry = replayPositions.find((item) => item.number === row.driver_number)
     if (!entry) {
@@ -313,10 +342,11 @@ async function loadFromOpenF1({
     title: race.raceName,
     subtitle: `${session.circuit_short_name} · ${race.season} ${code === 'SR' ? 'Sprint' : 'Race'}`,
     circuit,
-    drivers: replayDrivers,
+    drivers: playable,
     positions: replayPositions,
     start,
     end,
+    laps: timeline?.laps,
     source: 'live',
     missing: missing > 0 ? missing : undefined,
   }
