@@ -207,7 +207,10 @@ Two details worth knowing:
 A finished **Race** or **Sprint** can be replayed. The **Replay** button sits at the far end of
 the session bar, next to the Table | Grid toggle, and opens a wide version of the same cream
 dialog used for circuit info. It shows the circuit outline with every car in its team colour,
-a live standings tower on the right, and a transport bar underneath.
+a live standings tower on the right, and a transport bar underneath. The current **lap
+counter** sits beside the Standings heading. Tower rows keep the position, driver code,
+**gap to the car ahead**, **last completed lap time** and **current tyre compound**; the full
+name and constructor stay available in the tooltip and screen-reader label.
 
 The button is enabled from **thirty minutes after the chequered flag** — the point at which
 OpenF1's historical data becomes free — and disabled with an explanation before that, or
@@ -221,8 +224,9 @@ How the data gets there:
 - **Pre-baked assets first.** `public/replays/index.json` maps the season, session code and
   date to an OpenF1 key, so the app does not have to ask OpenF1 which session a race is.
   `public/replays/{session_key}.json` then carries the timeline (downsampled to 2 Hz,
-  coordinates quantised to metres), the lap starts, the circuit outline and the position
-  feed in one file. Nothing third-party is called for a baked race.
+  coordinates quantised to metres), the lap starts and per-driver lap times, the tyre
+  stints, the gap-to-car-ahead timeline, the circuit outline and the position feed in one
+  file. Nothing third-party is called for a baked race.
 - **OpenF1 fallback.** If a race has not been baked, the browser calls OpenF1 directly
   (CORS is open), one location request per car, throttled to the free tier's 30 requests a
   minute. The dialog shows progress and caches the result in IndexedDB, so the next visit is
@@ -240,8 +244,8 @@ npm run replays -- --session 11388 --force    # one session, overwrite
 
 The script spaces requests two seconds apart, caches raw responses under `.cache/`
 (git-ignored), and writes `public/replays/index.json` and `public/circuits.json` alongside
-the replay files. Most races are **0.5–0.8 MB gzipped** at 2 Hz; the 2026 season is about
-**11.5 MB gzipped** (29 MB on disk). `--hz 1` roughly halves that at the cost of smoother
+the replay files. Most races are **0.5–0.9 MB gzipped** at 2 Hz; the 2026 season is about
+**13.4 MB gzipped** (39 MB on disk). `--hz 1` roughly halves that at the cost of smoother
 cornering. Baked files are committed, so the feature works with no runtime OpenF1 dependency.
 
 Two 2026 circuits — Madring and Kuala Lumpur — have no published geometry in Multiviewer.

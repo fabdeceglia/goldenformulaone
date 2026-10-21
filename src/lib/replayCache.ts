@@ -7,7 +7,7 @@ import type { ReplayData } from './replay'
  */
 const DB_NAME = 'box-this-lap'
 const STORE = 'replays'
-const CACHE_VERSION = 3
+const CACHE_VERSION = 5
 
 interface StoredReplay {
   v: number

@@ -256,6 +256,110 @@ function encodeLaps(starts, start) {
     .join(',')
 }
 
+const TYRE_CODES = {
+  SOFT: 'S',
+  MEDIUM: 'M',
+  HARD: 'H',
+  INTERMEDIATE: 'I',
+  WET: 'W',
+}
+
+function lapsByDriver(rows) {
+  const byDriver = new Map()
+
+  for (const row of rows) {
+    if (!Number.isFinite(row.lap_number) || row.lap_number < 1) continue
+    const t = Date.parse(row.date_start)
+    if (!Number.isFinite(t)) continue
+    const duration = Number(row.lap_duration)
+
+    const lap = {
+      t,
+      lap: row.lap_number,
+      duration: Number.isFinite(duration) && duration > 0 ? Math.round(duration * 1_000) : 0,
+    }
+
+    const laps = byDriver.get(row.driver_number)
+    if (laps) laps.push(lap)
+    else byDriver.set(row.driver_number, [lap])
+  }
+
+  for (const laps of byDriver.values()) laps.sort((a, b) => a.lap - b.lap)
+  return byDriver
+}
+
+function stintsByDriver(rows) {
+  const byDriver = new Map()
+
+  for (const row of rows) {
+    if (!Number.isFinite(row.lap_start) || !Number.isFinite(row.lap_end)) continue
+    if (row.lap_end < row.lap_start) continue
+
+    const stint = {
+      startLap: row.lap_start,
+      endLap: row.lap_end,
+      compound: TYRE_CODES[String(row.compound).trim().toUpperCase()] ?? '?',
+    }
+
+    const stints = byDriver.get(row.driver_number)
+    if (stints) stints.push(stint)
+    else byDriver.set(row.driver_number, [stint])
+  }
+
+  for (const stints of byDriver.values()) stints.sort((a, b) => a.startLap - b.startLap)
+  return byDriver
+}
+
+function encodeDriverLaps(laps, start) {
+  let previousT = start
+  return laps
+    .map((lap) => {
+      const dt = Math.round((lap.t - previousT) / 100)
+      previousT = lap.t
+      return `${base36(dt)}.${base36(lap.duration)}.${base36(lap.lap)}`
+    })
+    .join(',')
+}
+
+function encodeDriverStints(stints) {
+  return stints.map((stint) => `${stint.startLap}-${stint.endLap}:${stint.compound}`).join(',')
+}
+
+function intervalMillis(value) {
+  if (value === null || value === undefined) return null
+  const seconds = typeof value === 'string' && value.trim() === '' ? NaN : Number(value)
+  return Number.isFinite(seconds) ? Math.max(0, Math.round(seconds * 1_000)) : null
+}
+
+function gapsByDriver(rows) {
+  const byDriver = new Map()
+
+  for (const row of rows) {
+    const t = Date.parse(row.date)
+    if (!Number.isFinite(t)) continue
+
+    const gap = { t, gap: intervalMillis(row.interval) }
+    const gaps = byDriver.get(row.driver_number)
+    if (gaps) gaps.push(gap)
+    else byDriver.set(row.driver_number, [gap])
+  }
+
+  for (const gaps of byDriver.values()) gaps.sort((a, b) => a.t - b.t)
+  return byDriver
+}
+
+function encodeDriverGaps(gaps, start) {
+  let previousT = start
+  return gaps
+    .map((sample) => {
+      const dt = Math.round((sample.t - previousT) / 100)
+      previousT = sample.t
+      const gap = sample.gap === null ? 0 : Math.max(0, Math.round(sample.gap)) + 1
+      return `${base36(dt)}.${base36(gap)}`
+    })
+    .join(',')
+}
+
 /**
  * A racing-line outline from one car's first lap, for circuits with no
  * published geometry (Madring returns 404 from Multiviewer). Mirrors
@@ -442,10 +546,22 @@ async function main() {
       // the flag, so the replay does not open in the garage or on the formation
       // lap. Treat it as optional: a session without laps still has locations.
       let lapRows = []
+      let stintRows = []
+      let intervalRows = []
       try {
         lapRows = await request(`${OPENF1}/laps?session_key=${key}`, `laps-${key}`)
       } catch (cause) {
         console.warn(`\n  laps: ${cause instanceof Error ? cause.message : cause}`)
+      }
+      try {
+        stintRows = await request(`${OPENF1}/stints?session_key=${key}`, `stints-${key}`)
+      } catch (cause) {
+        console.warn(`\n  stints: ${cause instanceof Error ? cause.message : cause}`)
+      }
+      try {
+        intervalRows = await request(`${OPENF1}/intervals?session_key=${key}`, `intervals-${key}`)
+      } catch (cause) {
+        console.warn(`\n  intervals: ${cause instanceof Error ? cause.message : cause}`)
       }
 
       // Geometry is published per circuit, not per session, and a new circuit
@@ -549,6 +665,10 @@ async function main() {
       // specific to the race it came from.
       if (info) circuits[String(session.circuit_key)] = { ...circuit, year: session.year }
 
+      const timingLaps = lapsByDriver(lapRows)
+      const timingStints = stintsByDriver(stintRows)
+      const timingGaps = gapsByDriver(intervalRows)
+
       const bakedDrivers = playable.map(({ driver, samples }) => ({
         n: driver.driver_number,
         a: driver.name_acronym,
@@ -556,6 +676,17 @@ async function main() {
         team: driver.team_name,
         c: driver.team_colour ?? undefined,
         s: encodeLocations(samples, start),
+        l:
+          encodeDriverLaps(timingLaps.get(driver.driver_number) ?? [], start) ||
+          undefined,
+        t: encodeDriverStints(timingStints.get(driver.driver_number) ?? []) || undefined,
+        g:
+          encodeDriverGaps(
+            (timingGaps.get(driver.driver_number) ?? []).filter(
+              (sample) => sample.t >= start && sample.t <= end,
+            ),
+            start,
+          ) || undefined,
       }))
 
       // Keep the position records before the replay start: the latest one at

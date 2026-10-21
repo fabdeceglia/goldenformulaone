@@ -1,12 +1,15 @@
 import { openf1, resolveSessionKey } from '../api/openf1'
-import type { OpenF1Session } from '../api/openf1'
+import type { OpenF1Interval, OpenF1Lap, OpenF1Session, OpenF1Stint } from '../api/openf1'
 import type { Race, SessionCode } from '../api/types'
 import type { ReplayCircuit } from './circuit'
 import {
   decodeBakedReplay,
   downsample,
+  gapsByDriver,
   lapTimeline,
+  lapsByDriver,
   replayWindow,
+  stintsByDriver,
   traceOutline,
   usableLocations,
 } from './replay'
@@ -207,13 +210,35 @@ async function loadFromOpenF1({
   // The lap feed supplies the race distance and the real start: the scheduled
   // time includes the formation lap, while location rows begin in the garage
   // about forty minutes before the session.
+  let lapRows: OpenF1Lap[] = []
+  let stintRows: OpenF1Stint[] = []
+  let intervalRows: OpenF1Interval[] = []
   let timeline: ReturnType<typeof lapTimeline> = null
   try {
-    timeline = lapTimeline(await openf1.laps(sessionKey, signal))
+    lapRows = await openf1.laps(sessionKey, signal)
+    timeline = lapTimeline(lapRows)
   } catch (cause) {
     if (signal?.aborted) throw cause
   }
   signal?.throwIfAborted()
+
+  try {
+    stintRows = await openf1.stints(sessionKey, signal)
+  } catch (cause) {
+    if (signal?.aborted) throw cause
+  }
+  signal?.throwIfAborted()
+
+  try {
+    intervalRows = await openf1.intervals(sessionKey, signal)
+  } catch (cause) {
+    if (signal?.aborted) throw cause
+  }
+  signal?.throwIfAborted()
+
+  const driverLaps = lapsByDriver(lapRows)
+  const driverStints = stintsByDriver(stintRows)
+  const driverGaps = gapsByDriver(intervalRows)
 
   progress({ phase: 'circuit', label: 'Loading the circuit…', loaded: 0, total: 1 })
   let info: Awaited<ReturnType<typeof openf1.circuit>> | null = null
@@ -262,6 +287,9 @@ async function loadFromOpenF1({
           team: driver.team_name,
           color: driver.team_colour?.trim() ? `#${driver.team_colour.replace(/^#/, '')}` : '#7d786b',
           samples,
+          laps: driverLaps.get(driver.driver_number),
+          stints: driverStints.get(driver.driver_number),
+          gaps: driverGaps.get(driver.driver_number),
         })
       } else {
         missing += 1
@@ -290,6 +318,8 @@ async function loadFromOpenF1({
 
   for (const driver of replayDrivers) {
     driver.samples = driver.samples.filter((sample) => sample.t >= start && sample.t <= end)
+    const gaps = driver.gaps?.filter((sample) => sample.t >= start && sample.t <= end)
+    driver.gaps = gaps?.length ? gaps : undefined
   }
 
   const playable = replayDrivers.filter((driver) => driver.samples.length > 1)

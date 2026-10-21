@@ -6,14 +6,12 @@ interface ReplayControlsProps {
   current: number
   playing: boolean
   speed: number
-  lap: number | null
-  totalLaps?: number
   onToggle: () => void
   onSeek: (value: number) => void
   onSpeed: (value: number) => void
 }
 
-const SPEEDS = [1, 2, 4, 8] as const
+const SPEEDS = [1, 2, 4, 8, 16] as const
 
 /**
  * Transport bar: play/pause, scrubber, elapsed time and the speed selector.
@@ -25,8 +23,6 @@ export function ReplayControls({
   current,
   playing,
   speed,
-  lap,
-  totalLaps,
   onToggle,
   onSeek,
   onSpeed,
@@ -51,11 +47,6 @@ export function ReplayControls({
       </label>
 
       <span className="replay__time">
-        {lap !== null && totalLaps ? (
-          <span className="replay__lap" aria-label={`Lap ${lap} of ${totalLaps}`}>
-            Lap {lap} / {totalLaps}
-          </span>
-        ) : null}
         <span className="replay__clock">
           {formatReplayClock(current - start)} / {formatReplayClock(end - start)}
         </span>

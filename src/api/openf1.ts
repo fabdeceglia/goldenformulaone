@@ -76,6 +76,24 @@ export interface OpenF1Lap {
   lap_duration?: number | null
 }
 
+export interface OpenF1Stint {
+  session_key: number
+  driver_number: number
+  stint_number: number
+  lap_start: number
+  lap_end: number
+  compound: string
+  tyre_age_at_start?: number
+}
+
+export interface OpenF1Interval {
+  date: string
+  session_key: number
+  driver_number: number
+  gap_to_leader?: number | string | null
+  interval?: number | string | null
+}
+
 /** The circuit geometry as the Multiviewer API returns it. */
 export interface MultiviewerCircuit {
   circuitKey: number
@@ -221,6 +239,14 @@ export const openf1 = {
   /** Lap start/end times, used for the lap counter and the replay window. */
   laps: (sessionKey: number, signal?: AbortSignal) =>
     request<OpenF1Lap[]>(`/laps?session_key=${sessionKey}`, signal),
+
+  /** Tyre stints, used by the timing tower. */
+  stints: (sessionKey: number, signal?: AbortSignal) =>
+    request<OpenF1Stint[]>(`/stints?session_key=${sessionKey}`, signal),
+
+  /** Gaps to the car ahead, used by the timing tower. */
+  intervals: (sessionKey: number, signal?: AbortSignal) =>
+    request<OpenF1Interval[]>(`/intervals?session_key=${sessionKey}`, signal),
 
   /**
    * One driver's location feed. The endpoint refuses an unfiltered query

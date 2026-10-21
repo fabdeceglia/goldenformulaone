@@ -5,7 +5,6 @@ import { ReplayControls } from './ReplayControls'
 import { ReplayLeaderboard } from './ReplayLeaderboard'
 import { ReplayMap } from './ReplayMap'
 import type { Race, SessionCode } from '../api/types'
-import { lapAt } from '../lib/replay'
 import type { ReplayData } from '../lib/replay'
 import { ReplayUnavailableError, loadReplay } from '../lib/replaySource'
 import type { ReplayProgress } from '../lib/replaySource'
@@ -199,8 +198,6 @@ export function ReplayDialog({ race, code, onClose }: ReplayDialogProps) {
               current={current}
               playing={playing}
               speed={speed}
-              lap={lapAt(state.data.laps, current)}
-              totalLaps={state.data.laps?.total}
               onToggle={toggle}
               onSeek={seek}
               onSpeed={setSpeed}

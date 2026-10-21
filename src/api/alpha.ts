@@ -1,3 +1,4 @@
+import { getJson } from './http'
 import type {
   AlphaEnvelope,
   AlphaResultsIndex,
@@ -25,11 +26,8 @@ function unwrap<T>(payload: T | AlphaEnvelope<T>): T {
 }
 
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`${ALPHA_BASE}${path}`, { signal })
-  if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`)
-  }
-  return unwrap<T>((await response.json()) as T | AlphaEnvelope<T>)
+  const payload = await getJson(`${ALPHA_BASE}${path}`, { signal })
+  return unwrap<T>(payload as T | AlphaEnvelope<T>)
 }
 
 /**

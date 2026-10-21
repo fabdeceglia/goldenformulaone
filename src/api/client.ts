@@ -1,3 +1,4 @@
+import { getJson } from './http'
 import type {
   CircuitResultsResponse,
   ConstructorStandingsResponse,
@@ -12,11 +13,7 @@ import type {
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/ergast/f1'
 
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, { signal })
-  if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`)
-  }
-  return (await response.json()) as T
+  return (await getJson(`${API_BASE}${path}`, { signal })) as T
 }
 
 export const api = {

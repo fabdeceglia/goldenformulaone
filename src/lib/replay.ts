@@ -14,6 +14,28 @@ export interface ReplaySample {
   y: number
 }
 
+export type ReplayTyre = 'S' | 'M' | 'H' | 'I' | 'W' | '?'
+
+export interface ReplayDriverLap {
+  /** When the lap started, epoch milliseconds. */
+  t: number
+  lap: number
+  /** Lap time in milliseconds; 0 when the API has no completed time. */
+  duration: number
+}
+
+export interface ReplayStint {
+  startLap: number
+  endLap: number
+  compound: ReplayTyre
+}
+
+export interface ReplayGapSample {
+  t: number
+  /** Gap to the car ahead in milliseconds; null when the feed has no value. */
+  gap: number | null
+}
+
 export interface ReplayDriver {
   number: number
   acronym: string
@@ -22,6 +44,37 @@ export interface ReplayDriver {
   /** Hex colour without the hash, from OpenF1. */
   color: string
   samples: ReplaySample[]
+  /** Completed lap times, ordered by lap. */
+  laps?: ReplayDriverLap[]
+  /** Tyre stints, ordered by lap. */
+  stints?: ReplayStint[]
+  /** Interval to the car ahead, ordered by time. */
+  gaps?: ReplayGapSample[]
+}
+
+const TYRE_CODES: Record<string, ReplayTyre> = {
+  SOFT: 'S',
+  MEDIUM: 'M',
+  HARD: 'H',
+  INTERMEDIATE: 'I',
+  WET: 'W',
+}
+
+const TYRE_LABELS: Record<ReplayTyre, string> = {
+  S: 'Soft',
+  M: 'Medium',
+  H: 'Hard',
+  I: 'Intermediate',
+  W: 'Wet',
+  '?': 'Unknown',
+}
+
+export function tyreCode(compound: string | null | undefined): ReplayTyre {
+  return TYRE_CODES[compound?.trim().toUpperCase() ?? ''] ?? '?'
+}
+
+export function tyreLabel(compound: ReplayTyre): string {
+  return TYRE_LABELS[compound]
 }
 
 export interface ReplayPositionSample {
@@ -110,6 +163,64 @@ export function sampleAt<T extends { t: number }>(
   return index < 0 ? null : samples[index]
 }
 
+function stintForLap(stints: readonly ReplayStint[] | undefined, lap: number): ReplayStint | null {
+  if (!stints) return null
+  for (const stint of stints) {
+    if (lap >= stint.startLap && lap <= stint.endLap) return stint
+  }
+  return null
+}
+
+export interface DriverTiming {
+  /** The last completed lap at `t`, in milliseconds. */
+  lapTime: number | null
+  /** The tyre the driver is on at `t`. */
+  compound: ReplayTyre | null
+}
+
+/**
+ * The timing-tower facts for a driver at `t`: the last completed lap time and
+ * the tyre for the lap currently in progress. A lap is only shown once its end
+ * time has passed, so the replay never reveals a time before it happened.
+ */
+export function driverTimingAt(driver: ReplayDriver, t: number): DriverTiming {
+  const laps = driver.laps
+  if (!laps || laps.length === 0) return { lapTime: null, compound: null }
+
+  const currentIndex = sampleIndexAt(laps, t)
+  if (currentIndex < 0) return { lapTime: null, compound: null }
+
+  const compound = stintForLap(driver.stints, laps[currentIndex].lap)?.compound ?? null
+
+  for (let index = currentIndex; index >= 0; index -= 1) {
+    const lap = laps[index]
+    if (lap.duration > 0 && lap.t + lap.duration <= t) {
+      return { lapTime: lap.duration, compound }
+    }
+  }
+
+  return { lapTime: null, compound }
+}
+
+/**
+ * The latest gap to the car ahead at `t`. A momentarily missing interval falls
+ * back to the previous one for up to thirty seconds instead of blanking.
+ */
+export function gapAt(driver: ReplayDriver, t: number): number | null {
+  const gaps = driver.gaps
+  if (!gaps?.length) return null
+
+  const latest = sampleAt(gaps, t)
+  if (!latest || t - latest.t > 120_000) return null
+
+  for (let index = sampleIndexAt(gaps, t); index >= 0; index -= 1) {
+    const sample = gaps[index]
+    if (sample.gap !== null) return sample.gap
+    if (t - sample.t > 30_000) break
+  }
+  return null
+}
+
 /**
  * A car's position at `t`, interpolated between the two bracketing samples.
  * A car that has not sent a point for a few seconds is treated as gone rather
@@ -170,6 +281,28 @@ export function standingsAt(data: ReplayData, t: number): Standing[] {
   return entries.sort((a, b) => a.position - b.position || a.driver.number - b.driver.number)
 }
 
+/** `1:38.942`, or `58.123` for a lap under a minute. */
+export function formatLapTime(millis: number): string {
+  const total = Math.max(0, Math.round(millis))
+  const minutes = Math.floor(total / 60_000)
+  const seconds = (total % 60_000) / 1_000
+  return minutes > 0
+    ? `${minutes}:${seconds.toFixed(3).padStart(6, '0')}`
+    : seconds.toFixed(3)
+}
+
+/** `+0.382`, `+12.3`, `+1:02.3`, or `+1 LAP` for a gap beyond two minutes. */
+export function formatInterval(millis: number): string {
+  const total = Math.max(0, Math.round(millis))
+  if (total >= 120_000) return '+1 LAP'
+  if (total >= 60_000) {
+    const minutes = Math.floor(total / 60_000)
+    const seconds = ((total % 60_000) / 1_000).toFixed(1).padStart(4, '0')
+    return `+${minutes}:${seconds}`
+  }
+  return total >= 10_000 ? `+${(total / 1_000).toFixed(1)}` : `+${(total / 1_000).toFixed(3)}`
+}
+
 /** `92:14`, or `1:02:14` once a replay runs past the hour. */
 export function formatReplayClock(millis: number): string {
   const total = Math.max(0, Math.round(millis / 1_000))
@@ -222,6 +355,107 @@ export function lapTimeline(
   }
 }
 
+/** Completed-lap timing for every driver, from one `/laps?session_key=` call. */
+export function lapsByDriver(
+  rows: ReadonlyArray<{
+    driver_number: number
+    lap_number: number
+    date_start: string
+    lap_duration?: number | null
+  }>,
+): Map<number, ReplayDriverLap[]> {
+  const byDriver = new Map<number, ReplayDriverLap[]>()
+
+  for (const row of rows) {
+    if (!Number.isFinite(row.lap_number) || row.lap_number < 1) continue
+    const t = Date.parse(row.date_start)
+    if (!Number.isFinite(t)) continue
+
+    const duration = Number(row.lap_duration)
+    const lap: ReplayDriverLap = {
+      t,
+      lap: row.lap_number,
+      duration: Number.isFinite(duration) && duration > 0 ? Math.round(duration * 1_000) : 0,
+    }
+
+    const laps = byDriver.get(row.driver_number)
+    if (laps) laps.push(lap)
+    else byDriver.set(row.driver_number, [lap])
+  }
+
+  for (const laps of byDriver.values()) {
+    laps.sort((a, b) => a.lap - b.lap)
+  }
+
+  return byDriver
+}
+
+/** Tyre stints for every driver, from one `/stints?session_key=` call. */
+export function stintsByDriver(
+  rows: ReadonlyArray<{
+    driver_number: number
+    lap_start: number
+    lap_end: number
+    compound: string
+  }>,
+): Map<number, ReplayStint[]> {
+  const byDriver = new Map<number, ReplayStint[]>()
+
+  for (const row of rows) {
+    if (!Number.isFinite(row.lap_start) || !Number.isFinite(row.lap_end)) continue
+    if (row.lap_end < row.lap_start) continue
+
+    const stint: ReplayStint = {
+      startLap: row.lap_start,
+      endLap: row.lap_end,
+      compound: tyreCode(row.compound),
+    }
+
+    const stints = byDriver.get(row.driver_number)
+    if (stints) stints.push(stint)
+    else byDriver.set(row.driver_number, [stint])
+  }
+
+  for (const stints of byDriver.values()) {
+    stints.sort((a, b) => a.startLap - b.startLap)
+  }
+
+  return byDriver
+}
+
+function intervalMillis(value: number | string | null | undefined): number | null {
+  if (value === null || value === undefined) return null
+  const seconds = typeof value === 'string' && value.trim() === '' ? NaN : Number(value)
+  return Number.isFinite(seconds) ? Math.max(0, Math.round(seconds * 1_000)) : null
+}
+
+/** Gaps to the car ahead for every driver, from one `/intervals?session_key=` call. */
+export function gapsByDriver(
+  rows: ReadonlyArray<{
+    date: string
+    driver_number: number
+    interval?: number | string | null
+  }>,
+): Map<number, ReplayGapSample[]> {
+  const byDriver = new Map<number, ReplayGapSample[]>()
+
+  for (const row of rows) {
+    const t = Date.parse(row.date)
+    if (!Number.isFinite(t)) continue
+
+    const sample: ReplayGapSample = { t, gap: intervalMillis(row.interval) }
+    const gaps = byDriver.get(row.driver_number)
+    if (gaps) gaps.push(sample)
+    else byDriver.set(row.driver_number, [sample])
+  }
+
+  for (const gaps of byDriver.values()) {
+    gaps.sort((a, b) => a.t - b.t)
+  }
+
+  return byDriver
+}
+
 /* ---------- Baked asset format ---------- */
 
 /**
@@ -237,6 +471,12 @@ export interface BakedReplayDriver {
   c?: string
   /** `dt.dx.dy` frames, all base36; dt in deciseconds, dx/dy in metres. */
   s: string
+  /** `dt.duration.lap` frames, base36; dt in deciseconds, duration in milliseconds. */
+  l?: string
+  /** `startLap-endLap:compound` stints, comma-separated. */
+  t?: string
+  /** `dt.gap` frames, base36; dt in deciseconds, gap in milliseconds, 0 = unknown. */
+  g?: string
 }
 
 export interface BakedReplayPosition {
@@ -339,6 +579,9 @@ export function decodeBakedReplay(baked: BakedReplay): ReplayData {
       team: driver.team,
       color: driver.c?.trim() ? `#${driver.c.replace(/^#/, '')}` : '#7d786b',
       samples: decodeLocationSamples(driver.s, baked.start),
+      laps: driver.l ? decodeDriverLaps(driver.l, baked.start) : undefined,
+      stints: driver.t ? decodeDriverStints(driver.t) : undefined,
+      gaps: driver.g ? decodeDriverGaps(driver.g, baked.start) : undefined,
     })),
     positions: baked.positions.map((position) => ({
       number: position.n,
@@ -358,6 +601,86 @@ function decodePositionSamples(encoded: string, start: number): ReplayPositionSa
     samples.push({ t, position: fromBase36(position) })
   }
   return samples
+}
+
+function decodeDriverLaps(encoded: string, start: number): ReplayDriverLap[] {
+  if (!encoded) return []
+
+  let t = start
+  const laps: ReplayDriverLap[] = []
+  for (const frame of encoded.split(',')) {
+    const [dt, duration, lap] = frame.split('.')
+    t += fromBase36(dt) * 100
+    laps.push({
+      t,
+      lap: fromBase36(lap),
+      duration: fromBase36(duration),
+    })
+  }
+  return laps
+}
+
+function decodeDriverStints(encoded: string): ReplayStint[] {
+  if (!encoded) return []
+
+  const stints: ReplayStint[] = []
+  for (const frame of encoded.split(',')) {
+    const [range, compound] = frame.split(':')
+    const [startLap, endLap] = range.split('-')
+    stints.push({
+      startLap: Number(startLap),
+      endLap: Number(endLap),
+      compound: (compound || '?') as ReplayTyre,
+    })
+  }
+  return stints
+}
+
+function decodeDriverGaps(encoded: string, start: number): ReplayGapSample[] {
+  if (!encoded) return []
+
+  let t = start
+  const gaps: ReplayGapSample[] = []
+  for (const frame of encoded.split(',')) {
+    const [dt, gap] = frame.split('.')
+    t += fromBase36(dt) * 100
+    const value = fromBase36(gap)
+    gaps.push({ t, gap: value === 0 ? null : value - 1 })
+  }
+  return gaps
+}
+
+/** Encodes a driver's gap timeline; used by the bake script. */
+export function encodeDriverGaps(gaps: readonly ReplayGapSample[], start: number): string {
+  let previousT = start
+  return gaps
+    .map((sample) => {
+      const dt = Math.round((sample.t - previousT) / 100)
+      previousT = sample.t
+      const gap = sample.gap === null ? 0 : Math.max(0, Math.round(sample.gap)) + 1
+      return `${base36(dt)}.${base36(gap)}`
+    })
+    .join(',')
+}
+
+/** Encodes a driver's lap timing; used by the bake script. */
+export function encodeDriverLaps(
+  laps: readonly ReplayDriverLap[],
+  start: number,
+): string {
+  let previousT = start
+  return laps
+    .map((lap) => {
+      const dt = Math.round((lap.t - previousT) / 100)
+      previousT = lap.t
+      return `${base36(dt)}.${base36(lap.duration)}.${base36(lap.lap)}`
+    })
+    .join(',')
+}
+
+/** Encodes a driver's tyre stints; used by the bake script. */
+export function encodeDriverStints(stints: readonly ReplayStint[]): string {
+  return stints.map((stint) => `${stint.startLap}-${stint.endLap}:${stint.compound}`).join(',')
 }
 
 /** Encodes leader lap starts relative to the replay start; used by the bake script. */

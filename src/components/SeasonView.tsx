@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
-import { alpha } from '../api/alpha'
 import type { Race, SessionCode } from '../api/types'
-import { useFetch } from '../hooks/useFetch'
+import { useSeasonRounds } from '../hooks/useSeasonRounds'
 import { TODAY, findFeaturedEvent, raceDayKey } from '../lib/schedule'
 import { Calendar } from './Calendar'
 import { CircuitInfoPanel } from './CircuitInfo'
@@ -45,16 +44,17 @@ export function SeasonView({ season, races }: SeasonViewProps) {
   const featured = useMemo(() => findFeaturedEvent(races, TODAY), [races])
 
   // Results are keyed by the alpha API's own opaque round ids, so resolve the
-  // whole season's mapping once rather than per round.
+  // whole season's mapping once rather than per round. The mapping is cached
+  // from a previous visit, which lets the results request start immediately.
   const {
-    data: rounds,
+    rounds,
     loading: roundsLoading,
     error: roundsError,
     reload: reloadRounds,
-  } = useFetch(season ? (signal) => alpha.rounds(season, signal) : null, [season])
+  } = useSeasonRounds(season)
 
   const roundIds = useMemo(
-    () => new Map((rounds ?? []).map((item) => [String(item.number), item.id])),
+    () => new Map(rounds.map((item) => [item.number, item.id])),
     [rounds],
   )
 

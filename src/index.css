@@ -1869,16 +1869,37 @@ a:hover {
   background: var(--paper-raised);
 }
 
-.replay__tower-title {
-  margin: 0 0 0.4rem;
+.replay__tower-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
   padding-bottom: 0.35rem;
   border-bottom: 1px solid var(--line);
+}
+
+.replay__tower-title {
+  margin: 0;
+  padding: 0;
+  border-bottom: 0;
   color: var(--ink-soft);
   font-size: 0.66rem;
   font-weight: 800;
   font-stretch: var(--condensed);
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+.replay__tower-lap-count {
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
 }
 
 .replay__tower {
@@ -1894,14 +1915,10 @@ a:hover {
 
 .replay__tower-row {
   display: grid;
-  grid-template-columns: auto 2.6rem minmax(0, 1fr);
-  grid-template-rows: auto auto;
-  grid-template-areas:
-    'pos code name'
-    'pos code team';
+  grid-template-columns: auto 2.4rem minmax(0, 1fr) auto auto;
   align-items: center;
-  column-gap: 0.45rem;
-  padding: 0.18rem 0.2rem;
+  column-gap: 0.4rem;
+  padding: 0.26rem 0.2rem;
   border-bottom: 1px solid var(--line);
 }
 
@@ -1909,34 +1926,75 @@ a:hover {
   border-bottom: 0;
 }
 
-.replay__tower-row .position {
-  grid-area: pos;
-}
-
 .replay__tower-code {
-  grid-area: code;
   font-size: 0.78rem;
   font-weight: 800;
   font-stretch: 80%;
   letter-spacing: 0.03em;
 }
 
-.replay__tower-name {
-  grid-area: name;
-  overflow: hidden;
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-overflow: ellipsis;
+.replay__tower-gap {
+  justify-self: end;
+  color: var(--ink-muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
   white-space: nowrap;
 }
 
-.replay__tower-team {
-  grid-area: team;
-  overflow: hidden;
-  color: var(--ink-muted);
-  font-size: 0.62rem;
-  text-overflow: ellipsis;
+.replay__tower-lap {
+  justify-self: end;
+  color: var(--ink);
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
   white-space: nowrap;
+}
+
+.replay__tower-tyre {
+  display: inline-grid;
+  place-items: center;
+  width: 1.22rem;
+  height: 1.22rem;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--paper-sunken);
+  color: var(--ink-muted);
+  font-size: 0.55rem;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  line-height: 1;
+}
+
+.replay__tower-tyre[data-compound='S'] {
+  border-color: #b30f14;
+  background: #e4161c;
+  color: #fff;
+}
+
+.replay__tower-tyre[data-compound='M'] {
+  border-color: #a88300;
+  background: #e9b800;
+  color: #1b1b1b;
+}
+
+.replay__tower-tyre[data-compound='H'] {
+  background: #f4efe2;
+  color: #1b1b1b;
+}
+
+.replay__tower-tyre[data-compound='I'] {
+  border-color: #227a34;
+  background: #2f9e44;
+  color: #fff;
+}
+
+.replay__tower-tyre[data-compound='W'] {
+  border-color: #175a9e;
+  background: #2274c7;
+  color: #fff;
 }
 
 .replay__tower-empty {
@@ -1992,16 +2050,6 @@ a:hover {
   align-items: center;
   gap: 0.65rem;
   white-space: nowrap;
-}
-
-.replay__lap {
-  color: var(--ink);
-  font-size: 0.72rem;
-  font-weight: 800;
-  font-stretch: var(--condensed);
-  font-variant-numeric: tabular-nums;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 .replay__clock {
