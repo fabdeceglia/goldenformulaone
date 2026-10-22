@@ -29,6 +29,7 @@ const INITIAL_PROGRESS: ReplayProgress = {
 
 const DEFAULT_SPEED = 4
 const ARROW_STEP = 10_000
+const NO_DRIVERS: ReadonlySet<number> = new Set()
 
 /**
  * The replay popup: loads one session, then owns the playhead and the
@@ -40,6 +41,9 @@ export function ReplayDialog({ race, code, onClose }: ReplayDialogProps) {
   const [current, setCurrent] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(DEFAULT_SPEED)
+  // Empty means every car is visible. A non-empty set narrows the circuit to
+  // the selected drivers so the director can isolate a battle.
+  const [selectedDrivers, setSelectedDrivers] = useState<ReadonlySet<number>>(NO_DRIVERS)
 
   // The animation loop reads and writes the playhead every frame. Keeping it in
   // a ref as well as state means the loop never has to restart on each frame.
@@ -61,6 +65,7 @@ export function ReplayDialog({ race, code, onClose }: ReplayDialogProps) {
         if (cancelled) return
         currentRef.current = data.start
         setCurrent(data.start)
+        setSelectedDrivers(NO_DRIVERS)
         setState({ status: 'ready', data })
       })
       .catch((cause: unknown) => {
@@ -86,6 +91,17 @@ export function ReplayDialog({ race, code, onClose }: ReplayDialogProps) {
     currentRef.current = value
     setCurrent(value)
   }, [])
+
+  const toggleDriver = useCallback((number: number) => {
+    setSelectedDrivers((previous) => {
+      const next = new Set(previous)
+      if (next.has(number)) next.delete(number)
+      else next.add(number)
+      return next
+    })
+  }, [])
+
+  const resetDriverFilter = useCallback(() => setSelectedDrivers(NO_DRIVERS), [])
 
   const data = state.status === 'ready' ? state.data : null
 
@@ -188,8 +204,14 @@ export function ReplayDialog({ race, code, onClose }: ReplayDialogProps) {
             ) : null}
 
             <div className="replay__layout">
-              <ReplayMap data={state.data} current={current} />
-              <ReplayLeaderboard data={state.data} current={current} />
+              <ReplayMap data={state.data} current={current} selected={selectedDrivers} />
+              <ReplayLeaderboard
+                data={state.data}
+                current={current}
+                selected={selectedDrivers}
+                onToggleDriver={toggleDriver}
+                onResetFilter={resetDriverFilter}
+              />
             </div>
 
             <ReplayControls
@@ -204,7 +226,8 @@ export function ReplayDialog({ race, code, onClose }: ReplayDialogProps) {
             />
 
             <p className="replay__hint">
-              Space plays and pauses · ←/→ scrubs 10 seconds · position, not gaps
+              Space plays and pauses · ←/→ scrubs 10 seconds · click a driver to filter the
+              track · position, not gaps
             </p>
           </>
         )}

@@ -209,8 +209,14 @@ the session bar, next to the Table | Grid toggle, and opens a wide version of th
 dialog used for circuit info. It shows the circuit outline with every car in its team colour,
 a live standings tower on the right, and a transport bar underneath. The current **lap
 counter** sits beside the Standings heading. Tower rows keep the position, driver code,
-**gap to the car ahead**, **last completed lap time** and **current tyre compound**; the full
-name and constructor stay available in the tooltip and screen-reader label.
+**gap to the car ahead**, **last completed lap time**, **current tyre compound** and the
+**number of completed pit stops**; the full name and constructor stay available in the
+tooltip and screen-reader label.
+
+Clicking a row adds that driver to a multi-driver filter and draws only those cars on the
+circuit; clicking again removes them. The tower keeps the full field visible, selected rows
+are marked, the map caption reports the visible count, and a **Reset** button in the Standings
+header clears the filter.
 
 The button is enabled from **thirty minutes after the chequered flag** — the point at which
 OpenF1's historical data becomes free — and disabled with an explanation before that, or

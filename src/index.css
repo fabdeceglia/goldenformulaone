@@ -1879,6 +1879,43 @@ a:hover {
   border-bottom: 1px solid var(--line);
 }
 
+.replay__tower-meta {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.replay__tower-reset {
+  flex: none;
+  padding: 0.1rem 0.42rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--paper-sunken);
+  color: var(--red-ink);
+  font: inherit;
+  font-size: 0.6rem;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  cursor: pointer;
+  appearance: none;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.replay__tower-reset:hover {
+  border-color: var(--red);
+  background: var(--paper-hover);
+}
+
+.replay__tower-reset:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 2px;
+}
+
 .replay__tower-title {
   margin: 0;
   padding: 0;
@@ -1913,16 +1950,44 @@ a:hover {
   list-style: none;
 }
 
+.replay__tower-item {
+  display: block;
+}
+
 .replay__tower-row {
   display: grid;
   grid-template-columns: auto 2.4rem minmax(0, 1fr) auto auto;
   align-items: center;
   column-gap: 0.4rem;
+  width: 100%;
   padding: 0.26rem 0.2rem;
+  border: 0;
   border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+  transition: background-color 0.12s ease;
 }
 
-.replay__tower-row:last-child {
+.replay__tower-row:hover {
+  background: var(--paper-hover);
+}
+
+.replay__tower-row:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: -2px;
+}
+
+.replay__tower-row[aria-pressed='true'] {
+  background: var(--paper-sunken);
+  box-shadow: inset 3px 0 0 var(--red);
+}
+
+.replay__tower-item:last-child .replay__tower-row {
   border-bottom: 0;
 }
 
@@ -1953,6 +2018,12 @@ a:hover {
   white-space: nowrap;
 }
 
+.replay__tower-tyre-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.18rem;
+}
+
 .replay__tower-tyre {
   display: inline-grid;
   place-items: center;
@@ -1966,6 +2037,27 @@ a:hover {
   font-weight: 800;
   font-stretch: var(--condensed);
   line-height: 1;
+}
+
+.replay__tower-stops {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.14rem;
+  margin-left: 0.04rem;
+  padding-left: 0.26rem;
+  border-left: 1px solid var(--line-strong);
+  color: var(--ink-muted);
+  font-size: 0.52rem;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.replay__tower-stops-icon {
+  width: 0.62rem;
+  height: 0.62rem;
+  flex: none;
 }
 
 .replay__tower-tyre[data-compound='S'] {

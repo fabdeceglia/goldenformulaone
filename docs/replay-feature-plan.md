@@ -171,9 +171,15 @@ Result: `toScreen(x, y) → { sx, sy }` used for outline and cars alike.
 - It animates automatically through overtakes because records carry timestamps.
 - Render with the existing `Position` chip + `team_colour`, plus acronym.
 - The right side of each row shows the **gap to the car ahead**, the **last completed lap
-  time** and a coloured tyre badge for the lap in progress. Full names and teams move to the
-  tooltip and screen-reader label, which also makes the rows shorter and the tower easier to
-  scan.
+  time**, a coloured tyre badge for the lap in progress and the number of **completed pit
+  stops**. The stop count is the current stint index: the first stint is zero stops, the
+  second is one, and a retired car keeps its last started stint. Zero is shown explicitly so
+  the stop column stays aligned before the first pit stop; it is blank only when stint data is
+  unavailable. Full names and teams move to the tooltip and screen-reader label, which also
+  makes the rows shorter and the tower easier to scan.
+- Clicking a row toggles that driver in a multi-driver track filter. Empty selection shows the
+  whole field; selected rows are highlighted, the map caption reports the visible count, and a
+  Reset button in the header clears the filter. The tower itself always lists every driver.
 - The leader lap counter (**Lap 28 / 62**) sits on the far right of the Standings header,
   not in the transport bar.
 
@@ -181,7 +187,9 @@ Result: `toScreen(x, y) → { sx, sy }` used for outline and cars alike.
 
 - [x] Leader lap counter and race distance from `/laps`.
 - [x] Last-lap timing and current tyre compound from `/laps` + `/stints`.
+- [x] Completed pit-stop count from the current stint.
 - [x] Gap to the car ahead from `/intervals`.
+- [x] Multi-driver track filter with Reset.
 - [ ] Flags; retire/bring-back-state when a driver stops sending location.
 
 ---
@@ -396,8 +404,9 @@ feature flag. This section records where the build differs from the plan above.
 - **The timing tower is baked too.** Per-driver lap rows and tyre stints are stored as
   `dt.duration.lap` base36 frames and `startLap-endLap:compound` strings. The tower shows the
   last lap completed at the playhead and the compound for the lap in progress, hiding a lap
-  time until its end timestamp. Full names and teams moved to the tooltip and screen-reader
-  label, so the visible row is just position, code, gap, time and tyre.
+  time until its end timestamp. The stint index also gives the completed pit-stop count. Full
+  names and teams moved to the tooltip and screen-reader label, so the visible row is just
+  position, code, gap, time, tyre and stops.
 - **Gaps use the interval feed, not a computed distance.** `/intervals` supplies the
   time to the car ahead around every four seconds. Each update is stored as a `dt.gap`
   frame (deciseconds + milliseconds, base36); the leader and missing values render as `—`.

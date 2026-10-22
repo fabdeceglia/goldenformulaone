@@ -163,12 +163,18 @@ export function sampleAt<T extends { t: number }>(
   return index < 0 ? null : samples[index]
 }
 
-function stintForLap(stints: readonly ReplayStint[] | undefined, lap: number): ReplayStint | null {
-  if (!stints) return null
-  for (const stint of stints) {
-    if (lap >= stint.startLap && lap <= stint.endLap) return stint
+/**
+ * Index of the stint covering `lap`. A lap past the last stint (a retired car)
+ * keeps the last stint it started; `-1` means the lap is before the first one.
+ */
+function stintIndexForLap(stints: readonly ReplayStint[] | undefined, lap: number): number {
+  if (!stints) return -1
+  let index = -1
+  for (let stint = 0; stint < stints.length; stint += 1) {
+    if (stints[stint].startLap > lap) break
+    index = stint
   }
-  return null
+  return index
 }
 
 export interface DriverTiming {
@@ -176,6 +182,8 @@ export interface DriverTiming {
   lapTime: number | null
   /** The tyre the driver is on at `t`. */
   compound: ReplayTyre | null
+  /** Completed pit stops up to the current lap; null without stint or lap data. */
+  pitStops: number | null
 }
 
 /**
@@ -185,21 +193,23 @@ export interface DriverTiming {
  */
 export function driverTimingAt(driver: ReplayDriver, t: number): DriverTiming {
   const laps = driver.laps
-  if (!laps || laps.length === 0) return { lapTime: null, compound: null }
+  if (!laps || laps.length === 0) return { lapTime: null, compound: null, pitStops: null }
 
   const currentIndex = sampleIndexAt(laps, t)
-  if (currentIndex < 0) return { lapTime: null, compound: null }
+  if (currentIndex < 0) return { lapTime: null, compound: null, pitStops: null }
 
-  const compound = stintForLap(driver.stints, laps[currentIndex].lap)?.compound ?? null
+  const stintIndex = stintIndexForLap(driver.stints, laps[currentIndex].lap)
+  const compound = driver.stints?.[stintIndex]?.compound ?? null
+  const pitStops = stintIndex >= 0 ? stintIndex : null
 
   for (let index = currentIndex; index >= 0; index -= 1) {
     const lap = laps[index]
     if (lap.duration > 0 && lap.t + lap.duration <= t) {
-      return { lapTime: lap.duration, compound }
+      return { lapTime: lap.duration, compound, pitStops }
     }
   }
 
-  return { lapTime: null, compound }
+  return { lapTime: null, compound, pitStops }
 }
 
 /**
