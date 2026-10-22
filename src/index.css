@@ -1818,13 +1818,77 @@ a:hover {
   margin: 0;
 }
 
+.replay__map-shell {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-sunken);
+}
+
+.replay__weather {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.22rem 0.55rem;
+  padding: 0.38rem 0.55rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-raised);
+  color: var(--ink-muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+  font-stretch: var(--condensed);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.replay__weather-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  white-space: nowrap;
+}
+
+.replay__weather-icon {
+  width: 0.8rem;
+  height: 0.8rem;
+  flex: none;
+}
+
+.replay__weather-label {
+  color: var(--ink-muted);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.replay__weather-value {
+  color: var(--ink);
+  font-size: 0.64rem;
+  font-weight: 800;
+}
+
+.replay__weather-unit {
+  color: var(--ink-muted);
+  font-size: 0.54rem;
+  font-weight: 700;
+  text-transform: none;
+}
+
+.replay__weather-item[data-rain='true'] {
+  color: var(--red-ink);
+}
+
+.replay__weather-item[data-rain='true'] .replay__weather-value {
+  color: var(--red-ink);
+}
+
 .replay__map {
   display: block;
   width: 100%;
   height: auto;
   max-height: 64vh;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
   background-color: var(--paper-sunken);
   background-image: radial-gradient(var(--line) 0.75px, transparent 0.75px);
   background-size: 16px 16px;
@@ -2221,6 +2285,16 @@ a:hover {
 
   .replay__map {
     max-height: 48vh;
+  }
+}
+
+@media (max-width: 360px) {
+  /* At this width the four /weather items wrap with an orphaned rain value, so
+     make the two-row layout deliberate instead. */
+  .replay__weather {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.3rem 0.55rem;
   }
 }
 

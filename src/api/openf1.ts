@@ -94,6 +94,19 @@ export interface OpenF1Interval {
   interval?: number | string | null
 }
 
+export interface OpenF1Weather {
+  date: string
+  session_key: number
+  meeting_key?: number
+  air_temperature?: number | null
+  track_temperature?: number | null
+  humidity?: number | null
+  pressure?: number | null
+  rainfall?: number | null
+  wind_speed?: number | null
+  wind_direction?: number | null
+}
+
 /** The circuit geometry as the Multiviewer API returns it. */
 export interface MultiviewerCircuit {
   circuitKey: number
@@ -247,6 +260,10 @@ export const openf1 = {
   /** Gaps to the car ahead, used by the timing tower. */
   intervals: (sessionKey: number, signal?: AbortSignal) =>
     request<OpenF1Interval[]>(`/intervals?session_key=${sessionKey}`, signal),
+
+  /** Track conditions, sampled about once a minute. */
+  weather: (sessionKey: number, signal?: AbortSignal) =>
+    request<OpenF1Weather[]>(`/weather?session_key=${sessionKey}`, signal),
 
   /**
    * One driver's location feed. The endpoint refuses an unfiltered query

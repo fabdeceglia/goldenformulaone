@@ -208,7 +208,9 @@ A finished **Race** or **Sprint** can be replayed. The **Replay** button sits at
 the session bar, next to the Table | Grid toggle, and opens a wide version of the same cream
 dialog used for circuit info. It shows the circuit outline with every car in its team colour,
 a live standings tower on the right, and a transport bar underneath. The current **lap
-counter** sits beside the Standings heading. Tower rows keep the position, driver code,
+counter** sits beside the Standings heading. A weather strip attached to the top of the track
+panel shows the **track temperature**, **air temperature**, **wind speed** and **rain status**
+at the playhead, each with a small icon. Tower rows keep the position, driver code,
 **gap to the car ahead**, **last completed lap time**, **current tyre compound** and the
 **number of completed pit stops**; the full name and constructor stay available in the
 tooltip and screen-reader label.
@@ -231,12 +233,12 @@ How the data gets there:
   date to an OpenF1 key, so the app does not have to ask OpenF1 which session a race is.
   `public/replays/{session_key}.json` then carries the timeline (downsampled to 2 Hz,
   coordinates quantised to metres), the lap starts and per-driver lap times, the tyre
-  stints, the gap-to-car-ahead timeline, the circuit outline and the position feed in one
-  file. Nothing third-party is called for a baked race.
+  stints, the gap-to-car-ahead timeline, the weather timeline, the circuit outline and the
+  position feed in one file. Nothing third-party is called for a baked race.
 - **OpenF1 fallback.** If a race has not been baked, the browser calls OpenF1 directly
   (CORS is open), one location request per car, throttled to the free tier's 30 requests a
-  minute. The dialog shows progress and caches the result in IndexedDB, so the next visit is
-  instant.
+  minute. It also loads the session's weather samples. The dialog shows progress and caches
+  the result in IndexedDB, so the next visit is instant.
 - **No live streaming.** OpenF1's free tier only serves a session after the flag; during the
   live window the button states when the replay will be available.
 
@@ -565,6 +567,7 @@ src/
 │   ├── ReplayDialog.tsx         # replay shell: loading states + playback clock
 │   ├── ReplayLeaderboard.tsx    # replay standings tower
 │   ├── ReplayMap.tsx            # replay circuit outline + moving cars
+│   ├── ReplayWeather.tsx        # track conditions strip above the map
 │   ├── RowMenu.tsx              # schedule row actions behind a kebab on a phone
 │   ├── SeasonView.tsx           # nav tabs, shared season state, circuit info dialog
 │   ├── SessionResultTable.tsx   # one table per session format
@@ -605,7 +608,7 @@ public/
 ├── circuits.json                # baked replay geometry, one entry per circuit
 ├── replays/                     # baked replays, one file per session_key
 │   ├── index.json               # season + date + code → session_key
-│   └── {session_key}.json       # timeline + circuit + positions (see "Race replay")
+│   └── {session_key}.json       # timeline + timing + weather + circuit (see "Race replay")
 └── circuits/                    # vendored circuit track layouts (see "Circuit images")
     ├── LICENSE.txt              # MIT licence of the layout artwork
     └── *.svg                    # one file per historical layout, e.g. monza-6.svg

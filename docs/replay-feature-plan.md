@@ -51,7 +51,7 @@ endpoint on 2026-10-18, using the Singapore 2026 race (`session_key=11388`).
 
 - True live streaming (MQTT/WebSocket) — needs the paid tier + a backend token flow.
 - Qualifying / practice replays (different "standings" semantics).
-- Gaps, tyre compounds, flags, team radio, weather overlays.
+- Flags, team radio, and a live (wall-clock) weather feed.
 - Any commercial use — OpenF1 is CC BY-NC-SA 4.0 (personal use only).
 
 ---
@@ -109,6 +109,7 @@ The loader is behind one interface (`ReplaySource`) so switching A→B is a swap
 | Intervals | `/v1/intervals?session_key=` | 4 MB | 1 | gap to the car ahead; baked compactly |
 | Laps | `/v1/laps?session_key=` | ~200 KB | 1 | lap counter, race distance, true start, last lap times |
 | Tyre stints | `/v1/stints?session_key=` | ~7 KB | 1 | compound used on each lap |
+| Weather | `/v1/weather?session_key=` | ~35 KB | 1 | track/air temperature, wind, rain, humidity; one sample per minute |
 | Session window | `/v1/sessions?year=` | small | 1 | resolve `session_key`, start/end |
 
 Estimated full-field wire cost (A): **~8–12 MB compressed**, ~700 k raw points across the
@@ -182,6 +183,10 @@ Result: `toScreen(x, y) → { sx, sy }` used for outline and cars alike.
   Reset button in the header clears the filter. The tower itself always lists every driver.
 - The leader lap counter (**Lap 28 / 62**) sits on the far right of the Standings header,
   not in the transport bar.
+- The track panel carries a weather strip above the circuit, with icons for track temperature,
+  air temperature, wind speed and rain. It reads the latest `/weather` sample at the playhead
+  and hides itself when no recent sample is available. A reported track temperature of `0.0`
+  is treated as missing rather than a real reading.
 
 ### 6.4 Optional enrichments
 
@@ -190,6 +195,7 @@ Result: `toScreen(x, y) → { sx, sy }` used for outline and cars alike.
 - [x] Completed pit-stop count from the current stint.
 - [x] Gap to the car ahead from `/intervals`.
 - [x] Multi-driver track filter with Reset.
+- [x] Track weather strip from `/weather`, synced to the replay playhead.
 - [ ] Flags; retire/bring-back-state when a driver stops sending location.
 
 ---
@@ -289,6 +295,7 @@ Goal: fast, small, offline-capable.
 - [x] Leader lap counter and race distance (`/laps`).
 - [x] Last-lap timing and tyre compounds (`/laps`, `/stints`).
 - [x] Gap to the car ahead (`/intervals`).
+- [x] Track weather at the replay playhead (`/weather`).
 - [ ] Flags (`/race_control`).
 - [ ] Qualifying / practice replays.
 - [ ] True live via MQTT/WebSocket (paid tier + backend token flow) behind the same UI.
@@ -304,6 +311,7 @@ Goal: fast, small, offline-capable.
 - `src/lib/replay.ts` — timeline, interpolation, standings-at-`t`, source interface.
 - `src/components/ReplayDialog.tsx` — dialog shell + layout.
 - `src/components/ReplayMap.tsx` — SVG map + cars.
+- `src/components/ReplayWeather.tsx` — track conditions strip with weather icons.
 - `src/components/ReplayLeaderboard.tsx` — standings tower.
 - `src/components/ReplayControls.tsx` — transport bar.
 - `scripts/build-replays.mjs` — Option B generation (Phase 2).
@@ -413,6 +421,13 @@ feature flag. This section records where the build differs from the plan above.
   Gaps beyond two minutes collapse to **+1 LAP** instead of printing an unusable 35-minute
   number. The raw four-megabyte response compresses to a compact per-driver timeline. The
   feed starts a few seconds after lights out, so the opening rows have no gap yet.
+- **Weather is a stale-tolerant, per-session timeline.** `/weather` reports one sample a
+  minute for the whole session. The bake stores each sample as a
+  `dt.air.track.humidity.pressure.rain.wind.direction` frame, relative to the replay start;
+  it is about 2 KB per race. The strip uses the latest sample at the playhead and hides once
+  it is more than five minutes old. The endpoint occasionally reports `track_temperature:
+  0.0`; those rows are stored as missing, and the other values in the sample are kept. The
+  strip lives above the map, inside the track panel, so it never covers the cars.
 - **A local index keeps baked replays off OpenF1.** `public/replays/index.json` maps
   season + date + session code to the OpenF1 key, so a baked replay makes no third-party
   request at all. Without it the app still had to call OpenF1 `/sessions` just to discover
@@ -421,15 +436,18 @@ feature flag. This section records where the build differs from the plan above.
 - **The baked file embeds its own circuit.** `public/circuits.json` is written for reuse and
   inspection, but the runtime reads geometry from the replay file, so there is no second
   request and no version skew between the two.
-- **IndexedDB fallback cache is versioned.** `CACHE_VERSION = 5`; bump it when the fallback
-  payload shape changes (v5 adds the gap timeline). Baked files are preferred over a cached
-  fallback, so re-baking a race takes effect without clearing storage.
+- **IndexedDB fallback cache is versioned.** `CACHE_VERSION = 6`; bump it when the fallback
+  payload shape changes (v5 added the gap timeline, v6 adds the weather timeline). Baked files
+  are preferred over a cached fallback, so re-baking a race takes effect without clearing
+  storage.
 
 ### Measured facts
 
 - Singapore 2026 (`11388`): 22 drivers, all with usable location, replay window 1 h 43 m,
   1.76 MB raw / 876 KB gzipped, 22 tower entries, 62 laps, two stints per driver, 28,131
-  interval rows before cropping.
+  interval rows before cropping, 105 in-window weather samples.
+- The 23 finished 2026 replay assets gained 1,914 weather samples and 44 KB of raw JSON in
+  total, about 2 KB per race.
 - Fallback load on Monza 2026 (`11361`): ~90–120 s at 2.1 s per request on the free tier,
   cached after the first open.
 - `public/replays/` contains every finished 2026 race and sprint (23 sessions, 21 with

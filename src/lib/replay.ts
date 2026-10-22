@@ -36,6 +36,25 @@ export interface ReplayGapSample {
   gap: number | null
 }
 
+export interface ReplayWeatherSample {
+  /** Epoch milliseconds. */
+  t: number
+  /** Air temperature in degrees Celsius. */
+  air: number | null
+  /** Track temperature in degrees Celsius; a reported 0 is treated as missing. */
+  track: number | null
+  /** Relative humidity, as a percentage. */
+  humidity: number | null
+  /** Pressure in hectopascals. */
+  pressure: number | null
+  /** Whether the feed reported rain at this sample; null when it has no value. */
+  rain: boolean | null
+  /** Wind speed in metres per second. */
+  wind: number | null
+  /** Wind direction in degrees. */
+  windDirection: number | null
+}
+
 export interface ReplayDriver {
   number: number
   acronym: string
@@ -114,6 +133,8 @@ export interface ReplayData {
   end: number
   /** Lap count and the moments each leader lap began, when available. */
   laps?: ReplayLaps
+  /** Track conditions, ordered by time; roughly one sample per minute. */
+  weather?: ReplayWeatherSample[]
   source: ReplaySource
   /** Drivers whose feed could not be fetched; the replay still plays. */
   missing?: number
@@ -229,6 +250,18 @@ export function gapAt(driver: ReplayDriver, t: number): number | null {
     if (t - sample.t > 30_000) break
   }
   return null
+}
+
+/** The latest weather sample at `t`, hidden once it is more than five minutes old. */
+export function weatherAt(
+  samples: readonly ReplayWeatherSample[] | undefined,
+  t: number,
+): ReplayWeatherSample | null {
+  if (!samples?.length) return null
+
+  const latest = sampleAt(samples, t)
+  if (!latest || t - latest.t > 5 * 60_000) return null
+  return latest
 }
 
 /**
@@ -466,6 +499,79 @@ export function gapsByDriver(
   return byDriver
 }
 
+/** Track conditions from OpenF1's `/weather` rows, cropped to the replay window. */
+export function weatherSamples(
+  rows: ReadonlyArray<{
+    date: string
+    air_temperature?: number | null
+    track_temperature?: number | null
+    humidity?: number | null
+    pressure?: number | null
+    rainfall?: number | null
+    wind_speed?: number | null
+    wind_direction?: number | null
+  }>,
+  start: number,
+  end: number,
+): ReplayWeatherSample[] {
+  const parsed: ReplayWeatherSample[] = []
+
+  for (const row of rows) {
+    const t = Date.parse(row.date)
+    if (!Number.isFinite(t) || t > end || t < start - 5 * 60_000) continue
+
+    const air = weatherNumber(row.air_temperature)
+    const trackValue = weatherNumber(row.track_temperature)
+    // The feed occasionally reports 0.0 for the track while the session is
+    // running; it is a bad row, not a frozen circuit.
+    const track = trackValue !== null && trackValue > 0 ? trackValue : null
+    const humidity = weatherNumber(row.humidity)
+    const pressureValue = weatherNumber(row.pressure)
+    const pressure = pressureValue !== null && pressureValue > 0 ? pressureValue : null
+    const rain =
+      row.rainfall === null || row.rainfall === undefined
+        ? null
+        : Number(row.rainfall) > 0
+    const wind = weatherNumber(row.wind_speed)
+    const windDirection = weatherNumber(row.wind_direction)
+
+    if (
+      air === null &&
+      track === null &&
+      humidity === null &&
+      pressure === null &&
+      rain === null &&
+      wind === null &&
+      windDirection === null
+    ) {
+      continue
+    }
+
+    parsed.push({ t, air, track, humidity, pressure, rain, wind, windDirection })
+  }
+
+  parsed.sort((a, b) => a.t - b.t)
+
+  // Keep one pre-start sample so the strip is populated at lights out, but
+  // pin it to the replay start and let the encoded timeline stay positive.
+  let beforeStart = -1
+  for (let index = 0; index < parsed.length; index += 1) {
+    if (parsed[index].t <= start) beforeStart = index
+    else break
+  }
+
+  if (beforeStart < 0) return parsed.filter((sample) => sample.t >= start)
+
+  return [
+    { ...parsed[beforeStart], t: start },
+    ...parsed.slice(beforeStart + 1).filter((sample) => sample.t > start),
+  ]
+}
+
+function weatherNumber(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
 /* ---------- Baked asset format ---------- */
 
 /**
@@ -505,6 +611,8 @@ export interface BakedReplay {
   end: number
   /** `dt.lap` frames, base36; dt in deciseconds from the replay start. */
   laps?: { total: number; starts: string }
+  /** `dt.air.track.humidity.pressure.rain.wind.direction` weather frames, base36. */
+  w?: string
   drivers: BakedReplayDriver[]
   positions: BakedReplayPosition[]
 }
@@ -581,6 +689,7 @@ export function decodeBakedReplay(baked: BakedReplay): ReplayData {
           starts: decodeLapStarts(baked.laps.starts, baked.start),
         }
       : undefined,
+    weather: baked.w ? decodeWeatherSamples(baked.w, baked.start) : undefined,
     source: 'baked',
     drivers: baked.drivers.map((driver) => ({
       number: driver.n,
@@ -660,6 +769,34 @@ function decodeDriverGaps(encoded: string, start: number): ReplayGapSample[] {
   return gaps
 }
 
+function decodeTenths(value: string | undefined): number | null {
+  if (!value || value === '-') return null
+  return unzigzag(fromBase36(value)) / 10
+}
+
+function decodeWeatherSamples(encoded: string, start: number): ReplayWeatherSample[] {
+  if (!encoded) return []
+
+  let t = start
+  const samples: ReplayWeatherSample[] = []
+  for (const frame of encoded.split(',')) {
+    const [dt, air, track, humidity, pressure, rain, wind, windDirection] = frame.split('.')
+    t += fromBase36(dt) * 100
+    samples.push({
+      t,
+      air: decodeTenths(air),
+      track: decodeTenths(track),
+      humidity: decodeTenths(humidity),
+      pressure: decodeTenths(pressure),
+      rain: rain === '1' ? true : rain === '0' ? false : null,
+      wind: decodeTenths(wind),
+      windDirection:
+        !windDirection || windDirection === '-' ? null : fromBase36(windDirection),
+    })
+  }
+  return samples
+}
+
 /** Encodes a driver's gap timeline; used by the bake script. */
 export function encodeDriverGaps(gaps: readonly ReplayGapSample[], start: number): string {
   let previousT = start
@@ -669,6 +806,34 @@ export function encodeDriverGaps(gaps: readonly ReplayGapSample[], start: number
       previousT = sample.t
       const gap = sample.gap === null ? 0 : Math.max(0, Math.round(sample.gap)) + 1
       return `${base36(dt)}.${base36(gap)}`
+    })
+    .join(',')
+}
+
+function encodeTenths(value: number | null): string {
+  return value === null ? '-' : base36(zigzag(Math.round(value * 10)))
+}
+
+/** Encodes the weather timeline; used by the bake script. */
+export function encodeWeatherSamples(
+  samples: readonly ReplayWeatherSample[],
+  start: number,
+): string {
+  let previousT = start
+  return samples
+    .map((sample) => {
+      const dt = Math.round((sample.t - previousT) / 100)
+      previousT = sample.t
+      return [
+        base36(dt),
+        encodeTenths(sample.air),
+        encodeTenths(sample.track),
+        encodeTenths(sample.humidity),
+        encodeTenths(sample.pressure),
+        sample.rain === null ? '-' : sample.rain ? '1' : '0',
+        encodeTenths(sample.wind),
+        sample.windDirection === null ? '-' : base36(sample.windDirection),
+      ].join('.')
     })
     .join(',')
 }

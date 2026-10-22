@@ -5,8 +5,9 @@
  *
  * For every finished race/sprint of a season this fetches the field once,
  * downsamples the location feed to 2 Hz, quantises metres, and writes one
- * compact file to public/replays/{session_key}.json. The circuit outline is
- * embedded in the file and also collected in public/circuits.json.
+ * compact file to public/replays/{session_key}.json. The circuit outline,
+ * timing tower data and per-minute weather samples are embedded in the file;
+ * the outline is also collected in public/circuits.json.
  *
  * Usage:
  *   node scripts/build-replays.mjs --latest 3
@@ -360,6 +361,87 @@ function encodeDriverGaps(gaps, start) {
     .join(',')
 }
 
+function weatherNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+/** Mirrors `weatherSamples` in src/lib/replay.ts. */
+function weatherSamples(rows, start, end) {
+  const parsed = []
+
+  for (const row of rows) {
+    const t = Date.parse(row.date)
+    if (!Number.isFinite(t) || t > end || t < start - 5 * 60_000) continue
+
+    const air = weatherNumber(row.air_temperature)
+    const trackValue = weatherNumber(row.track_temperature)
+    const track = trackValue !== null && trackValue > 0 ? trackValue : null
+    const humidity = weatherNumber(row.humidity)
+    const pressureValue = weatherNumber(row.pressure)
+    const pressure = pressureValue !== null && pressureValue > 0 ? pressureValue : null
+    const rain =
+      row.rainfall === null || row.rainfall === undefined
+        ? null
+        : Number(row.rainfall) > 0
+    const wind = weatherNumber(row.wind_speed)
+    const windDirection = weatherNumber(row.wind_direction)
+
+    if (
+      air === null &&
+      track === null &&
+      humidity === null &&
+      pressure === null &&
+      rain === null &&
+      wind === null &&
+      windDirection === null
+    ) {
+      continue
+    }
+
+    parsed.push({ t, air, track, humidity, pressure, rain, wind, windDirection })
+  }
+
+  parsed.sort((a, b) => a.t - b.t)
+
+  let beforeStart = -1
+  for (let index = 0; index < parsed.length; index += 1) {
+    if (parsed[index].t <= start) beforeStart = index
+    else break
+  }
+
+  if (beforeStart < 0) return parsed.filter((sample) => sample.t >= start)
+
+  return [
+    { ...parsed[beforeStart], t: start },
+    ...parsed.slice(beforeStart + 1).filter((sample) => sample.t > start),
+  ]
+}
+
+function encodeTenths(value) {
+  return value === null ? '-' : base36(zigzag(Math.round(value * 10)))
+}
+
+/** Mirrors `encodeWeatherSamples` in src/lib/replay.ts. */
+function encodeWeatherSamples(samples, start) {
+  let previousT = start
+  return samples
+    .map((sample) => {
+      const dt = Math.round((sample.t - previousT) / 100)
+      previousT = sample.t
+      return [
+        base36(dt),
+        encodeTenths(sample.air),
+        encodeTenths(sample.track),
+        encodeTenths(sample.humidity),
+        encodeTenths(sample.pressure),
+        sample.rain === null ? '-' : sample.rain ? '1' : '0',
+        encodeTenths(sample.wind),
+        sample.windDirection === null ? '-' : base36(sample.windDirection),
+      ].join('.')
+    })
+    .join(',')
+}
+
 /**
  * A racing-line outline from one car's first lap, for circuits with no
  * published geometry (Madring returns 404 from Multiviewer). Mirrors
@@ -548,6 +630,7 @@ async function main() {
       let lapRows = []
       let stintRows = []
       let intervalRows = []
+      let weatherRows = []
       try {
         lapRows = await request(`${OPENF1}/laps?session_key=${key}`, `laps-${key}`)
       } catch (cause) {
@@ -562,6 +645,11 @@ async function main() {
         intervalRows = await request(`${OPENF1}/intervals?session_key=${key}`, `intervals-${key}`)
       } catch (cause) {
         console.warn(`\n  intervals: ${cause instanceof Error ? cause.message : cause}`)
+      }
+      try {
+        weatherRows = await request(`${OPENF1}/weather?session_key=${key}`, `weather-${key}`)
+      } catch (cause) {
+        console.warn(`\n  weather: ${cause instanceof Error ? cause.message : cause}`)
       }
 
       // Geometry is published per circuit, not per session, and a new circuit
@@ -729,6 +817,7 @@ async function main() {
         laps: timeline
           ? { total: timeline.laps.total, starts: encodeLaps(timeline.laps.starts, start) }
           : undefined,
+        w: encodeWeatherSamples(weatherSamples(weatherRows, start, end), start) || undefined,
         drivers: bakedDrivers,
         positions: bakedPositions,
       }

@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
 import { readableInk } from '../api/teams'
 import { prepareCircuit } from '../lib/circuit'
-import { interpolatePosition } from '../lib/replay'
+import { interpolatePosition, weatherAt } from '../lib/replay'
 import type { ReplayData } from '../lib/replay'
+import { ReplayWeather } from './ReplayWeather'
 
 interface ReplayMapProps {
   data: ReplayData
@@ -37,39 +38,43 @@ export function ReplayMap({ data, current, selected }: ReplayMapProps) {
   }, [data.drivers, current, transform, selected])
 
   const carLabel = cars.length === 1 ? 'car' : 'cars'
+  const weather = weatherAt(data.weather, current)
 
   return (
     <figure className="replay__figure">
-      <svg
-        className="replay__map"
-        viewBox={transform.viewBox}
-        role="img"
-        aria-label={`${data.title} replay with ${cars.length} ${carLabel} on track`}
-      >
-        {transform.outlinePath && (
-          <path className="replay__outline" d={transform.outlinePath} />
-        )}
+      <div className="replay__map-shell">
+        <ReplayWeather weather={weather} />
+        <svg
+          className="replay__map"
+          viewBox={transform.viewBox}
+          role="img"
+          aria-label={`${data.title} replay with ${cars.length} ${carLabel} on track`}
+        >
+          {transform.outlinePath && (
+            <path className="replay__outline" d={transform.outlinePath} />
+          )}
 
-        {cars.map(({ driver, sx, sy }) => (
-          <g key={driver.number} className="replay__car" transform={`translate(${sx} ${sy})`}>
-            <circle
-              className="replay__car-dot"
-              r={15}
-              fill={driver.color}
-              stroke={readableInk(driver.color)}
-              strokeWidth={2}
-            />
-            <text
-              className="replay__car-code"
-              textAnchor="middle"
-              dominantBaseline="central"
-              fill={readableInk(driver.color)}
-            >
-              {driver.acronym}
-            </text>
-          </g>
-        ))}
-      </svg>
+          {cars.map(({ driver, sx, sy }) => (
+            <g key={driver.number} className="replay__car" transform={`translate(${sx} ${sy})`}>
+              <circle
+                className="replay__car-dot"
+                r={15}
+                fill={driver.color}
+                stroke={readableInk(driver.color)}
+                strokeWidth={2}
+              />
+              <text
+                className="replay__car-code"
+                textAnchor="middle"
+                dominantBaseline="central"
+                fill={readableInk(driver.color)}
+              >
+                {driver.acronym}
+              </text>
+            </g>
+          ))}
+        </svg>
+      </div>
       <figcaption className="replay__map-caption">
         {cars.length} of {data.drivers.length} cars on track
         {data.circuit.approximate ? ' · outline traced from cars' : ''}
