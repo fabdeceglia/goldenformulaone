@@ -23,6 +23,13 @@ const MULTIVIEWER_BASE =
 /** A little over two seconds keeps a burst of 22 locations under 30 a minute. */
 const REQUEST_GAP_MS = 2_100
 
+/**
+ * A lookup that only needs a handful of requests can run tighter: the free
+ * tier also allows three requests a second, so 500 ms is still conservative.
+ * The replay path keeps the slower gap above for its full-field burst.
+ */
+export const SHORT_REQUEST_GAP_MS = 500
+
 let nextRequestAt = 0
 let queue: Promise<unknown> = Promise.resolve()
 
@@ -175,11 +182,16 @@ async function fetchJson<T>(url: string, signal?: AbortSignal, attempt = 0): Pro
 }
 
 /** Serialises and throttles one request, so callers can simply await it. */
-function request<T>(path: string, signal?: AbortSignal, base = OPENF1_BASE): Promise<T> {
+function request<T>(
+  path: string,
+  signal?: AbortSignal,
+  base = OPENF1_BASE,
+  gap = REQUEST_GAP_MS,
+): Promise<T> {
   const run = async () => {
     const now = Date.now()
     const wait = nextRequestAt - now
-    nextRequestAt = Math.max(now, nextRequestAt) + REQUEST_GAP_MS
+    nextRequestAt = Math.max(now, nextRequestAt) + gap
     if (wait > 0) await sleep(wait)
     return fetchJson<T>(`${base}${path}`, signal)
   }
@@ -197,12 +209,20 @@ function request<T>(path: string, signal?: AbortSignal, base = OPENF1_BASE): Pro
 const sessionCache = new Map<string, Promise<OpenF1Session[]>>()
 
 /** Every session of a season, fetched once per page load. */
-export function sessions(year: string | number): Promise<OpenF1Session[]> {
+export function sessions(
+  year: string | number,
+  gap = REQUEST_GAP_MS,
+): Promise<OpenF1Session[]> {
   const key = String(year)
   const cached = sessionCache.get(key)
   if (cached) return cached
 
-  const promise = request<OpenF1Session[]>(`/sessions?year=${key}`).catch((cause: unknown) => {
+  const promise = request<OpenF1Session[]>(
+    `/sessions?year=${key}`,
+    undefined,
+    OPENF1_BASE,
+    gap,
+  ).catch((cause: unknown) => {
     sessionCache.delete(key)
     throw cause
   })
@@ -253,6 +273,7 @@ function scheduledDate(race: Race, code: SessionCode): string | undefined {
 export async function resolveSessionKey(
   race: Race,
   code: SessionCode,
+  gap = REQUEST_GAP_MS,
 ): Promise<ResolvedReplaySession | null> {
   const name = OPENF1_SESSION_NAMES[code]
   if (!name) return null
@@ -262,7 +283,7 @@ export async function resolveSessionKey(
   const wantedDate = scheduledDate(race, code)
   if (!wantedDate) return null
 
-  const candidates = (await sessions(race.season)).filter(
+  const candidates = (await sessions(race.season, gap)).filter(
     (session) => names.includes(session.session_name) && !session.is_cancelled,
   )
 
@@ -293,12 +314,17 @@ export async function resolveSessionKey(
 export const openf1 = {
   sessions,
 
-  drivers: (sessionKey: number, signal?: AbortSignal) =>
-    request<OpenF1Driver[]>(`/drivers?session_key=${sessionKey}`, signal),
+  drivers: (sessionKey: number, signal?: AbortSignal, gap = REQUEST_GAP_MS) =>
+    request<OpenF1Driver[]>(`/drivers?session_key=${sessionKey}`, signal, OPENF1_BASE, gap),
 
   /** Final classification, available from about 30 minutes after the flag. */
-  sessionResult: (sessionKey: number, signal?: AbortSignal) =>
-    request<OpenF1SessionResult[]>(`/session_result?session_key=${sessionKey}`, signal),
+  sessionResult: (sessionKey: number, signal?: AbortSignal, gap = REQUEST_GAP_MS) =>
+    request<OpenF1SessionResult[]>(
+      `/session_result?session_key=${sessionKey}`,
+      signal,
+      OPENF1_BASE,
+      gap,
+    ),
 
   positions: (sessionKey: number, signal?: AbortSignal) =>
     request<OpenF1Position[]>(`/position?session_key=${sessionKey}`, signal),

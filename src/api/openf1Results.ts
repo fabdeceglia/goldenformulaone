@@ -1,5 +1,5 @@
 import type { OpenF1Driver, OpenF1SessionResult } from './openf1'
-import { openf1, resolveSessionKey } from './openf1'
+import { SHORT_REQUEST_GAP_MS, openf1, resolveSessionKey } from './openf1'
 import type { AlphaSessionEntry, AlphaSessionResults, Race, SessionCode } from './types'
 import { raceSchedule } from '../lib/schedule'
 
@@ -52,13 +52,17 @@ export async function practiceResults(
   if (!isPracticeSession(code)) return null
 
   try {
-    const resolved = await resolveSessionKey(race, code)
+    const resolved = await resolveSessionKey(race, code, SHORT_REQUEST_GAP_MS)
     if (!resolved) return null
 
-    const rows = await openf1.sessionResult(resolved.sessionKey, signal)
+    const rows = await openf1.sessionResult(
+      resolved.sessionKey,
+      signal,
+      SHORT_REQUEST_GAP_MS,
+    )
     if (rows.length === 0) return null
 
-    const drivers = await openf1.drivers(resolved.sessionKey, signal)
+    const drivers = await openf1.drivers(resolved.sessionKey, signal, SHORT_REQUEST_GAP_MS)
     const driverByNumber = new Map(drivers.map((driver) => [driver.driver_number, driver]))
     const entry = raceSchedule(race).find((candidate) => candidate.code === code)
     const timestamp = entry ? `${entry.date}T${entry.time ?? '00:00:00Z'}` : race.date
