@@ -97,7 +97,7 @@ export function SeasonView({ season, races }: SeasonViewProps) {
             featured={featured}
             onOpenNews={() => changeTab('news')}
             onShowCircuitInfo={setInfoRace}
-            onOpenResults={openRace}
+            onOpenSession={openRace}
           />
         )}
 

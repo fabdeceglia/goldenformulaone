@@ -217,6 +217,23 @@ export function sessionPhase(entry: ScheduleEntry, now: number = Date.now()): Se
 }
 
 /**
+ * OpenF1's free tier blocks every endpoint, including past sessions, while a
+ * session is live. The block starts a little before the scheduled start and
+ * lifts about thirty minutes after the flag, so this window is deliberately
+ * wider than the session itself. It is only used to explain a failed
+ * provisional fetch, never to decide whether to try one.
+ */
+export function openF1Locked(race: Race, now: number = Date.now()): boolean {
+  return raceSchedule(race).some((entry) => {
+    const start = sessionStart(entry)
+    if (!Number.isFinite(start)) return false
+
+    const end = sessionEnd(entry)
+    return now >= start - 30 * 60_000 && now <= end + 30 * 60_000
+  })
+}
+
+/**
  * How long the app keeps expecting results to appear after a session ends.
  * Generous enough to cover a race day and the following morning, but bounded so
  * browsing an old round does not turn the results view into a permanent poller.

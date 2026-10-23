@@ -1,7 +1,12 @@
 import type { OpenF1Driver, OpenF1SessionResult } from './openf1'
 import { SHORT_REQUEST_GAP_MS, openf1, resolveSessionKey } from './openf1'
 import type { AlphaSessionEntry, AlphaSessionResults, Race, SessionCode } from './types'
+import { readPracticeCache, writePracticeCache } from '../lib/practiceCache'
 import { raceSchedule } from '../lib/schedule'
+
+export type PracticeResults =
+  | { status: 'ready'; session: AlphaSessionResults }
+  | { status: 'unavailable'; reason: 'locked' | 'empty' | 'error' }
 
 const PRACTICE_TITLES: Partial<Record<SessionCode, string>> = {
   FP1: 'Practice 1',
@@ -40,27 +45,38 @@ function splitName(driver: OpenF1Driver): { given: string; family: string } {
  * session so the existing table renders it unchanged.
  *
  * OpenF1 is the fallback rather than the normal path: jolpica is canonical as
- * soon as it publishes. Returns null while the session is still live (the free
- * tier answers 401), when nothing maps, or when the classification is empty.
+ * soon as it publishes. The free tier answers 401 for every endpoint while a
+ * live session is running, so a previously fetched table is kept in local
+ * storage and served until OpenF1 is reachable again.
  */
 export async function practiceResults(
   race: Race,
   code: SessionCode,
   roundId: string | undefined,
   signal?: AbortSignal,
-): Promise<AlphaSessionResults | null> {
-  if (!isPracticeSession(code)) return null
+): Promise<PracticeResults> {
+  if (!isPracticeSession(code)) return { status: 'unavailable', reason: 'empty' }
+
+  const cached = readPracticeCache(race.season, race.round, code)
 
   try {
     const resolved = await resolveSessionKey(race, code, SHORT_REQUEST_GAP_MS)
-    if (!resolved) return null
+    if (!resolved) {
+      return cached
+        ? { status: 'ready', session: cached }
+        : { status: 'unavailable', reason: 'empty' }
+    }
 
     const rows = await openf1.sessionResult(
       resolved.sessionKey,
       signal,
       SHORT_REQUEST_GAP_MS,
     )
-    if (rows.length === 0) return null
+    if (rows.length === 0) {
+      return cached
+        ? { status: 'ready', session: cached }
+        : { status: 'unavailable', reason: 'empty' }
+    }
 
     const drivers = await openf1.drivers(resolved.sessionKey, signal, SHORT_REQUEST_GAP_MS)
     const driverByNumber = new Map(drivers.map((driver) => [driver.driver_number, driver]))
@@ -101,7 +117,7 @@ export async function practiceResults(
         }
       })
 
-    return {
+    const session: AlphaSessionResults = {
       code,
       title: PRACTICE_TITLES[code] ?? 'Practice',
       timestamp,
@@ -118,9 +134,18 @@ export async function practiceResults(
       },
       results,
     }
-  } catch {
-    // A provisional extra: 401 during the live window, 429 or a network
-    // failure must leave the caller on the normal "not published yet" path.
-    return null
+
+    writePracticeCache(race.season, race.round, code, session)
+    return { status: 'ready', session }
+  } catch (cause) {
+    // Keep the table already fetched for this session on screen through the
+    // next live window, when OpenF1 blocks even historical requests.
+    if (cached) return { status: 'ready', session: cached }
+
+    const message = cause instanceof Error ? cause.message : ''
+    return {
+      status: 'unavailable',
+      reason: message.includes('401') ? 'locked' : 'error',
+    }
   }
 }

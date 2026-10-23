@@ -26,7 +26,7 @@ export function FeaturedEventPanel({
   featured,
   showBadge = true,
   onOpenCircuitInfo,
-  onOpenResults,
+  onOpenSession,
 }: {
   featured: FeaturedEvent
   showBadge?: boolean
@@ -36,11 +36,11 @@ export function FeaturedEventPanel({
    */
   onOpenCircuitInfo?: () => void
   /**
-   * When given, the panel offers the way into a session's results once that
-   * session has finished. Only the home hero passes it — a round opened from
-   * the schedule has its own results action on the row.
+   * When given, the panel offers the way into a session once that session has
+   * finished. Only the home hero passes it — a round opened from the schedule
+   * has its own results action on the row.
    */
-  onOpenResults?: (session: SessionCode) => void
+  onOpenSession?: (session: SessionCode) => void
 }) {
   const { race, status, daysUntilStart } = featured
   const now = useNow()
@@ -49,11 +49,11 @@ export function FeaturedEventPanel({
 
   const { live, finished } = weekendProgress(race, now)
 
-  // Only set the right-hand results column aside once a session has actually
+  // Only set the right-hand finished column aside once a session has actually
   // finished; before then the schedule is just names and dates, and reserving
   // the space would leave a dead gap on every row.
-  const showResultsColumn =
-    onOpenResults !== undefined &&
+  const showFinishedColumn =
+    onOpenSession !== undefined &&
     schedule.some((entry) => sessionPhase(entry, now) === 'finished')
 
   // A session on track outranks the weekend label: "Live · Qualifying" beats a
@@ -134,19 +134,19 @@ export function FeaturedEventPanel({
                     <span className="schedule__clock">{formatTime(entry.date, entry.time)}</span>
                   )}
                 </span>
-                {/* Present only once the weekend has results to show; always
-                    rendered then, even when empty, so the dates and the chips
-                    line up across every row. */}
-                {showResultsColumn && (
+                {/* A finished session is a status, not a promise that its
+                    classification has arrived; the chip still opens the
+                    session so whatever is available can be shown. */}
+                {showFinishedColumn && (
                   <span className="schedule__action">
-                    {isFinished && onOpenResults && (
+                    {isFinished && onOpenSession && (
                       <button
                         type="button"
-                        className="schedule__results"
-                        onClick={() => onOpenResults(entry.code)}
-                        aria-label={`${entry.label} results`}
+                        className="schedule__finished"
+                        onClick={() => onOpenSession(entry.code)}
+                        aria-label={`Open ${entry.label}`}
                       >
-                        Results
+                        Finished
                       </button>
                     )}
                   </span>

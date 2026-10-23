@@ -418,17 +418,19 @@ tab regains focus):
 
 - While a session is on track, the badge becomes **Live · Qualifying** (or Practice, Sprint,
   Race) in red, and that row in the weekend schedule carries a pulsing red dot.
-- Every finished session carries a **Results** button at the end of its row in the weekend
-  schedule (dates and buttons line up as columns), which opens that round on **Chequered Flag**
-  with the session already selected. After the race itself the badge reads **Race complete**.
+- Every finished session carries a **Finished** chip at the end of its row in the weekend
+  schedule (dates and chips line up as columns), which opens that round on **Chequered Flag**
+  with the session already selected. The chip labels the state rather than promising a
+  classification; the session view explains when results are still pending. After the race
+  itself the badge reads **Race complete**.
 
 Session lengths are estimates (`SESSION_MINUTES` in `src/lib/schedule.ts`), deliberately
 generous so a red flag or a safety car does not make a live session look finished early.
 
 `TODAY` — the round to feature — is resolved once at module load in `src/lib/schedule.ts`.
-The live-session marker and the results button use `useNow`, so they keep up for the length of
-a browsing session; a page opened across midnight would need a reload to re-pick the featured
-round.
+The live-session marker and the finished-session chip use `useNow`, so they keep up for
+the length of a browsing session; a page opened across midnight would need a reload to re-pick
+the featured round.
 
 ## News
 

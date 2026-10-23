@@ -1237,14 +1237,15 @@ a:hover {
   color: var(--red-ink);
 }
 
-/* Every finished session carries its own way into the results, in the row's
-   right-hand slot so it lines up down the weekend. */
-.schedule__results {
+/* A finished session is a status first and a shortcut second: the neutral chip
+   says the session is over without promising a classification, while the red
+   hover keeps the way into the session discoverable. */
+.schedule__finished {
   padding: 0.04rem 0.34rem;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line);
   border-radius: 3px;
   background: transparent;
-  color: var(--red-ink);
+  color: var(--ink-muted);
   font: inherit;
   font-size: 0.62rem;
   font-weight: 700;
@@ -1253,7 +1254,7 @@ a:hover {
   transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
 
-.schedule__results:hover {
+.schedule__finished:hover {
   border-color: var(--red-deep);
   background: var(--red);
   color: var(--on-red);

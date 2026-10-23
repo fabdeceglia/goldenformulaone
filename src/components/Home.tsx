@@ -12,7 +12,7 @@ interface HomeProps {
   featured: FeaturedEvent | null
   onOpenNews: () => void
   onShowCircuitInfo: (race: Race) => void
-  onOpenResults: (round: string, session: SessionCode) => void
+  onOpenSession: (round: string, session: SessionCode) => void
 }
 
 export function Home({
@@ -20,7 +20,7 @@ export function Home({
   featured,
   onOpenNews,
   onShowCircuitInfo,
-  onOpenResults,
+  onOpenSession,
 }: HomeProps) {
   return (
     <div className="home">
@@ -28,7 +28,7 @@ export function Home({
         <FeaturedEventPanel
           featured={featured}
           onOpenCircuitInfo={() => onShowCircuitInfo(featured.race)}
-          onOpenResults={(session) => onOpenResults(featured.race.round, session)}
+          onOpenSession={(session) => onOpenSession(featured.race.round, session)}
         />
       ) : (
         <Empty message={`No events found for the ${season} season.`} />
