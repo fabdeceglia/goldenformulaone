@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { SESSION_CODES, alpha } from '../api/alpha'
-import type { Race, SessionCode } from '../api/types'
+import { isPracticeSession, practiceResults } from '../api/openf1Results'
+import type { AlphaSessionResults, Race, SessionCode } from '../api/types'
 import { useFetch } from '../hooks/useFetch'
 import { useNow } from '../hooks/useNow'
 import { clockNow } from '../lib/clock'
@@ -33,6 +34,11 @@ interface RaceResultsProps {
   initialSession?: SessionCode | null
   onRoundChange: (round: string) => void
 }
+
+/** The practice fallback either produced a provisional table or has nothing. */
+type PracticeFallback =
+  | { status: 'ready'; session: AlphaSessionResults }
+  | { status: 'unavailable' }
 
 export function RaceResults({
   season,
@@ -132,6 +138,46 @@ export function RaceResults({
   const pollDelay = selectedEntry ? resultsPollDelay(selectedEntry, now) : null
   const hasResults = (data?.results.length ?? 0) > 0
 
+  // Practice is the one session jolpica has been slow to publish, so show
+  // OpenF1's provisional classification while the canonical one is missing.
+  // OpenF1 is free from about thirty minutes after the flag, so early attempts
+  // fail closed and the poll below retries them.
+  const practice = isPracticeSession(session)
+  const sessionFinished = selectedEntry
+    ? sessionPhase(selectedEntry, now) === 'finished'
+    : false
+  const wantPracticeFallback =
+    practice &&
+    sessionFinished &&
+    !loading &&
+    (!!error || (data?.results.length ?? 0) === 0)
+
+  const {
+    data: practiceFallback,
+    loading: fallbackLoading,
+    error: fallbackError,
+    refresh: refreshFallback,
+  } = useFetch<PracticeFallback>(
+    wantPracticeFallback && selectedRace
+      ? async (signal) => {
+          const provisional = await practiceResults(selectedRace, session, roundId, signal)
+          return provisional
+            ? { status: 'ready' as const, session: provisional }
+            : { status: 'unavailable' as const }
+        }
+      : null,
+    [wantPracticeFallback, selectedRace, session, roundId],
+  )
+
+  const fallbackSession =
+    practiceFallback?.status === 'ready' ? practiceFallback.session : null
+  const usingFallback = fallbackSession !== null && !hasResults && !loading
+  // While OpenF1 is being asked, "not published yet" would be wrong: the
+  // fallback may already have the classification. Only show that notice once
+  // the attempt has settled without a table.
+  const fallbackPending =
+    wantPracticeFallback && !fallbackError && (fallbackLoading || practiceFallback === null)
+
   const pollTarget: 'index' | 'session' | null =
     pollDelay === null || !roundId
       ? null
@@ -151,8 +197,12 @@ export function RaceResults({
 
     const check = async () => {
       if (cancelled) return
-      if (pollTarget === 'index') await refreshIndex()
-      else await refreshSession()
+      if (pollTarget === 'index') {
+        await refreshIndex()
+      } else {
+        await refreshSession()
+        await refreshFallback()
+      }
 
       if (cancelled) return
       const next = selectedEntry ? resultsPollDelay(selectedEntry, clockNow()) : null
@@ -163,8 +213,12 @@ export function RaceResults({
     // comes back avoids making them wait for the next five-minute slot.
     const onVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return
-      if (pollTarget === 'index') void refreshIndex()
-      else void refreshSession()
+      if (pollTarget === 'index') {
+        void refreshIndex()
+      } else {
+        void refreshSession()
+        void refreshFallback()
+      }
     }
 
     timer = window.setTimeout(check, pollDelay)
@@ -175,7 +229,7 @@ export function RaceResults({
       window.clearTimeout(timer)
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
-  }, [pollTarget, pollDelay, selectedEntry, refreshIndex, refreshSession])
+  }, [pollTarget, pollDelay, selectedEntry, refreshIndex, refreshSession, refreshFallback])
 
   const pendingMessage = (label: string) => {
     if (pollDelay !== null) {
@@ -310,10 +364,28 @@ export function RaceResults({
       {loading && !error && (
         <Loading message={`Loading ${sessionLabel.toLowerCase()} results…`} />
       )}
-      {error && <ErrorState message={error} onRetry={reload} />}
+      {fallbackPending && !usingFallback && (
+        <Loading message="Checking OpenF1 for a provisional classification…" />
+      )}
+      {error && !usingFallback && !fallbackPending && (
+        <ErrorState message={error} onRetry={reload} />
+      )}
 
-      {data && !loading && !error && data.results.length === 0 && (
-        <Empty message={pendingMessage(sessionLabel)} />
+      {data &&
+        !loading &&
+        !error &&
+        data.results.length === 0 &&
+        !usingFallback &&
+        !fallbackPending && <Empty message={pendingMessage(sessionLabel)} />}
+
+      {usingFallback && fallbackSession && (
+        <>
+          <p className="results-note">
+            Provisional classification from OpenF1 — jolpica has not published this session
+            yet.
+          </p>
+          <SessionResultTable session={fallbackSession} />
+        </>
       )}
 
       {data && !loading && !error && data.results.length > 0 && (

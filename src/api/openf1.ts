@@ -107,6 +107,20 @@ export interface OpenF1Weather {
   wind_direction?: number | null
 }
 
+/** One row of OpenF1's final classification (`/session_result`). */
+export interface OpenF1SessionResult {
+  session_key: number
+  driver_number: number
+  position?: number | null
+  /** Seconds for practice, an array of segments for qualifying. */
+  duration?: number | number[] | null
+  gap_to_leader?: number | string | null
+  number_of_laps?: number | null
+  dnf?: boolean
+  dns?: boolean
+  dsq?: boolean
+}
+
 /** The circuit geometry as the Multiviewer API returns it. */
 export interface MultiviewerCircuit {
   circuitKey: number
@@ -200,20 +214,56 @@ export function sessions(year: string | number): Promise<OpenF1Session[]> {
  * The OpenF1 session behind a jolpica round and session code.
  *
  * There is no shared id between the two APIs, so the join is name + date:
- * OpenF1 calls the race `Race` and the sprint `Sprint`, and the scheduled day
- * comes from jolpica. A nearest-day fallback covers a late-night race that
- * lands on a different UTC day in one of the two calendars.
+ * OpenF1 names the sessions "Practice 1", "Qualifying", "Race" and so on, and
+ * the scheduled day comes from jolpica. A nearest-day fallback covers a
+ * late-night session that lands on a different UTC day in one calendar.
  */
+const OPENF1_SESSION_NAMES: Partial<Record<SessionCode, string>> = {
+  FP1: 'Practice 1',
+  FP2: 'Practice 2',
+  FP3: 'Practice 3',
+  SQ: 'Sprint Qualifying',
+  SR: 'Sprint',
+  Q: 'Qualifying',
+  R: 'Race',
+}
+
+/** The jolpica calendar date for a session code, when the schedule has one. */
+function scheduledDate(race: Race, code: SessionCode): string | undefined {
+  switch (code) {
+    case 'FP1':
+      return race.FirstPractice?.date
+    case 'FP2':
+      return race.SecondPractice?.date
+    case 'FP3':
+      return race.ThirdPractice?.date
+    case 'SQ':
+      return race.SprintQualifying?.date
+    case 'SR':
+      return race.Sprint?.date ?? race.date
+    case 'Q':
+      return race.Qualifying?.date
+    case 'R':
+      return race.date
+    default:
+      return undefined
+  }
+}
+
 export async function resolveSessionKey(
   race: Race,
   code: SessionCode,
 ): Promise<ResolvedReplaySession | null> {
-  if (code !== 'R' && code !== 'SR') return null
+  const name = OPENF1_SESSION_NAMES[code]
+  if (!name) return null
 
-  const name = code === 'R' ? 'Race' : 'Sprint'
-  const wantedDate = code === 'R' ? race.date : (race.Sprint?.date ?? race.date)
+  // OpenF1 has used both names for the sprint qualifying session.
+  const names = code === 'SQ' ? [name, 'Sprint Shootout'] : [name]
+  const wantedDate = scheduledDate(race, code)
+  if (!wantedDate) return null
+
   const candidates = (await sessions(race.season)).filter(
-    (session) => session.session_name === name && !session.is_cancelled,
+    (session) => names.includes(session.session_name) && !session.is_cancelled,
   )
 
   const exact = candidates.find((session) => session.date_start.slice(0, 10) === wantedDate)
@@ -245,6 +295,10 @@ export const openf1 = {
 
   drivers: (sessionKey: number, signal?: AbortSignal) =>
     request<OpenF1Driver[]>(`/drivers?session_key=${sessionKey}`, signal),
+
+  /** Final classification, available from about 30 minutes after the flag. */
+  sessionResult: (sessionKey: number, signal?: AbortSignal) =>
+    request<OpenF1SessionResult[]>(`/session_result?session_key=${sessionKey}`, signal),
 
   positions: (sessionKey: number, signal?: AbortSignal) =>
     request<OpenF1Position[]>(`/position?session_key=${sessionKey}`, signal),

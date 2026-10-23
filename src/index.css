@@ -520,6 +520,19 @@ a:hover {
   margin-left: 0;
 }
 
+/* Provisional classification shown while jolpica has not published a session.
+   It sits between the tab strip and the table, so it reads as a description of
+   the data rather than an alert. */
+.results-note {
+  margin: 0;
+  padding: 0.65rem 1.15rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-sunken);
+  color: var(--ink-muted);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
 .replay-open {
   white-space: nowrap;
 }
