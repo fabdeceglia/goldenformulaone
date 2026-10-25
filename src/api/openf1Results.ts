@@ -20,10 +20,12 @@ const FALLBACK_TITLES: Partial<Record<SessionCode, string>> = {
   FP2: 'Practice 2',
   FP3: 'Practice 3',
   SQ: 'Sprint Qualifying',
+  SR: 'Sprint',
   Q: 'Qualifying',
+  R: 'Race',
 }
 
-const FALLBACK_SESSIONS = new Set<SessionCode>(['FP1', 'FP2', 'FP3', 'SQ', 'Q'])
+const FALLBACK_SESSIONS = new Set<SessionCode>(['FP1', 'FP2', 'FP3', 'SQ', 'SR', 'Q', 'R'])
 
 const SEGMENT_NAMES: Record<string, string> = {
   Q1: 'Qualifying 1',
@@ -35,18 +37,25 @@ const SEGMENT_NAMES: Record<string, string> = {
 }
 
 /**
- * jolpica has been slow to publish practice and qualifying classifications.
- * These are the sessions OpenF1 can fill in provisionally until it does.
+ * jolpica has been slow to publish classifications. These are the sessions
+ * OpenF1 can fill in provisionally until it does.
  */
 export function isOpenF1FallbackSession(code: SessionCode): boolean {
   return FALLBACK_SESSIONS.has(code)
 }
 
-/** OpenF1 reports times as decimal seconds, e.g. 77.565. */
-function formatLapTime(seconds: number | null | undefined): string | undefined {
+/** OpenF1 reports times as decimal seconds, e.g. 77.565 or 6120.785. */
+function formatSessionTime(seconds: number | null | undefined): string | undefined {
   if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return undefined
-  const minutes = Math.floor(seconds / 60)
-  const remainder = seconds - minutes * 60
+
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const remainder = seconds % 60
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${remainder.toFixed(3).padStart(6, '0')}`
+  }
+
   return `${minutes}:${remainder.toFixed(3).padStart(6, '0')}`
 }
 
@@ -65,9 +74,9 @@ function splitName(driver: OpenF1Driver): { given: string; family: string } {
 }
 
 /**
- * Practice carries one best lap as a number; qualifying carries one best lap
- * per segment in an array. Build the same `components` map jolpica uses, so the
- * qualifying table and starting grid render a provisional classification
+ * Practice and the race carry one duration as a number; qualifying carries one
+ * best lap per segment in an array. Build the same `components` map jolpica
+ * uses, so the table and starting grid render a provisional classification
  * exactly like the canonical one.
  */
 function sessionTime(
@@ -77,7 +86,9 @@ function sessionTime(
   const segments = QUALIFYING_SEGMENTS[code]
 
   if (!segments) {
-    return { time: formatLapTime(typeof row.duration === 'number' ? row.duration : undefined) }
+    return {
+      time: formatSessionTime(typeof row.duration === 'number' ? row.duration : undefined),
+    }
   }
 
   const durations = Array.isArray(row.duration) ? row.duration : []
@@ -85,7 +96,7 @@ function sessionTime(
   let time: string | undefined
 
   segments.forEach((segment, index) => {
-    const segmentTime = formatLapTime(durations[index])
+    const segmentTime = formatSessionTime(durations[index])
     if (!segmentTime) return
 
     components[segment] = {
@@ -101,6 +112,44 @@ function sessionTime(
   return {
     time,
     components: Object.keys(components).length > 0 ? components : undefined,
+  }
+}
+
+/** OpenF1 reports the reason a car stopped as flags rather than a status string. */
+function raceStatus(row: OpenF1SessionResult): string {
+  if (row.dsq) return 'DSQ'
+  if (row.dns) return 'DNS'
+  if (row.dnf) return 'RETIRED'
+  if (typeof row.gap_to_leader === 'string' && /LAP/i.test(row.gap_to_leader)) return 'LAPPED'
+  return 'FINISHED'
+}
+
+/**
+ * The race itself has no starting-grid endpoint in OpenF1. The grid is the
+ * qualifying classification, so use the qualifying session's `starting_grid`
+ * feed. A failure here only costs the grid column, not the classification.
+ */
+async function startingGrid(
+  race: Race,
+  code: SessionCode,
+  signal?: AbortSignal,
+): Promise<Map<number, number>> {
+  const gridCode: SessionCode | null = code === 'R' ? 'Q' : code === 'SR' ? 'SQ' : null
+  if (!gridCode) return new Map()
+
+  try {
+    const resolved = await resolveSessionKey(race, gridCode, SHORT_REQUEST_GAP_MS)
+    if (!resolved) return new Map()
+
+    const rows = await openf1.startingGrid(
+      resolved.sessionKey,
+      signal,
+      SHORT_REQUEST_GAP_MS,
+    )
+    return new Map(rows.map((row) => [row.driver_number, row.position]))
+  } catch (cause) {
+    if (signal?.aborted) throw cause
+    return new Map()
   }
 }
 
@@ -147,6 +196,8 @@ export async function provisionalResults(
     const entry = raceSchedule(race).find((candidate) => candidate.code === code)
     const timestamp = entry ? `${entry.date}T${entry.time ?? '00:00:00Z'}` : race.date
     const segments = QUALIFYING_SEGMENTS[code]
+    const isRace = code === 'R' || code === 'SR'
+    const gridByDriver = await startingGrid(race, code, signal)
 
     const positionOf = (row: OpenF1SessionResult) =>
       typeof row.position === 'number' ? row.position : Number.MAX_SAFE_INTEGER
@@ -160,7 +211,16 @@ export async function provisionalResults(
           ? splitName(driver)
           : { given: `#${row.driver_number}`, family: '' }
         const teamName = driver?.team_name ?? '—'
-        const { time, components } = sessionTime(row, code)
+        const { time, components: segmentComponents } = sessionTime(row, code)
+        const components: Record<string, AlphaComponent> = segmentComponents
+          ? { ...segmentComponents }
+          : {}
+
+        const gridPosition = isRace ? gridByDriver.get(row.driver_number) : undefined
+        if (gridPosition !== undefined) {
+          components.GRID = { key: 'GRID', name: 'Grid Position', position: gridPosition }
+        }
+
         const classified =
           !row.dnf && !row.dns && !row.dsq && (!segments || time !== undefined)
 
@@ -183,9 +243,17 @@ export async function provisionalResults(
           laps: row.number_of_laps ?? undefined,
           is_classified: classified,
           car_number: row.driver_number,
-          components,
+          status: isRace ? raceStatus(row) : undefined,
+          points: isRace ? (row.points ?? undefined) : undefined,
+          components: Object.keys(components).length > 0 ? components : undefined,
         }
       })
+
+    const componentKeys = segments
+      ? [...segments]
+      : isRace && gridByDriver.size > 0
+        ? ['GRID']
+        : undefined
 
     const session: AlphaSessionResults = {
       code,
@@ -202,7 +270,7 @@ export async function provisionalResults(
         locality: race.Circuit.Location.locality,
         country_code: race.Circuit.Location.country,
       },
-      component_keys: segments ? [...segments] : undefined,
+      component_keys: componentKeys,
       results,
     }
 

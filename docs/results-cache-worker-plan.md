@@ -95,7 +95,7 @@ frontend.
 | Scheduling | One cron trigger, every 2 minutes |
 | Frontend origin | Vercel, same-origin `/api/results/*` via a Vercel rewrite |
 | Canonical source | jolpica alpha |
-| Provisional fallback | OpenF1 `session_result`, practice and qualifying in v1 |
+| Provisional fallback | OpenF1 `session_result`, all sessions in v1 |
 | Wire shape | Existing `AlphaSessionResults` plus cache metadata |
 | Cost | Cloudflare Free + Vercel Hobby = $0 |
 
@@ -141,7 +141,7 @@ everywhere. That is acceptable for results that already take minutes to publish.
 
 - One Worker endpoint for one session's result.
 - jolpica canonical fetch and normalization.
-- OpenF1 practice/qualifying fallback with server-side 401/429 handling.
+- OpenF1 results fallback for every session, with server-side 401/429 handling.
 - KV cache with `pending` / `provisional` / `final` states.
 - Cron warmer around session windows.
 - Vercel rewrite so the frontend calls `/api/results/...` same-origin.
@@ -180,7 +180,7 @@ Cloudflare Worker
   └── if missing/stale: refresh once, write, return
         │
         ├── jolpica alpha
-        └── OpenF1 (practice/qualifying fallback)
+        └── OpenF1 (results fallback, all sessions)
 ```
 
 ### 5.2 Cron path
@@ -191,7 +191,7 @@ Cloudflare Cron (every 2 min)
   ├── find sessions that are finished and not final
   ├── refresh jolpica
   ├── if jolpica complete: write final, stop polling that session
-  ├── else refresh OpenF1 (practice and qualifying)
+  ├── else refresh OpenF1 (all sessions)
   ├── if OpenF1 ready: write provisional
   └── keep checking jolpica to promote when it publishes
 ```
@@ -208,8 +208,9 @@ looking.
 4. OpenF1 non-empty but incomplete → `provisional` with `source: "openf1"`
 5. nothing → `pending`
 
-jolpica remains canonical. A provisional OpenF1 table is replaced as soon as jolpica has
-a complete classification.
+jolpica remains canonical during the transition. A provisional OpenF1 table is replaced as
+soon as jolpica has a complete classification. This is the **v1 transition priority**;
+the target OpenF1-primary priority is in §18.
 
 ### 5.4 Completeness
 
@@ -457,8 +458,10 @@ logic and re-export/use the pure helpers.
 - `404` means no results yet; treat as `empty`.
 - `429` means rate limited; back off and respect `Retry-After`.
 - Map OpenF1 rows into `AlphaSessionResults` with the existing mapping logic.
-- v1 uses OpenF1 for `FP1`/`FP2`/`FP3`, `SQ` and `Q`. Race and sprint results stay
-  jolpica-only until the OpenF1-primary migration.
+- v1 uses OpenF1 for every session: `FP1`–`FP3`, `SQ`, `SR`, `Q` and `R`. The race and
+  sprint grid is filled from the corresponding qualifying session's `starting_grid`
+  feed (`Q` for `R`, `SQ` for `SR`). This is the transition design; the OpenF1-primary
+  target in §19 reverses the source priority.
 
 ### 8.3 Attribution and licensing
 
@@ -824,7 +827,7 @@ Success criteria:
 
 - [ ] Add OpenF1 session list cache and session-key join
 - [ ] Move/reuse the OpenF1 → alpha mapping
-- [ ] Add practice/qualifying fallback
+- [ ] Add all-session OpenF1 fallback, including race/sprint grid enrichment
 - [ ] Add 401/404/429 handling and backoff
 - [ ] Test locked/empty/ready cases
 
@@ -842,7 +845,7 @@ Success criteria:
 - [ ] Add `resultsService.ts`
 - [ ] Switch `RaceResults.tsx`
 - [ ] Add final/provisional/pending/locked UI states
-- [ ] Remove `practiceCache.ts`, the FE OpenF1 result fallback and the lock heuristic
+- [ ] Remove `provisionalCache.ts`, the FE OpenF1 result fallback and the lock heuristic
 - [ ] Keep `alpha.resultsIndex` direct for now
 - [ ] Update polling to use `pollAfterMs` (or keep current cadence initially)
 
@@ -864,6 +867,17 @@ Success criteria:
 - [ ] Proxy results index/calendar
 - [ ] Paid OpenF1 key if the free gap is still a problem
 
+### Phase 7 — OpenF1-primary migration
+
+- [ ] Add `PRIMARY_SOURCE` flag, default `jolpica`
+- [ ] Add `primary` / `enrichment` fields to `CachedResult`
+- [ ] Split refresh into primary and enrichment passes
+- [ ] Merge jolpica points, fastest lap and official grid into OpenF1 results
+- [ ] Compare both sources for one race weekend
+- [ ] Flip to `PRIMARY_SOURCE=openf1`
+- [ ] Remove the browser fallback and `provisionalCache.ts`
+- [ ] Verify a full weekend with the Worker only
+
 ---
 
 ## 17. Suggested commit plan
@@ -872,7 +886,7 @@ On `feat/results-cache-worker`:
 
 1. `worker: add cached results service skeleton`
 2. `worker: fetch jolpica and cache session results`
-3. `worker: add OpenF1 practice/qualifying fallback and cron`
+3. `worker: add all-session OpenF1 fallback and cron`
 4. `web: read results from the cache worker`
 5. `docs: document the results cache worker`
 
@@ -883,7 +897,162 @@ If the Worker and frontend switch feel safer as separate reviews, split into two
 
 ---
 
-## 18. References
+## 18. Migration to OpenF1-primary
+
+### 18.1 Why invert the priority
+
+OpenF1 is the faster source for every session. It publishes a usable classification shortly
+after the flag, while jolpica can lag for hours. The current fallback already proves the
+mapping works for `FP1`–`FP3`, `SQ`, `SR`, `Q` and `R`, including race/sprint grid
+enrichment from qualifying.
+
+The target is:
+
+- **OpenF1 is primary** for first publication and for the table the user sees while jolpica
+  is late.
+- **jolpica is enrichment, fallback and the canonical check**: official points, fastest
+  lap, penalty-adjusted grid, status text and a second opinion when the two sources
+  disagree.
+- **The Worker/KV cache is shared** by every visitor and warmed by cron, so a result is
+  captured even when nobody has the site open.
+
+This is a data-source inversion, not a rewrite. The `AlphaSessionResults` wire shape, the
+table components and the Worker routes stay the same.
+
+### 18.2 Target source priority
+
+| Priority | OpenF1 | jolpica | Result |
+| --- | --- | --- | --- |
+| 1 | complete | complete | `final`, OpenF1 timing + jolpica enrichment |
+| 2 | complete | empty/incomplete | `provisional` from OpenF1; keep polling jolpica |
+| 3 | empty/incomplete/locked | complete | `final` from jolpica (fallback) |
+| 4 | non-empty but incomplete | non-empty but incomplete | `provisional` from the more complete source |
+| 5 | nothing | nothing | `pending` |
+
+Rules:
+
+- Never replace a good OpenF1 result with an empty jolpica response.
+- A complete OpenF1 result is published immediately; it does not wait for jolpica.
+- Once jolpica is complete, merge its official fields into the cached OpenF1 result and
+  promote to `final`.
+- If the two sources disagree, keep the OpenF1 timing/position for the provisional view,
+  log the discrepancy, and use jolpica's official field for the final view. A mismatch is
+  a signal to inspect, not a reason to blank the table.
+- OpenF1 `401` during a live session means "locked", not "empty". Serve the cached
+  provisional result and retry after the lock window.
+
+### 18.3 Merge rules
+
+Match entries by OpenF1 `driver_number` and jolpica `permanent_car_number`/abbreviation.
+For each driver:
+
+| Field | Preferred source | Fallback |
+| --- | --- | --- |
+| Position | OpenF1 while provisional; jolpica when final | the other source |
+| Total/lap time | OpenF1 | jolpica |
+| Laps | OpenF1 | jolpica |
+| Status (finished/retired/DNS/DSQ) | OpenF1 flags, jolpica text when final | the other source |
+| Points | jolpica | OpenF1 `points` |
+| Fastest lap | jolpica `components.FLAP` | derive from OpenF1 `/laps` later |
+| Grid | jolpica `components.GRID` (official, includes penalties) | OpenF1 qualifying `starting_grid` |
+| Q1/Q2/Q3 components | OpenF1 `duration` array | jolpica components |
+| Team/driver names | jolpica (canonical spelling) | OpenF1 `drivers` |
+
+Starting-grid clarification:
+
+- OpenF1 has **no race-session starting-grid endpoint**. `/starting_grid` works for
+  qualifying and sprint qualifying; the race grid is the qualifying classification.
+- jolpica has **no separate starting-grid endpoint** either. The official grid is exposed
+  as `components.GRID` inside the race result, not as its own resource.
+- Therefore the Worker uses jolpica `components.GRID` when the race result is available,
+  and falls back to OpenF1 `starting_grid` for `Q`/`SQ` while waiting. This is the same
+  assumption the current UI makes, but with the official grid preferred once published.
+
+### 18.4 Worker changes
+
+1. Add a `PRIMARY_SOURCE` setting with `openf1` and `jolpica` values. Ship with
+   `jolpica` during the transition; flip to `openf1` after a race weekend of comparison.
+2. Extend `CachedResult`:
+   ```ts
+   type ResultSource = 'openf1' | 'jolpica' | 'openf1+jolpica'
+   interface CachedResult {
+     // existing fields...
+     primary: ResultSource
+     enrichment: {
+       jolpica: SourceStatus
+       mergedAt: string | null
+     }
+   }
+   ```
+3. Split the refresh into two operations:
+   - `refreshPrimary(session)` — OpenF1 first when the flag is `openf1`, otherwise jolpica.
+   - `refreshEnrichment(session, primary)` — the other source, merged only when complete.
+4. Keep the current completeness rule (expected drivers + at least one position). Add a
+   race-specific check: the winner and at least one classified finisher must be present.
+5. Write a provisional result as soon as OpenF1 is complete; do not wait for the
+   enrichment pass.
+6. Promote to `final` when the primary is complete and either:
+   - jolpica enrichment is complete, or
+   - the enrichment grace period has passed (e.g. 6 hours) and the primary has been stable.
+7. Keep polling jolpica after a provisional result. Never overwrite a good provisional
+   with a worse one.
+8. Cache the OpenF1 session list and driver list for the season; only fetch per-session
+   results and qualifying grids on refresh.
+
+### 18.5 Frontend changes
+
+- Point `RaceResults.tsx` at `/api/results/...` only; remove the direct OpenF1 fallback,
+  the schedule lock heuristic and `provisionalCache.ts`.
+- Keep the same table and starting-grid components.
+- Do not show a source label. The API response can carry `source`/`state` metadata, and the
+  app can log it to the console for power users.
+- Keep the existing pending/locked copy; it explains why a table is not there yet, not
+  where the data came from.
+
+### 18.6 Rollout and rollback
+
+| Step | Action | Exit criterion |
+| --- | --- | --- |
+| 1 | Deploy Worker with `PRIMARY_SOURCE=jolpica` | Existing behaviour unchanged |
+| 2 | Add OpenF1-primary code behind the flag; compare both sources in logs | No unexplained mismatches |
+| 3 | Flip to `PRIMARY_SOURCE=openf1` for one race weekend | Every session publishes from OpenF1 |
+| 4 | Remove the browser fallback and local cache | One source of truth in the Worker |
+| 5 | Update README and this document | Docs match production |
+
+Rollback is a flag change back to `jolpica`; KV keeps the last good result, so users do not
+lose the table during the switch.
+
+### 18.7 Risks
+
+- **OpenF1 live lock**: the free tier returns `401` during live sessions. Mitigate with the
+  cron warmer, the KV cache and jolpica fallback.
+- **OpenF1 is not the official classification**: use jolpica for points, fastest lap,
+  penalties and the final canonical check.
+- **Grid penalties**: OpenF1's qualifying order is not the official grid. Prefer jolpica
+  `components.GRID` once available; label the provisional grid as qualifying order only in
+  the data, not in the UI.
+- **Schema drift**: keep the OpenF1 adapter small and covered by fixture tests; log unknown
+  fields rather than dropping rows.
+- **Rate limits**: keep the serial request queue, respect `Retry-After`, and avoid
+  per-visitor upstream calls.
+- **Licensing**: OpenF1 is CC BY-NC-SA 4.0; keep attribution and keep the project
+  non-commercial.
+
+### 18.8 Acceptance criteria
+
+- Every session (`FP1`–`FP3`, `SQ`, `SR`, `Q`, `R`) gets a table from OpenF1 within the
+  normal publication window, without a browser tab being open.
+- Race and sprint tables include a grid column filled from jolpica when available, or from
+  the corresponding OpenF1 qualifying `starting_grid` otherwise.
+- jolpica remains a working fallback and enrichment source; a jolpica outage does not blank
+  the table.
+- No user-facing source note. Source and state are available in the API response and the
+  browser console.
+- The Worker survives the OpenF1 live lock using cached provisional results.
+
+---
+
+## 19. References
 
 - Cloudflare Workers limits: <https://developers.cloudflare.com/workers/platform/limits/>
 - Cloudflare Cron Triggers: <https://developers.cloudflare.com/workers/configuration/cron-triggers/>

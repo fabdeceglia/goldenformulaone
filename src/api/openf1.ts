@@ -123,9 +123,19 @@ export interface OpenF1SessionResult {
   duration?: number | (number | null)[] | null
   gap_to_leader?: number | string | (number | null)[] | null
   number_of_laps?: number | null
+  points?: number | null
   dnf?: boolean
   dns?: boolean
   dsq?: boolean
+}
+
+/** One row of OpenF1's starting-grid feed for a qualifying session. */
+export interface OpenF1StartingGrid {
+  position: number
+  driver_number: number
+  lap_duration?: number | null
+  meeting_key: number
+  session_key: number
 }
 
 /** The circuit geometry as the Multiviewer API returns it. */
@@ -321,6 +331,19 @@ export const openf1 = {
   sessionResult: (sessionKey: number, signal?: AbortSignal, gap = REQUEST_GAP_MS) =>
     request<OpenF1SessionResult[]>(
       `/session_result?session_key=${sessionKey}`,
+      signal,
+      OPENF1_BASE,
+      gap,
+    ),
+
+  /**
+   * The starting grid for a qualifying session. OpenF1 only publishes this for
+   * qualifying/sprint qualifying, not for the race itself; the app uses it to
+   * fill the race table's grid column when jolpica is missing.
+   */
+  startingGrid: (sessionKey: number, signal?: AbortSignal, gap = REQUEST_GAP_MS) =>
+    request<OpenF1StartingGrid[]>(
+      `/starting_grid?session_key=${sessionKey}`,
       signal,
       OPENF1_BASE,
       gap,

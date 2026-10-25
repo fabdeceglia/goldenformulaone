@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { SESSION_CODES, alpha } from '../api/alpha'
 import { isOpenF1FallbackSession, provisionalResults } from '../api/openf1Results'
 import type { ProvisionalResults } from '../api/openf1Results'
@@ -175,6 +175,29 @@ export function RaceResults({
   // the attempt has settled without a table.
   const fallbackPending =
     wantFallback && !fallbackError && (fallbackLoading || fallback === null)
+
+  // Keep the source visible to power users without putting an API note in the
+  // results UI. The table itself should read like the canonical one.
+  const fallbackCode = fallbackSession?.code
+  const fallbackCount = fallbackSession?.results.length ?? 0
+  const loggedFallback = useRef<string | null>(null)
+  useEffect(() => {
+    if (!usingFallback || !fallbackCode) {
+      loggedFallback.current = null
+      return
+    }
+
+    const key = `${season}:${round}:${fallbackCode}`
+    if (loggedFallback.current === key) return
+    loggedFallback.current = key
+
+    console.info('[results] provisional classification from OpenF1', {
+      season,
+      round,
+      session: fallbackCode,
+      results: fallbackCount,
+    })
+  }, [usingFallback, fallbackCode, fallbackCount, season, round])
 
   const pollTarget: 'index' | 'session' | null =
     pollDelay === null || !roundId
@@ -381,19 +404,13 @@ export function RaceResults({
         <Empty message="OpenF1 is locked while another session is live. The provisional classification will return after the session." />
       )}
 
-      {usingFallback && fallbackSession && (
-        <>
-          <p className="results-note">
-            Provisional classification from OpenF1 — jolpica has not published this session
-            yet.
-          </p>
-          {showingGrid ? (
-            <StartingGridView session={fallbackSession} />
-          ) : (
-            <SessionResultTable session={fallbackSession} />
-          )}
-        </>
-      )}
+      {usingFallback &&
+        fallbackSession &&
+        (showingGrid ? (
+          <StartingGridView session={fallbackSession} />
+        ) : (
+          <SessionResultTable session={fallbackSession} />
+        ))}
 
       {data && !loading && !error && data.results.length > 0 && (
         showingGrid ? <StartingGridView session={data} /> : <SessionResultTable session={data} />
