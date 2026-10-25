@@ -460,8 +460,9 @@ logic and re-export/use the pure helpers.
 - Map OpenF1 rows into `AlphaSessionResults` with the existing mapping logic.
 - v1 uses OpenF1 for every session: `FP1`–`FP3`, `SQ`, `SR`, `Q` and `R`. The race and
   sprint grid is filled from the corresponding qualifying session's `starting_grid`
-  feed (`Q` for `R`, `SQ` for `SR`). This is the transition design; the OpenF1-primary
-  target in §19 reverses the source priority.
+  feed (`Q` for `R`, `SQ` for `SR`), which is the actual grid including penalties; if
+  that feed is unavailable, the qualifying classification order is used. This is the
+  transition design; the OpenF1-primary target in §18 reverses the source priority.
 
 ### 8.3 Attribution and licensing
 
@@ -954,19 +955,22 @@ For each driver:
 | Status (finished/retired/DNS/DSQ) | OpenF1 flags, jolpica text when final | the other source |
 | Points | jolpica | OpenF1 `points` |
 | Fastest lap | jolpica `components.FLAP` | derive from OpenF1 `/laps` later |
-| Grid | jolpica `components.GRID` (official, includes penalties) | OpenF1 qualifying `starting_grid` |
+| Grid | jolpica `components.GRID` (official, includes penalties) | OpenF1 `starting_grid` (also includes penalties), then qualifying order |
 | Q1/Q2/Q3 components | OpenF1 `duration` array | jolpica components |
 | Team/driver names | jolpica (canonical spelling) | OpenF1 `drivers` |
 
 Starting-grid clarification:
 
-- OpenF1 has **no race-session starting-grid endpoint**. `/starting_grid` works for
-  qualifying and sprint qualifying; the race grid is the qualifying classification.
+- OpenF1's `/starting_grid` is keyed to qualifying/sprint qualifying, not the race. For
+  `Q`/`SQ` it returns the actual race grid, including grid penalties; a race-session key
+  returns `404`.
 - jolpica has **no separate starting-grid endpoint** either. The official grid is exposed
-  as `components.GRID` inside the race result, not as its own resource.
-- Therefore the Worker uses jolpica `components.GRID` when the race result is available,
-  and falls back to OpenF1 `starting_grid` for `Q`/`SQ` while waiting. This is the same
-  assumption the current UI makes, but with the official grid preferred once published.
+  as `components.GRID` inside the race result (or `Results[].grid` in the Ergast shape),
+  not as its own resource.
+- Therefore the Worker prefers jolpica `components.GRID` once the race result is available,
+  and uses OpenF1 `starting_grid` for `Q`/`SQ` while waiting. If that feed is unavailable,
+  it falls back to the qualifying classification order, which is a reasonable provisional
+  grid but does not include penalties and may omit drivers without a qualifying time.
 
 ### 18.4 Worker changes
 

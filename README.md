@@ -170,8 +170,9 @@ Notes:
   soon as that arrives. For qualifying, OpenF1's per-segment `duration` array is mapped to
   the same Q1/Q2/Q3 components the starting grid already uses. For races and sprints, the
   grid column comes from OpenF1's starting-grid feed for the corresponding qualifying
-  session; that is the same order the app shows in the qualifying view. The fallback is
-  logged to the browser console rather than labelled in the table.
+  session (`Q` for `R`, `SQ` for `SR`). That feed is the actual grid and can include
+  penalties; if it is unavailable, the app falls back to the qualifying classification
+  order. The fallback is logged to the browser console rather than labelled in the table.
 - **Inside a session's results window** — from ten minutes before its estimated end until 24
   hours after it — the view re-checks the API on its own: every 30 seconds around the flag,
   then every minute, then every five. Polling stops as soon as the classification arrives,

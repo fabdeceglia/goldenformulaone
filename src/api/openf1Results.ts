@@ -125,9 +125,11 @@ function raceStatus(row: OpenF1SessionResult): string {
 }
 
 /**
- * The race itself has no starting-grid endpoint in OpenF1. The grid is the
- * qualifying classification, so use the qualifying session's `starting_grid`
- * feed. A failure here only costs the grid column, not the classification.
+ * OpenF1's starting-grid feed is keyed to the qualifying/sprint-qualifying
+ * session, not the race. It is the actual grid (including penalties), not just
+ * the qualifying order. Use it for the race grid; if it is unavailable, fall
+ * back to the qualifying classification. A failure here only costs the grid
+ * column, not the classification.
  */
 async function startingGrid(
   race: Race,
@@ -141,12 +143,33 @@ async function startingGrid(
     const resolved = await resolveSessionKey(race, gridCode, SHORT_REQUEST_GAP_MS)
     if (!resolved) return new Map()
 
-    const rows = await openf1.startingGrid(
+    try {
+      const rows = await openf1.startingGrid(
+        resolved.sessionKey,
+        signal,
+        SHORT_REQUEST_GAP_MS,
+      )
+      if (rows.length > 0) {
+        return new Map(rows.map((row) => [row.driver_number, row.position]))
+      }
+    } catch (cause) {
+      if (signal?.aborted) throw cause
+    }
+
+    // The grid feed is normally available for qualifying. If it is not, fall
+    // back to the qualifying classification: the same order minus any grid
+    // penalties, and it may omit drivers without a qualifying time. A blank
+    // grid is less useful than a provisional one.
+    const rows = await openf1.sessionResult(
       resolved.sessionKey,
       signal,
       SHORT_REQUEST_GAP_MS,
     )
-    return new Map(rows.map((row) => [row.driver_number, row.position]))
+    return new Map(
+      rows
+        .filter((row) => typeof row.position === 'number')
+        .map((row) => [row.driver_number, row.position as number]),
+    )
   } catch (cause) {
     if (signal?.aborted) throw cause
     return new Map()
