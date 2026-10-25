@@ -386,7 +386,7 @@ export function RaceResults({
         <Loading message={`Loading ${sessionLabel.toLowerCase()} results…`} />
       )}
       {fallbackPending && !usingFallback && (
-        <Loading message="Checking OpenF1 for a provisional classification…" />
+        <Loading message="Loading results…" />
       )}
       {error && !usingFallback && !fallbackPending && !fallbackLocked && (
         <ErrorState message={error} onRetry={reload} />
