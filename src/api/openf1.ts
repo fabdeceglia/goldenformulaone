@@ -119,9 +119,9 @@ export interface OpenF1SessionResult {
   session_key: number
   driver_number: number
   position?: number | null
-  /** Seconds for practice, an array of segments for qualifying. */
-  duration?: number | number[] | null
-  gap_to_leader?: number | string | null
+  /** Seconds for practice and the race, an array of segment laps for qualifying. */
+  duration?: number | (number | null)[] | null
+  gap_to_leader?: number | string | (number | null)[] | null
   number_of_laps?: number | null
   dnf?: boolean
   dns?: boolean

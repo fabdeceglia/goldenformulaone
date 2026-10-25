@@ -95,7 +95,7 @@ frontend.
 | Scheduling | One cron trigger, every 2 minutes |
 | Frontend origin | Vercel, same-origin `/api/results/*` via a Vercel rewrite |
 | Canonical source | jolpica alpha |
-| Provisional fallback | OpenF1 `session_result`, practice only in v1 |
+| Provisional fallback | OpenF1 `session_result`, practice and qualifying in v1 |
 | Wire shape | Existing `AlphaSessionResults` plus cache metadata |
 | Cost | Cloudflare Free + Vercel Hobby = $0 |
 
@@ -141,7 +141,7 @@ everywhere. That is acceptable for results that already take minutes to publish.
 
 - One Worker endpoint for one session's result.
 - jolpica canonical fetch and normalization.
-- OpenF1 practice fallback with server-side 401/429 handling.
+- OpenF1 practice/qualifying fallback with server-side 401/429 handling.
 - KV cache with `pending` / `provisional` / `final` states.
 - Cron warmer around session windows.
 - Vercel rewrite so the frontend calls `/api/results/...` same-origin.
@@ -180,7 +180,7 @@ Cloudflare Worker
   └── if missing/stale: refresh once, write, return
         │
         ├── jolpica alpha
-        └── OpenF1 (practice fallback)
+        └── OpenF1 (practice/qualifying fallback)
 ```
 
 ### 5.2 Cron path
@@ -191,7 +191,7 @@ Cloudflare Cron (every 2 min)
   ├── find sessions that are finished and not final
   ├── refresh jolpica
   ├── if jolpica complete: write final, stop polling that session
-  ├── else refresh OpenF1 (practice only)
+  ├── else refresh OpenF1 (practice and qualifying)
   ├── if OpenF1 ready: write provisional
   └── keep checking jolpica to promote when it publishes
 ```
@@ -457,8 +457,8 @@ logic and re-export/use the pure helpers.
 - `404` means no results yet; treat as `empty`.
 - `429` means rate limited; back off and respect `Retry-After`.
 - Map OpenF1 rows into `AlphaSessionResults` with the existing mapping logic.
-- v1 only uses OpenF1 for `FP1`/`FP2`/`FP3`. Qualifying can be added later if its data
-  proves useful.
+- v1 uses OpenF1 for `FP1`/`FP2`/`FP3`, `SQ` and `Q`. Race and sprint results stay
+  jolpica-only until the OpenF1-primary migration.
 
 ### 8.3 Attribution and licensing
 
@@ -824,7 +824,7 @@ Success criteria:
 
 - [ ] Add OpenF1 session list cache and session-key join
 - [ ] Move/reuse the OpenF1 → alpha mapping
-- [ ] Add practice fallback
+- [ ] Add practice/qualifying fallback
 - [ ] Add 401/404/429 handling and backoff
 - [ ] Test locked/empty/ready cases
 
@@ -872,7 +872,7 @@ On `feat/results-cache-worker`:
 
 1. `worker: add cached results service skeleton`
 2. `worker: fetch jolpica and cache session results`
-3. `worker: add OpenF1 practice fallback and cron`
+3. `worker: add OpenF1 practice/qualifying fallback and cron`
 4. `web: read results from the cache worker`
 5. `docs: document the results cache worker`
 

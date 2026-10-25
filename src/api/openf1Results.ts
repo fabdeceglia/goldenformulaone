@@ -1,24 +1,48 @@
 import type { OpenF1Driver, OpenF1SessionResult } from './openf1'
 import { SHORT_REQUEST_GAP_MS, openf1, resolveSessionKey } from './openf1'
-import type { AlphaSessionEntry, AlphaSessionResults, Race, SessionCode } from './types'
-import { readPracticeCache, writePracticeCache } from '../lib/practiceCache'
+import type {
+  AlphaComponent,
+  AlphaSessionEntry,
+  AlphaSessionResults,
+  Race,
+  SessionCode,
+} from './types'
+import { QUALIFYING_SEGMENTS } from '../lib/grid'
+import { readProvisionalCache, writeProvisionalCache } from '../lib/provisionalCache'
 import { raceSchedule } from '../lib/schedule'
 
-export type PracticeResults =
+export type ProvisionalResults =
   | { status: 'ready'; session: AlphaSessionResults }
   | { status: 'unavailable'; reason: 'locked' | 'empty' | 'error' }
 
-const PRACTICE_TITLES: Partial<Record<SessionCode, string>> = {
+const FALLBACK_TITLES: Partial<Record<SessionCode, string>> = {
   FP1: 'Practice 1',
   FP2: 'Practice 2',
   FP3: 'Practice 3',
+  SQ: 'Sprint Qualifying',
+  Q: 'Qualifying',
 }
 
-export function isPracticeSession(code: SessionCode): boolean {
-  return code === 'FP1' || code === 'FP2' || code === 'FP3'
+const FALLBACK_SESSIONS = new Set<SessionCode>(['FP1', 'FP2', 'FP3', 'SQ', 'Q'])
+
+const SEGMENT_NAMES: Record<string, string> = {
+  Q1: 'Qualifying 1',
+  Q2: 'Qualifying 2',
+  Q3: 'Qualifying 3',
+  SQ1: 'Sprint Qualifying 1',
+  SQ2: 'Sprint Qualifying 2',
+  SQ3: 'Sprint Qualifying 3',
 }
 
-/** OpenF1 reports a practice best lap as decimal seconds, e.g. 77.565. */
+/**
+ * jolpica has been slow to publish practice and qualifying classifications.
+ * These are the sessions OpenF1 can fill in provisionally until it does.
+ */
+export function isOpenF1FallbackSession(code: SessionCode): boolean {
+  return FALLBACK_SESSIONS.has(code)
+}
+
+/** OpenF1 reports times as decimal seconds, e.g. 77.565. */
 function formatLapTime(seconds: number | null | undefined): string | undefined {
   if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return undefined
   const minutes = Math.floor(seconds / 60)
@@ -41,23 +65,63 @@ function splitName(driver: OpenF1Driver): { given: string; family: string } {
 }
 
 /**
- * Provisional practice classification from OpenF1, shaped like an alpha
- * session so the existing table renders it unchanged.
+ * Practice carries one best lap as a number; qualifying carries one best lap
+ * per segment in an array. Build the same `components` map jolpica uses, so the
+ * qualifying table and starting grid render a provisional classification
+ * exactly like the canonical one.
+ */
+function sessionTime(
+  row: OpenF1SessionResult,
+  code: SessionCode,
+): { time?: string; components?: Record<string, AlphaComponent> } {
+  const segments = QUALIFYING_SEGMENTS[code]
+
+  if (!segments) {
+    return { time: formatLapTime(typeof row.duration === 'number' ? row.duration : undefined) }
+  }
+
+  const durations = Array.isArray(row.duration) ? row.duration : []
+  const components: Record<string, AlphaComponent> = {}
+  let time: string | undefined
+
+  segments.forEach((segment, index) => {
+    const segmentTime = formatLapTime(durations[index])
+    if (!segmentTime) return
+
+    components[segment] = {
+      key: segment,
+      name: SEGMENT_NAMES[segment] ?? segment,
+      time: segmentTime,
+    }
+    // The final segment a driver reached is their classification time, just as
+    // jolpica reports it (Q3 for the top ten, Q2 or Q1 for the rest).
+    time = segmentTime
+  })
+
+  return {
+    time,
+    components: Object.keys(components).length > 0 ? components : undefined,
+  }
+}
+
+/**
+ * Provisional classification from OpenF1, shaped like an alpha session so the
+ * existing table and grid render it unchanged.
  *
  * OpenF1 is the fallback rather than the normal path: jolpica is canonical as
  * soon as it publishes. The free tier answers 401 for every endpoint while a
  * live session is running, so a previously fetched table is kept in local
  * storage and served until OpenF1 is reachable again.
  */
-export async function practiceResults(
+export async function provisionalResults(
   race: Race,
   code: SessionCode,
   roundId: string | undefined,
   signal?: AbortSignal,
-): Promise<PracticeResults> {
-  if (!isPracticeSession(code)) return { status: 'unavailable', reason: 'empty' }
+): Promise<ProvisionalResults> {
+  if (!isOpenF1FallbackSession(code)) return { status: 'unavailable', reason: 'empty' }
 
-  const cached = readPracticeCache(race.season, race.round, code)
+  const cached = readProvisionalCache(race.season, race.round, code)
 
   try {
     const resolved = await resolveSessionKey(race, code, SHORT_REQUEST_GAP_MS)
@@ -82,6 +146,7 @@ export async function practiceResults(
     const driverByNumber = new Map(drivers.map((driver) => [driver.driver_number, driver]))
     const entry = raceSchedule(race).find((candidate) => candidate.code === code)
     const timestamp = entry ? `${entry.date}T${entry.time ?? '00:00:00Z'}` : race.date
+    const segments = QUALIFYING_SEGMENTS[code]
 
     const positionOf = (row: OpenF1SessionResult) =>
       typeof row.position === 'number' ? row.position : Number.MAX_SAFE_INTEGER
@@ -95,6 +160,9 @@ export async function practiceResults(
           ? splitName(driver)
           : { given: `#${row.driver_number}`, family: '' }
         const teamName = driver?.team_name ?? '—'
+        const { time, components } = sessionTime(row, code)
+        const classified =
+          !row.dnf && !row.dns && !row.dsq && (!segments || time !== undefined)
 
         return {
           driver: {
@@ -110,16 +178,18 @@ export async function practiceResults(
             primary_color: teamColor(driver?.team_colour),
           },
           position,
-          position_text: String(position),
-          time: formatLapTime(typeof row.duration === 'number' ? row.duration : undefined),
+          position_text: classified ? String(position) : 'NC',
+          time,
           laps: row.number_of_laps ?? undefined,
-          is_classified: true,
+          is_classified: classified,
+          car_number: row.driver_number,
+          components,
         }
       })
 
     const session: AlphaSessionResults = {
       code,
-      title: PRACTICE_TITLES[code] ?? 'Practice',
+      title: FALLBACK_TITLES[code] ?? code,
       timestamp,
       round: {
         id: roundId ?? race.round,
@@ -132,10 +202,11 @@ export async function practiceResults(
         locality: race.Circuit.Location.locality,
         country_code: race.Circuit.Location.country,
       },
+      component_keys: segments ? [...segments] : undefined,
       results,
     }
 
-    writePracticeCache(race.season, race.round, code, session)
+    writeProvisionalCache(race.season, race.round, code, session)
     return { status: 'ready', session }
   } catch (cause) {
     // Keep the table already fetched for this session on screen through the

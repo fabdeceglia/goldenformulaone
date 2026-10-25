@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { SESSION_CODES, alpha } from '../api/alpha'
-import { isPracticeSession, practiceResults } from '../api/openf1Results'
-import type { PracticeResults } from '../api/openf1Results'
+import { isOpenF1FallbackSession, provisionalResults } from '../api/openf1Results'
+import type { ProvisionalResults } from '../api/openf1Results'
 import type { Race, SessionCode } from '../api/types'
 import { useFetch } from '../hooks/useFetch'
 import { useNow } from '../hooks/useNow'
@@ -37,7 +37,7 @@ interface RaceResultsProps {
   onRoundChange: (round: string) => void
 }
 
-/** The practice fallback either produced a provisional table or has nothing. */
+/** The OpenF1 fallback either produced a provisional classification or has nothing. */
 export function RaceResults({
   season,
   races,
@@ -79,16 +79,16 @@ export function RaceResults({
     return [...tabs].sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99))
   }, [index, selectedRace])
 
-  const fallback = useMemo(() => defaultSession(selectedRace, NOW_MILLIS), [selectedRace])
+  const defaultCode = useMemo(() => defaultSession(selectedRace, NOW_MILLIS), [selectedRace])
 
   // Keep an explicit choice while it is valid for the selected round, otherwise
   // default to the most recent session that has already started.
   const session = useMemo<SessionCode>(() => {
     const codes = sessionTabs.map((tab) => tab.id)
     if (sessionChoice && codes.includes(sessionChoice)) return sessionChoice
-    if (codes.includes(fallback)) return fallback
+    if (codes.includes(defaultCode)) return defaultCode
     return codes[codes.length - 1] ?? 'R'
-  }, [sessionChoice, sessionTabs, fallback])
+  }, [sessionChoice, sessionTabs, defaultCode])
 
   const {
     data,
@@ -136,46 +136,45 @@ export function RaceResults({
   const pollDelay = selectedEntry ? resultsPollDelay(selectedEntry, now) : null
   const hasResults = (data?.results.length ?? 0) > 0
 
-  // Practice is the one session jolpica has been slow to publish, so show
-  // OpenF1's provisional classification while the canonical one is missing.
+  // jolpica has been slow to publish practice and qualifying classifications,
+  // so show OpenF1's provisional table while the canonical one is missing.
   // OpenF1 is free from about thirty minutes after the flag, so early attempts
   // fail closed and the poll below retries them.
-  const practice = isPracticeSession(session)
+  const fallbackEligible = isOpenF1FallbackSession(session)
   const sessionFinished = selectedEntry
     ? sessionPhase(selectedEntry, now) === 'finished'
     : false
-  const wantPracticeFallback =
-    practice &&
+  const wantFallback =
+    fallbackEligible &&
     sessionFinished &&
     !loading &&
     (!!error || (data?.results.length ?? 0) === 0)
 
   const {
-    data: practiceFallback,
+    data: fallback,
     loading: fallbackLoading,
     error: fallbackError,
     refresh: refreshFallback,
-  } = useFetch<PracticeResults>(
-    wantPracticeFallback && selectedRace
-      ? (signal) => practiceResults(selectedRace, session, roundId, signal)
+  } = useFetch<ProvisionalResults>(
+    wantFallback && selectedRace
+      ? (signal) => provisionalResults(selectedRace, session, roundId, signal)
       : null,
-    [wantPracticeFallback, selectedRace, session, roundId],
+    [wantFallback, selectedRace, session, roundId],
   )
 
-  const fallbackSession =
-    practiceFallback?.status === 'ready' ? practiceFallback.session : null
+  const fallbackSession = fallback?.status === 'ready' ? fallback.session : null
   const usingFallback = fallbackSession !== null && !hasResults && !loading
   // The browser cannot read OpenF1's 401 body through CORS, so the schedule is
   // the reliable signal that the free tier is in its live-session blackout.
   const openF1Blocked = selectedRace ? openF1Locked(selectedRace, now) : false
   const fallbackLocked =
-    (practiceFallback?.status === 'unavailable' && practiceFallback.reason === 'locked') ||
-    (wantPracticeFallback && openF1Blocked)
+    (fallback?.status === 'unavailable' && fallback.reason === 'locked') ||
+    (wantFallback && openF1Blocked)
   // While OpenF1 is being asked, "not published yet" would be wrong: the
   // fallback may already have the classification. Only show that notice once
   // the attempt has settled without a table.
   const fallbackPending =
-    wantPracticeFallback && !fallbackError && (fallbackLoading || practiceFallback === null)
+    wantFallback && !fallbackError && (fallbackLoading || fallback === null)
 
   const pollTarget: 'index' | 'session' | null =
     pollDelay === null || !roundId
@@ -379,7 +378,7 @@ export function RaceResults({
         !fallbackLocked && <Empty message={pendingMessage(sessionLabel)} />}
 
       {fallbackLocked && !usingFallback && !hasResults && !fallbackPending && (
-        <Empty message="OpenF1 is locked while another session is live. The provisional practice classification will return after the session." />
+        <Empty message="OpenF1 is locked while another session is live. The provisional classification will return after the session." />
       )}
 
       {usingFallback && fallbackSession && (
@@ -388,7 +387,11 @@ export function RaceResults({
             Provisional classification from OpenF1 — jolpica has not published this session
             yet.
           </p>
-          <SessionResultTable session={fallbackSession} />
+          {showingGrid ? (
+            <StartingGridView session={fallbackSession} />
+          ) : (
+            <SessionResultTable session={fallbackSession} />
+          )}
         </>
       )}
 

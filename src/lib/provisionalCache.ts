@@ -1,10 +1,10 @@
 import type { AlphaSessionResults } from '../api/types'
 
 /**
- * The last provisional practice classification fetched from OpenF1.
+ * The last provisional classification fetched from OpenF1.
  *
  * OpenF1's free tier blocks every endpoint, including past sessions, while a
- * live session is in progress. Keeping the last successful practice table in
+ * live session is in progress. Keeping the last successful table in
  * localStorage means the results already shown for an earlier session do not
  * disappear just because the next session has started.
  *
@@ -12,10 +12,10 @@ import type { AlphaSessionResults } from '../api/types'
  * replaces it, and it is read only when that request fails.
  */
 const CACHE_VERSION = 'v1'
-const CACHE_PREFIX = 'box-this-lap:practice-results'
+const CACHE_PREFIX = 'box-this-lap:provisional-results'
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
-interface StoredPracticeResults {
+interface StoredProvisionalResults {
   savedAt: number
   data: AlphaSessionResults
 }
@@ -24,13 +24,13 @@ function storageKey(season: string, round: string, code: string): string {
   return `${CACHE_PREFIX}:${CACHE_VERSION}:${season}:${round}:${code}`
 }
 
-function isStoredPracticeResults(
+function isStoredProvisionalResults(
   value: unknown,
   code: string,
-): value is StoredPracticeResults {
+): value is StoredProvisionalResults {
   if (!value || typeof value !== 'object') return false
 
-  const candidate = value as Partial<StoredPracticeResults>
+  const candidate = value as Partial<StoredProvisionalResults>
   const data = candidate.data
   return (
     typeof candidate.savedAt === 'number' &&
@@ -42,7 +42,7 @@ function isStoredPracticeResults(
   )
 }
 
-export function readPracticeCache(
+export function readProvisionalCache(
   season: string,
   round: string,
   code: string,
@@ -53,7 +53,7 @@ export function readPracticeCache(
     if (raw === null) return null
 
     const parsed: unknown = JSON.parse(raw)
-    if (!isStoredPracticeResults(parsed, code)) return null
+    if (!isStoredProvisionalResults(parsed, code)) return null
 
     const age = now - parsed.savedAt
     if (age < 0 || age > MAX_AGE_MS) return null
@@ -63,14 +63,14 @@ export function readPracticeCache(
   }
 }
 
-export function writePracticeCache(
+export function writeProvisionalCache(
   season: string,
   round: string,
   code: string,
   data: AlphaSessionResults,
 ): void {
   try {
-    const stored: StoredPracticeResults = { savedAt: Date.now(), data }
+    const stored: StoredProvisionalResults = { savedAt: Date.now(), data }
     localStorage.setItem(storageKey(season, round, code), JSON.stringify(stored))
   } catch {
     // Quota errors and blocked storage simply mean there is no cache.

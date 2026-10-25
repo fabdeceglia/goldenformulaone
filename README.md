@@ -163,11 +163,13 @@ Notes:
   1 rather than jumping ahead to the race.
 - Sessions with no data yet show an explicit "not available yet" notice, which is the normal
   case for rounds still to come.
-- **Practice has a provisional fallback.** While jolpica has not published a practice
-  classification, the table is rendered from OpenF1's `session_result` and labelled as
-  provisional. It appears only for `FP1`–`FP3` once the session has finished (OpenF1's free
-  tier stays closed for about thirty minutes after the flag), and swaps to the jolpica table
-  as soon as that arrives. Qualifying and races remain jolpica-only.
+- **Practice and qualifying have a provisional fallback.** While jolpica has not published
+  a practice or qualifying classification, the table is rendered from OpenF1's
+  `session_result` and labelled as provisional. It appears for `FP1`–`FP3`, `SQ` and `Q`
+  once the session has finished (OpenF1's free tier stays closed for about thirty minutes
+  after the flag), and swaps to the jolpica table as soon as that arrives. For qualifying,
+  OpenF1's per-segment `duration` array is mapped to the same Q1/Q2/Q3 components the
+  starting grid already uses. Races remain jolpica-only for now.
 - **Inside a session's results window** — from ten minutes before its estimated end until 24
   hours after it — the view re-checks the API on its own: every 30 seconds around the flag,
   then every minute, then every five. Polling stops as soon as the classification arrives,
@@ -555,7 +557,7 @@ src/
 │   ├── client.ts    # Ergast-compatible client (calendar, standings)
 │   ├── news.ts      # the trade press: feeds, parsing, the merged list
 │   ├── openf1.ts    # OpenF1 client, session-key resolution, rate limiting
-│   ├── openf1Results.ts # provisional practice classification mapping
+│   ├── openf1Results.ts # provisional practice/qualifying mapping
 │   ├── teams.ts     # team colours + readable chip ink
 │   └── types.ts     # response types for both API layers
 ├── components/
@@ -591,6 +593,7 @@ src/
 │   ├── circuits.ts              # circuit track layouts: Ergast id → vendored SVG
 │   ├── format.ts                # date, time and gap formatting
 │   ├── grid.ts                  # qualifying classification → grid slots and gaps
+│   ├── provisionalCache.ts      # localStorage cache for the OpenF1 fallback
 │   ├── replay.ts               # replay timeline, interpolation, standings, encoding
 │   ├── replayCache.ts          # IndexedDB cache for fallback downloads
 │   ├── replaySource.ts         # baked-first loader with OpenF1 fallback
