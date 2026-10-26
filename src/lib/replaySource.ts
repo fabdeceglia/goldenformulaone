@@ -2,6 +2,7 @@ import { openf1, resolveSessionKey } from '../api/openf1'
 import type {
   OpenF1Interval,
   OpenF1Lap,
+  OpenF1RaceControl,
   OpenF1Session,
   OpenF1Stint,
   OpenF1Weather,
@@ -11,10 +12,12 @@ import type { ReplayCircuit } from './circuit'
 import {
   decodeBakedReplay,
   downsample,
+  flagPeriods,
   gapsByDriver,
   lapTimeline,
   lapsByDriver,
   replayWindow,
+  safetyCarPeriods,
   stintsByDriver,
   traceOutline,
   usableLocations,
@@ -221,6 +224,7 @@ async function loadFromOpenF1({
   let stintRows: OpenF1Stint[] = []
   let intervalRows: OpenF1Interval[] = []
   let weatherRows: OpenF1Weather[] = []
+  let raceControlRows: OpenF1RaceControl[] = []
   let timeline: ReturnType<typeof lapTimeline> = null
   try {
     lapRows = await openf1.laps(sessionKey, signal)
@@ -246,6 +250,13 @@ async function loadFromOpenF1({
 
   try {
     weatherRows = await openf1.weather(sessionKey, signal)
+  } catch (cause) {
+    if (signal?.aborted) throw cause
+  }
+  signal?.throwIfAborted()
+
+  try {
+    raceControlRows = await openf1.raceControl(sessionKey, signal)
   } catch (cause) {
     if (signal?.aborted) throw cause
   }
@@ -332,6 +343,8 @@ async function loadFromOpenF1({
   if (end <= start) throw new Error('No usable replay window was available for this session.')
 
   const conditions = weatherSamples(weatherRows, start, end)
+  const safetyCars = safetyCarPeriods(raceControlRows, start, end)
+  const flags = flagPeriods(raceControlRows, start, end)
 
   for (const driver of replayDrivers) {
     driver.samples = driver.samples.filter((sample) => sample.t >= start && sample.t <= end)
@@ -395,6 +408,8 @@ async function loadFromOpenF1({
     end,
     laps: timeline?.laps,
     weather: conditions.length ? conditions : undefined,
+    safetyCars: safetyCars.length ? safetyCars : undefined,
+    flags: flags.length ? flags : undefined,
     source: 'live',
     missing: missing > 0 ? missing : undefined,
   }

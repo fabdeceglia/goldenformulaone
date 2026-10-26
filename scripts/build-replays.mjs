@@ -6,8 +6,9 @@
  * For every finished race/sprint of a season this fetches the field once,
  * downsamples the location feed to 2 Hz, quantises metres, and writes one
  * compact file to public/replays/{session_key}.json. The circuit outline,
- * timing tower data and per-minute weather samples are embedded in the file;
- * the outline is also collected in public/circuits.json.
+ * timing tower data, per-minute weather samples, safety-car periods and
+ * yellow/red flag periods are embedded in the file; the outline is also
+ * collected in public/circuits.json.
  *
  * Usage:
  *   node scripts/build-replays.mjs --latest 3
@@ -442,6 +443,194 @@ function encodeWeatherSamples(samples, start) {
     .join(',')
 }
 
+/** Mirrors `raceControlEvents` in src/lib/replay.ts. */
+function raceControlEvents(rows, start, end) {
+  return rows
+    .map((row) => ({ ...row, t: Date.parse(row.date) }))
+    .filter((row) => Number.isFinite(row.t) && row.t >= start - 15 * 60_000 && row.t <= end)
+    .sort((a, b) => a.t - b.t)
+}
+
+/** Mirrors `safetyCarPeriods` in src/lib/replay.ts. */
+function safetyCarPeriods(rows, start, end) {
+  const events = raceControlEvents(rows, start, end)
+
+  const periods = []
+  let open = null
+
+  const close = (t) => {
+    if (!open) return
+    if (open.ending === null) open.ending = t
+    open.end = t
+    if (open.end > open.start) periods.push(open)
+    open = null
+  }
+
+  for (const event of events) {
+    const message = (event.message ?? '').toUpperCase()
+
+    if (event.category === 'SafetyCar') {
+      if (message.includes('SAFETY CAR DEPLOYED')) {
+        close(event.t)
+        open = { kind: 'SC', start: event.t, ending: null, end: null }
+      } else if (
+        message.includes('VSC DEPLOYED') ||
+        message.includes('VIRTUAL SAFETY CAR DEPLOYED')
+      ) {
+        close(event.t)
+        open = { kind: 'VSC', start: event.t, ending: null, end: null }
+      } else if (
+        message.includes('SAFETY CAR IN THIS LAP') ||
+        message.includes('VSC ENDING') ||
+        message.includes('VIRTUAL SAFETY CAR ENDING')
+      ) {
+        if (open) open.ending ??= event.t
+      }
+    }
+
+    if (message.includes('SAFETY CAR LIGHTS OFF')) {
+      if (open) open.ending ??= event.t
+    } else if (
+      open &&
+      ((event.flag === 'CLEAR' &&
+        (event.scope === 'Track' || message.includes('TRACK CLEAR'))) ||
+        event.flag === 'CHEQUERED' ||
+        message.includes('RED FLAG') ||
+        message.includes('RACE SUSPENDED') ||
+        message.includes('SESSION ABORTED') ||
+        message.includes('SESSION FINISHED'))
+    ) {
+      close(event.t)
+    }
+  }
+
+  if (open) periods.push(open)
+
+  return periods
+    .filter((period) => period.end === null || period.end > start)
+    .map((period) => ({ ...period, start: Math.max(period.start, start) }))
+}
+
+/** Mirrors `flagPeriods` in src/lib/replay.ts. */
+function flagPeriods(rows, start, end) {
+  const events = raceControlEvents(rows, start, end)
+  const periods = []
+  const yellows = new Map()
+  let red = null
+
+  const closeYellow = (key, t) => {
+    const period = yellows.get(key)
+    if (!period) return
+    period.end = t
+    if (period.end > period.start) periods.push(period)
+    yellows.delete(key)
+  }
+
+  const closeYellows = (t) => {
+    for (const key of [...yellows.keys()]) closeYellow(key, t)
+  }
+
+  const closeRed = (t) => {
+    if (!red) return
+    red.end = t
+    if (red.end > red.start) periods.push(red)
+    red = null
+  }
+
+  for (const event of events) {
+    const message = (event.message ?? '').toUpperCase()
+    const flag = (event.flag ?? '').toUpperCase()
+    const sector = typeof event.sector === 'number' ? event.sector : null
+
+    if (message.includes('RED FLAG') && message.includes('RACE SUSPENDED')) {
+      closeYellows(event.t)
+      closeRed(event.t)
+      red = { kind: 'RED', start: event.t, end: null, sector: null }
+      continue
+    }
+
+    if (message.includes('SESSION STARTED') || message.includes('RACE START')) {
+      closeYellows(event.t)
+      closeRed(event.t)
+      continue
+    }
+
+    if (event.category === 'Flag' && (event.scope === 'Sector' || event.scope === 'Track')) {
+      if (flag === 'YELLOW' || flag === 'DOUBLE YELLOW') {
+        const key = sector ?? -1
+        const existing = yellows.get(key)
+        if (existing) {
+          if (flag === 'DOUBLE YELLOW') existing.kind = 'DOUBLE YELLOW'
+        } else {
+          yellows.set(key, { kind: flag, start: event.t, end: null, sector })
+        }
+      } else if (flag === 'CLEAR') {
+        if (event.scope === 'Track' || sector === null) closeYellows(event.t)
+        else closeYellow(sector, event.t)
+      } else if (flag === 'CHEQUERED') {
+        closeYellows(event.t)
+        closeRed(event.t)
+      }
+      continue
+    }
+
+    if (
+      (event.flag === 'CLEAR' && event.scope === 'Track') ||
+      message.includes('TRACK CLEAR')
+    ) {
+      closeYellows(event.t)
+      continue
+    }
+
+    if (event.flag === 'CHEQUERED' || message.includes('SESSION FINISHED')) {
+      closeYellows(event.t)
+      closeRed(event.t)
+    }
+  }
+
+  if (red) periods.push(red)
+  for (const period of yellows.values()) periods.push(period)
+
+  return periods
+    .filter((period) => period.end === null || period.end > start)
+    .map((period) => ({ ...period, start: Math.max(period.start, start) }))
+    .sort((a, b) => a.start - b.start || a.kind.localeCompare(b.kind))
+}
+
+/** Mirrors `encodeSafetyCars` in src/lib/replay.ts. */
+function encodeSafetyCars(periods, start) {
+  const offset = (value) =>
+    value === null ? '-' : base36(Math.max(0, Math.round((value - start) / 100)))
+
+  return periods
+    .map((period) =>
+      [
+        offset(period.start),
+        period.kind === 'VSC' ? 'V' : 'S',
+        offset(period.ending),
+        offset(period.end),
+      ].join('.'),
+    )
+    .join(',')
+}
+
+/** Mirrors `encodeFlags` in src/lib/replay.ts. */
+function encodeFlags(periods, start) {
+  const offset = (value) =>
+    value === null ? '-' : base36(Math.max(0, Math.round((value - start) / 100)))
+
+  return periods
+    .map((period) =>
+      [
+        offset(period.start),
+        period.kind === 'RED' ? 'R' : period.kind === 'DOUBLE YELLOW' ? 'D' : 'Y',
+        offset(period.end),
+        period.sector === null ? '-' : base36(period.sector),
+      ].join('.'),
+    )
+    .join(',')
+}
+
 /**
  * A racing-line outline from one car's first lap, for circuits with no
  * published geometry (Madring returns 404 from Multiviewer). Mirrors
@@ -631,6 +820,7 @@ async function main() {
       let stintRows = []
       let intervalRows = []
       let weatherRows = []
+      let raceControlRows = []
       try {
         lapRows = await request(`${OPENF1}/laps?session_key=${key}`, `laps-${key}`)
       } catch (cause) {
@@ -650,6 +840,14 @@ async function main() {
         weatherRows = await request(`${OPENF1}/weather?session_key=${key}`, `weather-${key}`)
       } catch (cause) {
         console.warn(`\n  weather: ${cause instanceof Error ? cause.message : cause}`)
+      }
+      try {
+        raceControlRows = await request(
+          `${OPENF1}/race_control?session_key=${key}`,
+          `race-control-${key}`,
+        )
+      } catch (cause) {
+        console.warn(`\n  race control: ${cause instanceof Error ? cause.message : cause}`)
       }
 
       // Geometry is published per circuit, not per session, and a new circuit
@@ -756,6 +954,8 @@ async function main() {
       const timingLaps = lapsByDriver(lapRows)
       const timingStints = stintsByDriver(stintRows)
       const timingGaps = gapsByDriver(intervalRows)
+      const safetyCars = safetyCarPeriods(raceControlRows, start, end)
+      const flags = flagPeriods(raceControlRows, start, end)
 
       const bakedDrivers = playable.map(({ driver, samples }) => ({
         n: driver.driver_number,
@@ -818,6 +1018,8 @@ async function main() {
           ? { total: timeline.laps.total, starts: encodeLaps(timeline.laps.starts, start) }
           : undefined,
         w: encodeWeatherSamples(weatherSamples(weatherRows, start, end), start) || undefined,
+        sc: encodeSafetyCars(safetyCars, start) || undefined,
+        f: encodeFlags(flags, start) || undefined,
         drivers: bakedDrivers,
         positions: bakedPositions,
       }
@@ -828,7 +1030,16 @@ async function main() {
 
       console.log(
         `  wrote ${path.relative(ROOT, outputFile)} — ${bytes(Buffer.byteLength(json))}, ` +
-          `${bakedDrivers.length} cars${missing ? `, ${missing} missing` : ''}`,
+          `${bakedDrivers.length} cars${missing ? `, ${missing} missing` : ''}` +
+          `${
+            safetyCars.length
+              ? `, ${safetyCars.length} safety car period${safetyCars.length === 1 ? '' : 's'}`
+              : ''
+          }${
+            flags.length
+              ? `, ${flags.length} flag period${flags.length === 1 ? '' : 's'}`
+              : ''
+          }`,
       )
     } catch (cause) {
       failures += 1

@@ -55,6 +55,47 @@ export interface ReplayWeatherSample {
   windDirection: number | null
 }
 
+export type ReplaySafetyCarKind = 'SC' | 'VSC'
+
+/** One safety-car or virtual-safety-car period, from deployment to the restart. */
+export interface ReplaySafetyCar {
+  kind: ReplaySafetyCarKind
+  /** Epoch milliseconds. */
+  start: number
+  /** When the withdrawal was announced ("safety car in this lap" / "VSC ending"). */
+  ending: number | null
+  /** When the track went clear; null when the period runs to the end of the replay. */
+  end: number | null
+}
+
+export interface ReplaySafetyCarState {
+  kind: ReplaySafetyCarKind
+  /** `ending` once the withdrawal has been announced but the field is still neutralised. */
+  phase: 'deployed' | 'ending'
+}
+
+export type ReplayFlagKind = 'YELLOW' | 'DOUBLE YELLOW' | 'RED'
+
+/** A yellow or red flag period; yellow flags are per marshalling sector. */
+export interface ReplayFlagPeriod {
+  kind: ReplayFlagKind
+  /** Epoch milliseconds. */
+  start: number
+  /** When the sector cleared, or the session restarted after a red flag. */
+  end: number | null
+  /** OpenF1's marshalling sector for a yellow; null for red or a track-wide yellow. */
+  sector: number | null
+}
+
+/** What the replay should show above the map at the playhead. */
+export interface ReplayTrackStatus {
+  kind: ReplaySafetyCarKind | ReplayFlagKind
+  /** Set for safety cars only. */
+  phase: 'deployed' | 'ending' | null
+  /** Marshalling sectors under a yellow flag. */
+  sectors: number[]
+}
+
 export interface ReplayDriver {
   number: number
   acronym: string
@@ -135,6 +176,10 @@ export interface ReplayData {
   laps?: ReplayLaps
   /** Track conditions, ordered by time; roughly one sample per minute. */
   weather?: ReplayWeatherSample[]
+  /** Safety-car periods, ordered by start time. */
+  safetyCars?: ReplaySafetyCar[]
+  /** Yellow and red flag periods, ordered by start time. */
+  flags?: ReplayFlagPeriod[]
   source: ReplaySource
   /** Drivers whose feed could not be fetched; the replay still plays. */
   missing?: number
@@ -262,6 +307,74 @@ export function weatherAt(
   const latest = sampleAt(samples, t)
   if (!latest || t - latest.t > 5 * 60_000) return null
   return latest
+}
+
+/**
+ * The safety car on track at `t`, if any. Periods are ordered by start, so the
+ * last one that has begun and not yet ended wins. `phase` separates the bulk of
+ * the neutralisation from the lap (or few hundred metres) before the restart,
+ * when race control announces the withdrawal.
+ */
+export function safetyCarAt(
+  periods: readonly ReplaySafetyCar[] | undefined,
+  t: number,
+): ReplaySafetyCarState | null {
+  if (!periods?.length) return null
+
+  let active: ReplaySafetyCar | null = null
+  for (const period of periods) {
+    if (period.start > t) break
+    if (period.end !== null && t >= period.end) continue
+    active = period
+  }
+  if (!active) return null
+
+  return {
+    kind: active.kind,
+    phase: active.ending !== null && t >= active.ending ? 'ending' : 'deployed',
+  }
+}
+
+/**
+ * The most important status at `t`. A red flag supersedes everything; a safety
+ * car or VSC supersedes local yellows, because the whole track is neutralised
+ * and the SC banner already explains why. Yellow sectors are merged into one
+ * status so ten simultaneous marshalling sectors still read as one banner.
+ */
+export function trackStatusAt(
+  safetyCars: readonly ReplaySafetyCar[] | undefined,
+  flags: readonly ReplayFlagPeriod[] | undefined,
+  t: number,
+): ReplayTrackStatus | null {
+  const activeFlags =
+    flags?.filter((period) => period.start <= t && (period.end === null || t < period.end)) ?? []
+
+  if (activeFlags.some((period) => period.kind === 'RED')) {
+    return { kind: 'RED', phase: null, sectors: [] }
+  }
+
+  const safetyCar = safetyCarAt(safetyCars, t)
+  if (safetyCar) {
+    return { kind: safetyCar.kind, phase: safetyCar.phase, sectors: [] }
+  }
+
+  if (activeFlags.length === 0) return null
+
+  const sectors = [
+    ...new Set(
+      activeFlags
+        .map((period) => period.sector)
+        .filter((sector): sector is number => sector !== null),
+    ),
+  ].sort((a, b) => a - b)
+
+  return {
+    kind: activeFlags.some((period) => period.kind === 'DOUBLE YELLOW')
+      ? 'DOUBLE YELLOW'
+      : 'YELLOW',
+    phase: null,
+    sectors,
+  }
 }
 
 /**
@@ -572,6 +685,214 @@ function weatherNumber(value: number | null | undefined): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+/** The fields of an OpenF1 `/race_control` row this app reads. */
+export interface ReplayRaceControlRow {
+  date: string
+  category?: string | null
+  flag?: string | null
+  scope?: string | null
+  sector?: number | null
+  message?: string | null
+}
+
+interface TimedRaceControlRow extends ReplayRaceControlRow {
+  t: number
+}
+
+/**
+ * Rows inside the replay window, sorted. The fifteen-minute lookback catches a
+ * formation-lap deployment or yellow that is still active at lights out; any
+ * surviving period is clamped to the replay start by the callers.
+ */
+function raceControlEvents(
+  rows: readonly ReplayRaceControlRow[],
+  start: number,
+  end: number,
+): TimedRaceControlRow[] {
+  return rows
+    .map((row) => ({ ...row, t: Date.parse(row.date) }))
+    .filter(
+      (row) => Number.isFinite(row.t) && row.t >= start - 15 * 60_000 && row.t <= end,
+    )
+    .sort((a, b) => a.t - b.t)
+}
+
+/**
+ * Safety-car periods from OpenF1 race control.
+ *
+ * A full safety car and a virtual safety car both open on a deployment
+ * message. The withdrawal is announced separately ("SAFETY CAR IN THIS LAP" or
+ * "VSC ENDING"); the period ends at "TRACK CLEAR", which is the point race
+ * control allows racing again. A red flag, the chequered flag and a new
+ * deployment also close a period, because a suspension or an upgrade to a full
+ * safety car would otherwise leave the banner up for the rest of the replay.
+ * Rows from fifteen minutes before the start are read too, so a wet race that
+ * begins behind the safety car shows the banner from lights out.
+ */
+export function safetyCarPeriods(
+  rows: readonly ReplayRaceControlRow[],
+  start: number,
+  end: number,
+): ReplaySafetyCar[] {
+  const events = raceControlEvents(rows, start, end)
+
+  const periods: ReplaySafetyCar[] = []
+  let open: ReplaySafetyCar | null = null
+
+  const close = (t: number) => {
+    if (!open) return
+    if (open.ending === null) open.ending = t
+    open.end = t
+    if (open.end > open.start) periods.push(open)
+    open = null
+  }
+
+  for (const event of events) {
+    const message = (event.message ?? '').toUpperCase()
+
+    if (event.category === 'SafetyCar') {
+      if (message.includes('SAFETY CAR DEPLOYED')) {
+        close(event.t)
+        open = { kind: 'SC', start: event.t, ending: null, end: null }
+      } else if (
+        message.includes('VSC DEPLOYED') ||
+        message.includes('VIRTUAL SAFETY CAR DEPLOYED')
+      ) {
+        close(event.t)
+        open = { kind: 'VSC', start: event.t, ending: null, end: null }
+      } else if (
+        message.includes('SAFETY CAR IN THIS LAP') ||
+        message.includes('VSC ENDING') ||
+        message.includes('VIRTUAL SAFETY CAR ENDING')
+      ) {
+        if (open) open.ending ??= event.t
+      }
+    }
+
+    if (message.includes('SAFETY CAR LIGHTS OFF')) {
+      // The safety car is peeling into the pits; the field is still neutralised
+      // until race control declares the track clear.
+      if (open) open.ending ??= event.t
+    } else if (
+      open &&
+      ((event.flag === 'CLEAR' &&
+        (event.scope === 'Track' || message.includes('TRACK CLEAR'))) ||
+        event.flag === 'CHEQUERED' ||
+        message.includes('RED FLAG') ||
+        message.includes('RACE SUSPENDED') ||
+        message.includes('SESSION ABORTED') ||
+        message.includes('SESSION FINISHED'))
+    ) {
+      close(event.t)
+    }
+  }
+
+  if (open) periods.push(open)
+
+  return periods
+    .filter((period) => period.end === null || period.end > start)
+    .map((period) => ({ ...period, start: Math.max(period.start, start) }))
+}
+
+/**
+ * Yellow and red flag periods from the same race-control feed.
+ *
+ * Yellow flags are local and arrive per marshalling sector; a sector can go
+ * from yellow to double yellow without a clear in between, and a `TRACK CLEAR`
+ * (or a red flag) closes everything that is still open. A red flag runs from
+ * `RED FLAG - RACE SUSPENDED` to the next `SESSION STARTED`, which is the
+ * restart, not the earlier track-clear row. The two are kept in one list
+ * because the UI only needs the highest-severity status at the playhead.
+ */
+export function flagPeriods(
+  rows: readonly ReplayRaceControlRow[],
+  start: number,
+  end: number,
+): ReplayFlagPeriod[] {
+  const events = raceControlEvents(rows, start, end)
+  const periods: ReplayFlagPeriod[] = []
+  const yellows = new Map<number, ReplayFlagPeriod>()
+  let red: ReplayFlagPeriod | null = null
+
+  const closeYellow = (key: number, t: number) => {
+    const period = yellows.get(key)
+    if (!period) return
+    period.end = t
+    if (period.end > period.start) periods.push(period)
+    yellows.delete(key)
+  }
+
+  const closeYellows = (t: number) => {
+    for (const key of [...yellows.keys()]) closeYellow(key, t)
+  }
+
+  const closeRed = (t: number) => {
+    if (!red) return
+    red.end = t
+    if (red.end > red.start) periods.push(red)
+    red = null
+  }
+
+  for (const event of events) {
+    const message = (event.message ?? '').toUpperCase()
+    const flag = (event.flag ?? '').toUpperCase()
+    const sector = typeof event.sector === 'number' ? event.sector : null
+
+    if (message.includes('RED FLAG') && message.includes('RACE SUSPENDED')) {
+      closeYellows(event.t)
+      closeRed(event.t)
+      red = { kind: 'RED', start: event.t, end: null, sector: null }
+      continue
+    }
+
+    if (message.includes('SESSION STARTED') || message.includes('RACE START')) {
+      closeYellows(event.t)
+      closeRed(event.t)
+      continue
+    }
+
+    if (event.category === 'Flag' && (event.scope === 'Sector' || event.scope === 'Track')) {
+      if (flag === 'YELLOW' || flag === 'DOUBLE YELLOW') {
+        const key = sector ?? -1
+        const existing = yellows.get(key)
+        if (existing) {
+          if (flag === 'DOUBLE YELLOW') existing.kind = 'DOUBLE YELLOW'
+        } else {
+          yellows.set(key, { kind: flag, start: event.t, end: null, sector })
+        }
+      } else if (flag === 'CLEAR') {
+        if (event.scope === 'Track' || sector === null) closeYellows(event.t)
+        else closeYellow(sector, event.t)
+      } else if (flag === 'CHEQUERED') {
+        closeYellows(event.t)
+        closeRed(event.t)
+      }
+      continue
+    }
+
+    if (
+      (event.flag === 'CLEAR' && event.scope === 'Track') ||
+      message.includes('TRACK CLEAR')
+    ) {
+      closeYellows(event.t)
+      continue
+    }
+
+    if (event.flag === 'CHEQUERED' || message.includes('SESSION FINISHED')) {
+      closeYellows(event.t)
+      closeRed(event.t)
+    }
+  }
+
+  if (red) periods.push(red)
+  for (const period of yellows.values()) periods.push(period)
+
+  return periods
+    .filter((period) => period.end === null || period.end > start)
+    .map((period) => ({ ...period, start: Math.max(period.start, start) }))
+    .sort((a, b) => a.start - b.start || a.kind.localeCompare(b.kind))
+}
+
 /* ---------- Baked asset format ---------- */
 
 /**
@@ -613,6 +934,10 @@ export interface BakedReplay {
   laps?: { total: number; starts: string }
   /** `dt.air.track.humidity.pressure.rain.wind.direction` weather frames, base36. */
   w?: string
+  /** `dt.kind.ending.end` safety-car frames, all offsets base36 (see `encodeSafetyCars`). */
+  sc?: string
+  /** `dt.kind.end.sector` flag frames (see `encodeFlags`). */
+  f?: string
   drivers: BakedReplayDriver[]
   positions: BakedReplayPosition[]
 }
@@ -690,6 +1015,8 @@ export function decodeBakedReplay(baked: BakedReplay): ReplayData {
         }
       : undefined,
     weather: baked.w ? decodeWeatherSamples(baked.w, baked.start) : undefined,
+    safetyCars: baked.sc ? decodeSafetyCars(baked.sc, baked.start) : undefined,
+    flags: baked.f ? decodeFlags(baked.f, baked.start) : undefined,
     source: 'baked',
     drivers: baked.drivers.map((driver) => ({
       number: driver.n,
@@ -797,6 +1124,61 @@ function decodeWeatherSamples(encoded: string, start: number): ReplayWeatherSamp
   return samples
 }
 
+function decodeSafetyCars(encoded: string, start: number): ReplaySafetyCar[] {
+  if (!encoded) return []
+
+  const periods: ReplaySafetyCar[] = []
+  for (const frame of encoded.split(',')) {
+    const [offset, kind, ending, end] = frame.split('.')
+    if (!offset) continue
+
+    const at = (value: string) => start + fromBase36(value) * 100
+    periods.push({
+      kind: kind === 'V' ? 'VSC' : 'SC',
+      start: at(offset),
+      ending: ending && ending !== '-' ? at(ending) : null,
+      end: end && end !== '-' ? at(end) : null,
+    })
+  }
+  return periods
+}
+
+function decodeFlags(encoded: string, start: number): ReplayFlagPeriod[] {
+  if (!encoded) return []
+
+  const periods: ReplayFlagPeriod[] = []
+  for (const frame of encoded.split(',')) {
+    const [offset, kind, end, sector] = frame.split('.')
+    if (!offset) continue
+
+    const at = (value: string) => start + fromBase36(value) * 100
+    periods.push({
+      kind: kind === 'R' ? 'RED' : kind === 'D' ? 'DOUBLE YELLOW' : 'YELLOW',
+      start: at(offset),
+      end: end && end !== '-' ? at(end) : null,
+      sector: sector && sector !== '-' ? fromBase36(sector) : null,
+    })
+  }
+  return periods
+}
+
+/** Encodes yellow and red flag periods; used by the bake script. */
+export function encodeFlags(periods: readonly ReplayFlagPeriod[], start: number): string {
+  const offset = (value: number | null) =>
+    value === null ? '-' : base36(Math.max(0, Math.round((value - start) / 100)))
+
+  return periods
+    .map((period) =>
+      [
+        offset(period.start),
+        period.kind === 'RED' ? 'R' : period.kind === 'DOUBLE YELLOW' ? 'D' : 'Y',
+        offset(period.end),
+        period.sector === null ? '-' : base36(period.sector),
+      ].join('.'),
+    )
+    .join(',')
+}
+
 /** Encodes a driver's gap timeline; used by the bake script. */
 export function encodeDriverGaps(gaps: readonly ReplayGapSample[], start: number): string {
   let previousT = start
@@ -835,6 +1217,26 @@ export function encodeWeatherSamples(
         sample.windDirection === null ? '-' : base36(sample.windDirection),
       ].join('.')
     })
+    .join(',')
+}
+
+/** Encodes safety-car periods relative to the replay start; used by the bake script. */
+export function encodeSafetyCars(
+  periods: readonly ReplaySafetyCar[],
+  start: number,
+): string {
+  const offset = (value: number | null) =>
+    value === null ? '-' : base36(Math.max(0, Math.round((value - start) / 100)))
+
+  return periods
+    .map((period) =>
+      [
+        offset(period.start),
+        period.kind === 'VSC' ? 'V' : 'S',
+        offset(period.ending),
+        offset(period.end),
+      ].join('.'),
+    )
     .join(',')
 }
 

@@ -51,7 +51,7 @@ endpoint on 2026-10-18, using the Singapore 2026 race (`session_key=11388`).
 
 - True live streaming (MQTT/WebSocket) — needs the paid tier + a backend token flow.
 - Qualifying / practice replays (different "standings" semantics).
-- Flags, team radio, and a live (wall-clock) weather feed.
+- Full race-control message feed, team radio, and a live (wall-clock) weather feed.
 - Any commercial use — OpenF1 is CC BY-NC-SA 4.0 (personal use only).
 
 ---
@@ -195,8 +195,12 @@ Result: `toScreen(x, y) → { sx, sy }` used for outline and cars alike.
 - [x] Completed pit-stop count from the current stint.
 - [x] Gap to the car ahead from `/intervals`.
 - [x] Multi-driver track filter with Reset.
+- [x] Race-pace tab: one smooth line per driver over lap number, with its own driver filter,
+      lap-dot tooltips and a playhead guide. Very slow laps (pit stops, safety cars) are left
+      out of the graph.
 - [x] Track weather strip from `/weather`, synced to the replay playhead.
-- [ ] Flags; retire/bring-back-state when a driver stops sending location.
+- [x] Safety car / VSC, red flag and sector-level yellow flag indicators from `/race_control`.
+- [ ] Retire/bring-back state when a driver stops sending location.
 
 ---
 
@@ -296,7 +300,9 @@ Goal: fast, small, offline-capable.
 - [x] Last-lap timing and tyre compounds (`/laps`, `/stints`).
 - [x] Gap to the car ahead (`/intervals`).
 - [x] Track weather at the replay playhead (`/weather`).
-- [ ] Flags (`/race_control`).
+- [x] Safety car / virtual safety car periods from `/race_control`.
+- [x] Red flag and sector-level yellow flag periods from `/race_control`.
+- [ ] Full race-control message feed.
 - [ ] Qualifying / practice replays.
 - [ ] True live via MQTT/WebSocket (paid tier + backend token flow) behind the same UI.
 
@@ -311,6 +317,7 @@ Goal: fast, small, offline-capable.
 - `src/lib/replay.ts` — timeline, interpolation, standings-at-`t`, source interface.
 - `src/components/ReplayDialog.tsx` — dialog shell + layout.
 - `src/components/ReplayMap.tsx` — SVG map + cars.
+- `src/components/ReplayTrackStatus.tsx` — safety car / VSC / red / yellow banner over the map.
 - `src/components/ReplayWeather.tsx` — track conditions strip with weather icons.
 - `src/components/ReplayLeaderboard.tsx` — standings tower.
 - `src/components/ReplayControls.tsx` — transport bar.
@@ -428,6 +435,40 @@ feature flag. This section records where the build differs from the plan above.
   it is more than five minutes old. The endpoint occasionally reports `track_temperature:
   0.0`; those rows are stored as missing, and the other values in the sample are kept. The
   strip lives above the map, inside the track panel, so it never covers the cars.
+- **Safety cars are stored as periods, not messages.** `/race_control` reports a deployment
+  (`SAFETY CAR DEPLOYED` / `VSC DEPLOYED`), a withdrawal (`SAFETY CAR IN THIS LAP` /
+  `VSC ENDING`) and the restart (`TRACK CLEAR`). The bake folds those into
+  `dt.kind.ending.end` base36 frames, with offsets in deciseconds from the replay start and
+  `-` for a missing announcement or end, adding about 40 bytes per race. A red flag, the
+  chequered flag, a session abort or a new deployment closes the period, so a suspended race
+  does not leave the banner up for the rest of the replay. The map shows an SC/VSC pill for
+  the whole period and switches to **in this lap** / **ending** once the withdrawal is
+  announced.
+- **Yellow and red flags are periods too.** Yellows arrive per marshalling sector
+  (`YELLOW` / `DOUBLE YELLOW` → `CLEAR`), so the bake tracks each sector independently and
+  merges overlapping sectors into one banner; a double yellow upgrades an open yellow. Red
+  flags start at `RED FLAG - RACE SUSPENDED` and end at the next `SESSION STARTED` (the
+  restart, not the earlier `TRACK CLEAR`). A `TRACK CLEAR`, red flag, chequered flag or
+  session finish closes any open yellows. The two kinds share the `f` field
+  (`dt.kind.end.sector` base36 frames, kind `Y`/`D`/`R`, sector `-` for red or track-wide),
+  about 120 bytes per race. The map shows red first, then SC/VSC, then a yellow-sector pill;
+  sector yellows stay hidden while the whole track is already neutralised.
+- **The pace tab uses the lap rows already in the file.** The graph places each completed lap
+  at its lap number, so the x-axis counts laps and the y-axis uses `min:sec` lap-clock labels
+  rather than raw seconds. Only laps whose end is at or before the playhead are drawn, so the
+  lines still extend live with the replay and retract when it is scrubbed backwards; the axes
+  stay fixed to the full race distance so the graph does not rescale as it fills. The y-range
+  uses the full clean-lap range of the selected drivers, including laps not yet revealed, so
+  filtering can tighten it without playback rescaling it. It uses the real min/max rather than
+  percentiles because `racePace` has already removed slow pit/neutralised laps; trimming
+  percentiles would clip genuine fast laps below the bottom of the plot. The line uses
+  Fritsch-Carlson monotone cubic interpolation (`src/lib/curve.ts`), so it is smooth without
+  overshooting between lap times. One line per driver is drawn in the team colour; the chips
+  above it filter the graph with the same selection state as the tower and map. A small
+  filtered selection also gets a dot per lap, with a hover tooltip for the lap number and time.
+  Laps more than 5% off a driver's median are treated as pit/neutralised laps and hidden, which
+  keeps a 118-second pit lap from flattening the racing pace; drivers with too few laps for a
+  median keep every timed lap.
 - **A local index keeps baked replays off OpenF1.** `public/replays/index.json` maps
   season + date + session code to the OpenF1 key, so a baked replay makes no third-party
   request at all. Without it the app still had to call OpenF1 `/sessions` just to discover
@@ -436,10 +477,10 @@ feature flag. This section records where the build differs from the plan above.
 - **The baked file embeds its own circuit.** `public/circuits.json` is written for reuse and
   inspection, but the runtime reads geometry from the replay file, so there is no second
   request and no version skew between the two.
-- **IndexedDB fallback cache is versioned.** `CACHE_VERSION = 6`; bump it when the fallback
-  payload shape changes (v5 added the gap timeline, v6 adds the weather timeline). Baked files
-  are preferred over a cached fallback, so re-baking a race takes effect without clearing
-  storage.
+- **IndexedDB fallback cache is versioned.** `CACHE_VERSION = 8`; bump it when the fallback
+  payload shape changes (v5 added the gap timeline, v6 the weather timeline, v7 the
+  safety-car periods, v8 the yellow/red flag periods). Baked files are preferred over a
+  cached fallback, so re-baking a race takes effect without clearing storage.
 
 ### Measured facts
 
@@ -448,6 +489,12 @@ feature flag. This section records where the build differs from the plan above.
   interval rows before cropping, 105 in-window weather samples.
 - The 23 finished 2026 replay assets gained 1,914 weather samples and 44 KB of raw JSON in
   total, about 2 KB per race.
+- Twenty of the 24 baked 2026 sessions carry at least one safety-car period (39 periods in
+  total); the encoded `sc` field adds about 40 bytes per race.
+- Twenty-two of the 24 baked 2026 sessions carry at least one flag period (109 yellow and
+  112 double-yellow sector periods, plus 3 red flags); the encoded `f` field adds about 2.7 KB
+  across the season, roughly 120 bytes per race. The two sessions without flags are `11275`
+  and `11348`.
 - Fallback load on Monza 2026 (`11361`): ~90–120 s at 2.1 s per request on the free tier,
   cached after the first open.
 - `public/replays/` contains every finished 2026 race and sprint (23 sessions, 21 with
@@ -458,5 +505,5 @@ feature flag. This section records where the build differs from the plan above.
 
 - Scheduled baking (GitHub Action) after each weekend; today the assets are refreshed by
   running `npm run replays -- --season <year>`.
-- Remaining Phase 3 richness (flags, race-control messages) and qualifying replays.
+- Remaining Phase 3 richness (full race-control message feed) and qualifying replays.
 - A pit-lane path: cars on the pit lane are drawn on the racing line, as accepted in §11.

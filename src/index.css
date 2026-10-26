@@ -1885,6 +1885,93 @@ a:hover {
   color: var(--red-ink);
 }
 
+.replay__stage {
+  position: relative;
+}
+
+/* A quiet inset edge marks a neutralised track without recolouring the map. */
+.replay__stage[data-track-status]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 2px rgba(255, 150, 11, 0.5);
+  pointer-events: none;
+}
+
+.replay__stage[data-track-status='RED']::after {
+  box-shadow: inset 0 0 0 2px rgba(172, 16, 22, 0.65);
+}
+
+.replay__stage[data-track-status='DOUBLE YELLOW']::after {
+  box-shadow: inset 0 0 0 2px rgba(255, 150, 11, 0.72);
+}
+
+.replay__track-status {
+  position: absolute;
+  top: 0.55rem;
+  left: 0.55rem;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: calc(100% - 1.1rem);
+  padding: 0.28rem 0.55rem 0.28rem 0.28rem;
+  border: 1px solid rgba(20, 14, 4, 0.25);
+  border-radius: 999px;
+  background: var(--gold);
+  color: #2b1d00;
+  box-shadow: 0 1px 3px rgba(20, 14, 4, 0.25);
+  font-size: 0.62rem;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.replay__track-status[data-kind='VSC'],
+.replay__track-status[data-kind='DOUBLE YELLOW'] {
+  background: var(--amber);
+  color: #2b1600;
+}
+
+.replay__track-status[data-kind='RED'] {
+  border-color: rgba(20, 14, 4, 0.35);
+  background: var(--red-deep);
+  color: var(--paper-ink);
+  box-shadow: 0 1px 4px rgba(20, 14, 4, 0.35);
+}
+
+.replay__track-status-kind {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.55rem;
+  height: 1.15rem;
+  padding: 0 0.28rem;
+  border-radius: 999px;
+  background: rgba(20, 14, 4, 0.82);
+  color: var(--paper-ink);
+  font-size: 0.56rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+}
+
+.replay__track-status[data-kind='RED'] .replay__track-status-kind {
+  background: rgba(20, 14, 4, 0.38);
+}
+
+.replay__track-status-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.replay__track-status-phase {
+  font-weight: 800;
+  opacity: 0.75;
+}
+
 .replay__map {
   display: block;
   width: 100%;
@@ -2252,6 +2339,232 @@ a:hover {
   margin: 0.7rem 0 0;
   color: var(--ink-muted);
   font-size: 0.66rem;
+}
+
+/* The race and pace tabs sit above the panel they switch. */
+.replay__viewbar {
+  margin-top: 0.85rem;
+}
+
+.replay__viewbar .tabs {
+  margin-bottom: 0;
+}
+
+.replay__panel {
+  margin-top: 0.9rem;
+}
+
+/* ---------- Race pace ---------- */
+
+.replay__pace {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.replay__pace-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.replay__pace-legend {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.replay__pace-bar > .replay__tower-reset {
+  margin-left: auto;
+}
+
+.replay__pace-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem 0.2rem 0.38rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper-raised);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.64rem;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  appearance: none;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.replay__pace-chip:hover {
+  border-color: var(--line-strong);
+  background: var(--paper-hover);
+}
+
+.replay__pace-chip:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 2px;
+}
+
+.replay__pace-chip[aria-pressed='true'] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.replay__pace-swatch {
+  width: 0.56rem;
+  height: 0.56rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--driver-color);
+  box-shadow: inset 0 0 0 1px rgba(20, 14, 4, 0.28);
+}
+
+.replay__pace-chip[aria-pressed='true'] .replay__pace-swatch {
+  box-shadow: 0 0 0 1px var(--paper);
+}
+
+.replay__pace-shell {
+  overflow: hidden;
+  padding: 0.35rem 0.35rem 0.15rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-sunken);
+}
+
+.replay__pace-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.replay__pace-grid line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.replay__pace-grid text,
+.replay__pace-axis-title,
+.replay__pace-label {
+  fill: var(--ink-muted);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.replay__pace-axis-title {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.replay__pace-label {
+  fill: var(--ink);
+  font-size: 10px;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  letter-spacing: 0.03em;
+}
+
+.replay__pace-waiting {
+  fill: var(--ink-muted);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  font-stretch: var(--condensed);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.replay__pace-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 0.5px rgba(20, 14, 4, 0.45));
+  transition: opacity 0.12s ease, stroke-width 0.12s ease;
+}
+
+.replay__pace-line[data-muted='true'] {
+  stroke-width: 1.4;
+  opacity: 0.15;
+}
+
+.replay__pace-dot {
+  stroke: var(--paper-raised);
+  stroke-width: 0.8;
+  transition: r 0.1s ease, stroke-width 0.1s ease, filter 0.1s ease;
+}
+
+.replay__pace-dot[data-active='true'] {
+  stroke-width: 1.3;
+  filter: brightness(1.08) drop-shadow(0 0 2px rgba(20, 14, 4, 0.35));
+}
+
+/* A transparent hit target wider than the mark: the dot stays small but is
+   still easy to hover, including with a touchpad. */
+.replay__pace-dot-hit {
+  fill: transparent;
+  pointer-events: all;
+  cursor: crosshair;
+}
+
+.replay__pace-tooltip {
+  pointer-events: none;
+}
+
+.replay__pace-tooltip-card {
+  fill: var(--paper-raised);
+  stroke: var(--line-strong);
+  stroke-width: 1;
+  filter: drop-shadow(0 2px 6px rgba(20, 14, 4, 0.16));
+}
+
+.replay__pace-tooltip-title {
+  fill: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.replay__pace-tooltip-value {
+  fill: var(--ink-muted);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.replay__pace-playhead {
+  stroke: var(--red);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  opacity: 0.8;
+}
+
+.replay__pace-caption {
+  color: var(--ink-muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .replay__loading {

@@ -114,6 +114,21 @@ export interface OpenF1Weather {
   wind_direction?: number | null
 }
 
+/** One row of OpenF1's race-control feed (`/race_control`). */
+export interface OpenF1RaceControl {
+  date: string
+  session_key: number
+  meeting_key?: number
+  driver_number?: number | null
+  lap_number?: number | null
+  category?: string | null
+  flag?: string | null
+  scope?: string | null
+  sector?: number | null
+  qualifying_phase?: number | null
+  message?: string | null
+}
+
 /** One row of OpenF1's final classification (`/session_result`). */
 export interface OpenF1SessionResult {
   session_key: number
@@ -367,6 +382,10 @@ export const openf1 = {
   /** Track conditions, sampled about once a minute. */
   weather: (sessionKey: number, signal?: AbortSignal) =>
     request<OpenF1Weather[]>(`/weather?session_key=${sessionKey}`, signal),
+
+  /** Race-control messages, used for safety-car, VSC, red and yellow flag periods. */
+  raceControl: (sessionKey: number, signal?: AbortSignal) =>
+    request<OpenF1RaceControl[]>(`/race_control?session_key=${sessionKey}`, signal),
 
   /**
    * One driver's location feed. The endpoint refuses an unfiltered query

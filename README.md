@@ -225,10 +225,34 @@ at the playhead, each with a small icon. Tower rows keep the position, driver co
 **number of completed pit stops**; the full name and constructor stay available in the
 tooltip and screen-reader label.
 
+When race control neutralises the race, a **Safety Car**, **Virtual Safety Car**, **Red Flag**
+or **Yellow Flag** banner appears over the circuit. The safety-car banner switches to **in
+this lap** or **ending** once the withdrawal has been announced. A red flag stays up from the
+suspension until the session restarts. Yellow flags are sector-level: the banner lists the
+marshalling sectors that are still yellow, and is suppressed while a safety car, VSC or red
+flag already neutralises the whole track. Everything clears when race control goes green
+again, and the chequered flag closes any open period.
+
 Clicking a row adds that driver to a multi-driver filter and draws only those cars on the
 circuit; clicking again removes them. The tower keeps the full field visible, selected rows
 are marked, the map caption reports the visible count, and a **Reset** button in the Standings
 header clears the filter.
+
+The dialog has two tabs. **Race** is the circuit and standings tower. **Pace** draws one
+line per driver across the race, with **lap number** along the bottom and **completed lap time**
+(shown as `min:sec`) up the side, so stints, pit stops and the shape of the race are visible at
+a glance. The lines
+are drawn **live**: a lap only appears once the replay playhead has passed its end, and
+scrubbing backwards retracts the graph. They use a smooth monotone curve through the lap
+points rather than hard corners. The y-axis fits the full clean-lap range of the drivers
+currently shown, including laps not yet revealed, so it stays stable during playback and never
+clips a fast lap. The driver chips above the graph filter it exactly like the tower filters the
+map, the selection is shared between tabs, and a **Reset** button clears it.
+With a small selection, each lap gets a dot; hover a dot to see the driver, lap number and lap
+time. Laps more than five percent slower than a driver's median — pit in/out laps, safety-car laps
+and other interruptions — are left out so they do not squash the racing pace into the bottom of
+the axis. The replay playhead is drawn as a dashed guide over the graph, and the graph follows
+the same transport underneath.
 
 The button is enabled from **thirty minutes after the chequered flag** — the point at which
 OpenF1's historical data becomes free — and disabled with an explanation before that, or
@@ -243,12 +267,13 @@ How the data gets there:
   date to an OpenF1 key, so the app does not have to ask OpenF1 which session a race is.
   `public/replays/{session_key}.json` then carries the timeline (downsampled to 2 Hz,
   coordinates quantised to metres), the lap starts and per-driver lap times, the tyre
-  stints, the gap-to-car-ahead timeline, the weather timeline, the circuit outline and the
-  position feed in one file. Nothing third-party is called for a baked race.
+  stints, the gap-to-car-ahead timeline, the weather timeline, the safety-car periods and
+  yellow/red flag periods from race control, the circuit outline and the position feed in one
+  file. Nothing third-party is called for a baked race.
 - **OpenF1 fallback.** If a race has not been baked, the browser calls OpenF1 directly
   (CORS is open), one location request per car, throttled to the free tier's 30 requests a
-  minute. It also loads the session's weather samples. The dialog shows progress and caches
-  the result in IndexedDB, so the next visit is instant.
+  minute. It also loads the session's weather samples and race-control feed. The dialog
+  shows progress and caches the result in IndexedDB, so the next visit is instant.
 - **No live streaming.** OpenF1's free tier only serves a session after the flag; during the
   live window the button states when the replay will be available.
 
@@ -580,6 +605,8 @@ src/
 │   ├── ReplayDialog.tsx         # replay shell: loading states + playback clock
 │   ├── ReplayLeaderboard.tsx    # replay standings tower
 │   ├── ReplayMap.tsx            # replay circuit outline + moving cars
+│   ├── ReplayPace.tsx           # race pace graph: lap time, driver filter chips
+│   ├── ReplayTrackStatus.tsx    # safety car / VSC / red / yellow banner over the map
 │   ├── ReplayWeather.tsx        # track conditions strip above the map
 │   ├── RowMenu.tsx              # schedule row actions behind a kebab on a phone
 │   ├── SeasonView.tsx           # nav tabs, shared season state, circuit info dialog
@@ -596,6 +623,7 @@ src/
 │   ├── circuits.ts              # circuit track layouts: Ergast id → vendored SVG
 │   ├── format.ts                # date, time and gap formatting
 │   ├── grid.ts                  # qualifying classification → grid slots and gaps
+│   ├── pace.ts                  # replay lap times → race-pace series
 │   ├── provisionalCache.ts      # localStorage cache for the OpenF1 fallback
 │   ├── replay.ts               # replay timeline, interpolation, standings, encoding
 │   ├── replayCache.ts          # IndexedDB cache for fallback downloads

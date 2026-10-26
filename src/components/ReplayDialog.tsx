@@ -4,6 +4,9 @@ import { Modal } from './Modal'
 import { ReplayControls } from './ReplayControls'
 import { ReplayLeaderboard } from './ReplayLeaderboard'
 import { ReplayMap } from './ReplayMap'
+import { ReplayPace } from './ReplayPace'
+import { Tabs } from './Tabs'
+import type { Tab } from './Tabs'
 import type { Race, SessionCode } from '../api/types'
 import type { ReplayData } from '../lib/replay'
 import { ReplayUnavailableError, loadReplay } from '../lib/replaySource'
@@ -31,9 +34,16 @@ const DEFAULT_SPEED = 4
 const ARROW_STEP = 10_000
 const NO_DRIVERS: ReadonlySet<number> = new Set()
 
+type ReplayTab = 'race' | 'pace'
+
+const REPLAY_TABS: readonly Tab<ReplayTab>[] = [
+  { id: 'race', label: 'Race' },
+  { id: 'pace', label: 'Pace' },
+]
+
 /**
  * The replay popup: loads one session, then owns the playhead and the
- * transport. The map and tower are pure views of that playhead.
+ * transport. The map, pace graph and tower are pure views of that playhead.
  */
 export function ReplayDialog({ race, code, onClose }: ReplayDialogProps) {
   const [state, setState] = useState<LoadState>({ status: 'loading', progress: INITIAL_PROGRESS })
@@ -41,8 +51,10 @@ export function ReplayDialog({ race, code, onClose }: ReplayDialogProps) {
   const [current, setCurrent] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(DEFAULT_SPEED)
-  // Empty means every car is visible. A non-empty set narrows the circuit to
-  // the selected drivers so the director can isolate a battle.
+  const [view, setView] = useState<ReplayTab>('race')
+  // Empty means every car is visible. A non-empty set narrows the circuit and
+  // the pace graph to the selected drivers so the director can isolate a
+  // battle, and the selection survives switching tabs.
   const [selectedDrivers, setSelectedDrivers] = useState<ReadonlySet<number>>(NO_DRIVERS)
 
   // The animation loop reads and writes the playhead every frame. Keeping it in
@@ -203,16 +215,48 @@ export function ReplayDialog({ race, code, onClose }: ReplayDialogProps) {
               </p>
             ) : null}
 
-            <div className="replay__layout">
-              <ReplayMap data={state.data} current={current} selected={selectedDrivers} />
-              <ReplayLeaderboard
-                data={state.data}
-                current={current}
-                selected={selectedDrivers}
-                onToggleDriver={toggleDriver}
-                onResetFilter={resetDriverFilter}
+            <div className="replay__viewbar">
+              <Tabs
+                tabs={REPLAY_TABS}
+                active={view}
+                onChange={setView}
+                ariaLabel="Replay view"
+                variant="compact"
               />
             </div>
+
+            {view === 'race' ? (
+              <div
+                className="replay__layout"
+                role="tabpanel"
+                id="panel-race"
+                aria-labelledby="tab-race"
+              >
+                <ReplayMap data={state.data} current={current} selected={selectedDrivers} />
+                <ReplayLeaderboard
+                  data={state.data}
+                  current={current}
+                  selected={selectedDrivers}
+                  onToggleDriver={toggleDriver}
+                  onResetFilter={resetDriverFilter}
+                />
+              </div>
+            ) : (
+              <div
+                className="replay__panel"
+                role="tabpanel"
+                id="panel-pace"
+                aria-labelledby="tab-pace"
+              >
+                <ReplayPace
+                  data={state.data}
+                  current={current}
+                  selected={selectedDrivers}
+                  onToggleDriver={toggleDriver}
+                  onResetFilter={resetDriverFilter}
+                />
+              </div>
+            )}
 
             <ReplayControls
               start={state.data.start}
@@ -226,8 +270,9 @@ export function ReplayDialog({ race, code, onClose }: ReplayDialogProps) {
             />
 
             <p className="replay__hint">
-              Space plays and pauses · ←/→ scrubs 10 seconds · click a driver to filter the
-              track · position, not gaps
+              {view === 'race'
+                ? 'Space plays and pauses · ←/→ scrubs 10 seconds · click a driver to filter the track · position, not gaps'
+                : 'Space plays and pauses · ←/→ scrubs 10 seconds · click a driver chip to filter the graph · very slow laps are hidden'}
             </p>
           </>
         )}
