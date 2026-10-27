@@ -15,6 +15,7 @@ import {
   resultsPollDelay,
   sessionPhase,
 } from '../lib/schedule'
+import { BattleDialog } from './BattleDialog'
 import { Empty, ErrorState, Loading } from './Feedback'
 import { ReplayDialog } from './ReplayDialog'
 import { SessionResultTable } from './SessionResultTable'
@@ -52,6 +53,7 @@ export function RaceResults({
   const [sessionChoice, setSessionChoice] = useState<SessionCode | null>(initialSession ?? null)
   const [view, setView] = useState<'table' | 'grid'>('table')
   const [replayOpen, setReplayOpen] = useState(false)
+  const [battleOpen, setBattleOpen] = useState(false)
 
   const selectedRace = races.find((race) => race.round === round)
 
@@ -114,20 +116,28 @@ export function RaceResults({
     [selectedRace, session],
   )
 
-  // A replay needs the flag plus OpenF1's thirty-minute free-tier window, and
-  // only race and sprint classifications have a replay at all.
+  // Both extras need the flag plus OpenF1's thirty-minute free-tier window. The
+  // replay is for race and sprint classifications; the 1v1 battle is for the two
+  // qualifying sessions.
   const replaySession = session === 'R' || session === 'SR'
-  const replayUnlocked = selectedEntry
+  const battleCode: 'Q' | 'SQ' | null = session === 'Q' || session === 'SQ' ? session : null
+  const sessionUnlocked = selectedEntry
     ? sessionPhase(selectedEntry, now - 30 * 60_000) === 'finished'
     : false
-  const replayReady = replaySession && replayUnlocked
+  const replayReady = replaySession && sessionUnlocked
   const replayHint = !replaySession
     ? 'Replay is available for races and sprints.'
     : !selectedEntry
       ? 'Replay will be available after the session starts.'
-      : !replayUnlocked
+      : !sessionUnlocked
         ? 'Replay will be available about 30 minutes after the chequered flag.'
         : undefined
+  const battleReady = battleCode !== null && sessionUnlocked
+  const battleHint = !selectedEntry
+    ? 'The 1v1 battle will be available after the session starts.'
+    : !sessionUnlocked
+      ? 'The 1v1 battle will be available about 30 minutes after the chequered flag.'
+      : undefined
 
   // The API gives no "published at" signal, so the app only polls inside the
   // window where a result can plausibly arrive. Opening Abu Dhabi in October
@@ -339,25 +349,49 @@ export function RaceResults({
               </div>
             )}
 
-            {/* Always rendered so the action is discoverable; the reason it is
-                unavailable is carried by the description rather than a error
-                once the dialog opens. */}
-            <button
-              type="button"
-              className="button button--ghost replay-open"
-              aria-disabled={!replayReady}
-              title={replayHint}
-              aria-describedby={replayHint ? 'replay-hint' : undefined}
-              onClick={() => {
-                if (replayReady) setReplayOpen(true)
-              }}
-            >
-              Replay
-            </button>
-            {replayHint && (
-              <span className="sr-only" id="replay-hint">
-                {replayHint}
-              </span>
+            {battleCode ? (
+              <>
+                <button
+                  type="button"
+                  className="button button--ghost battle-open"
+                  aria-disabled={!battleReady}
+                  title={battleHint}
+                  aria-describedby={battleHint ? 'battle-hint' : undefined}
+                  onClick={() => {
+                    if (battleReady) setBattleOpen(true)
+                  }}
+                >
+                  1v1 Battle
+                </button>
+                {battleHint && (
+                  <span className="sr-only" id="battle-hint">
+                    {battleHint}
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Always rendered so the action is discoverable; the reason it
+                    is unavailable is carried by the description rather than an
+                    error once the dialog opens. */}
+                <button
+                  type="button"
+                  className="button button--ghost replay-open"
+                  aria-disabled={!replayReady}
+                  title={replayHint}
+                  aria-describedby={replayHint ? 'replay-hint' : undefined}
+                  onClick={() => {
+                    if (replayReady) setReplayOpen(true)
+                  }}
+                >
+                  Replay
+                </button>
+                {replayHint && (
+                  <span className="sr-only" id="replay-hint">
+                    {replayHint}
+                  </span>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -422,6 +456,15 @@ export function RaceResults({
           race={selectedRace}
           code={session}
           onClose={() => setReplayOpen(false)}
+        />
+      )}
+
+      {battleOpen && battleCode && selectedRace && (
+        <BattleDialog
+          key={`battle-${selectedRace.season}-${selectedRace.round}-${battleCode}`}
+          race={selectedRace}
+          code={battleCode}
+          onClose={() => setBattleOpen(false)}
         />
       )}
     </section>

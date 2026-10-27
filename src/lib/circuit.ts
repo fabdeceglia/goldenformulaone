@@ -34,9 +34,9 @@ const PADDING = 26
 
 const cache = new Map<string, CircuitTransform>()
 
-function cacheKey(circuit: ReplayCircuit): string {
+function cacheKey(circuit: ReplayCircuit, viewHeight: number): string {
   const rotation = circuit.rotation ?? 0
-  return `${circuit.circuitKey}:${rotation}:${circuit.outline.length}`
+  return `${circuit.circuitKey}:${rotation}:${circuit.outline.length}:${viewHeight}`
 }
 
 /**
@@ -44,8 +44,11 @@ function cacheKey(circuit: ReplayCircuit): string {
  * map reads like a map (world y grows north, SVG y grows down). Memoised per
  * circuit: a replay asks for this on every animation frame otherwise.
  */
-export function prepareCircuit(circuit: ReplayCircuit): CircuitTransform {
-  const key = cacheKey(circuit)
+export function prepareCircuit(
+  circuit: ReplayCircuit,
+  viewHeight = VIEW_HEIGHT,
+): CircuitTransform {
+  const key = cacheKey(circuit, viewHeight)
   const cached = cache.get(key)
   if (cached) return cached
 
@@ -73,10 +76,10 @@ export function prepareCircuit(circuit: ReplayCircuit): CircuitTransform {
 
   const scale = Math.min(
     (VIEW_WIDTH - PADDING * 2) / spanX,
-    (VIEW_HEIGHT - PADDING * 2) / spanY,
+    (viewHeight - PADDING * 2) / spanY,
   )
   const offsetX = (VIEW_WIDTH - spanX * scale) / 2
-  const offsetY = (VIEW_HEIGHT - spanY * scale) / 2
+  const offsetY = (viewHeight - spanY * scale) / 2
 
   const project = (x: number, y: number): [number, number] => {
     const [rx, ry] = rotate(x, y)
@@ -97,8 +100,8 @@ export function prepareCircuit(circuit: ReplayCircuit): CircuitTransform {
 
   const transform: CircuitTransform = {
     width: VIEW_WIDTH,
-    height: VIEW_HEIGHT,
-    viewBox: `0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`,
+    height: viewHeight,
+    viewBox: `0 0 ${VIEW_WIDTH} ${viewHeight}`,
     outlinePath,
     project,
   }

@@ -18,7 +18,8 @@ powered by the free [jolpica-f1](https://github.com/jolpica/jolpica-f1) API.
 - **Constructors** — team championship table
 - **Chequered Flag** — every session of a weekend: practice 1–3, sprint qualifying,
   qualifying, the sprint and the race. Qualifying can also be read as a **Starting
-  Grid**, laid out the way the cars line up
+  Grid**, laid out the way the cars line up. Finished races and sprints offer a
+  **Replay**, and finished qualifying sessions a side-by-side **1v1 Battle**
 - The featured event stays visible in every section as a compact bar that links back to
   The Pit Wall
 - Dates and times are shown in **your own timezone**, not the circuit's
@@ -297,6 +298,45 @@ traced from cars**; the replay still plays, with the tower and transport unchang
 
 OpenF1 data is licensed **CC BY-NC-SA 4.0** (personal, non-commercial use). The footer credits
 it next to jolpica.
+
+### Qualifying 1v1 battle
+
+A finished **Qualifying** or **Sprint Qualifying** session offers a **1v1 Battle** instead of
+the Replay button. Pick two drivers and one timed lap each — the dialog opens with the two
+quickest drivers already selected, each on their fastest lap — and start the battle.
+
+The battle view is a **telemetry ghost**, not a video:
+
+- a **scoreboard** with both drivers, their lap times, the live gap and the exact lap delta;
+- the **circuit map** with both cars in team colour, plus a progress ribbon per driver. OpenF1
+  has no lateral position, so the cars share the racing line and the ribbons carry the
+  separation in the corners;
+- two **cockpit panels** with speed, gear, rpm, throttle, brake and DRS. Only channels OpenF1
+  publishes are shown, and a missing channel reads `—` instead of inventing a value;
+- an exact **sector table** (`S1` / `S2` / `S3` / lap) with each split, the faster of the two
+  times highlighted, and the delta relative to driver A;
+- one shared transport: play, scrub, **0.5× / 1× / 2× / 4×**, plus **Change drivers** at the end
+  of the row. Space plays/pauses, **←/→** scrubs one second, and reduced-motion visitors start
+  paused.
+
+The track and its sector table share the left column, and the two cockpits stack in the right, so
+the circuit and the telemetry can be followed without looking up and down. Below **720px** the
+stage collapses to one column: track, cockpits, sectors.
+
+Both laps are normalised to their own start line, so laps set minutes apart can share one
+playhead. The **live gap** is an estimate: it integrates each car's speed into a distance curve
+and asks *at the same point on track, who got there first?* It reads `0.000` at the line and
+converges on the exact lap-time difference at the flag. The sector table is the exact reference,
+because sector and lap times come straight from OpenF1, while `date_start` is approximate.
+
+Data is fetched **on demand** from OpenF1: the session, field, lap list and circuit once, then a
+lap-sized `car_data` and `location` window per driver (about **180 KB** for the four feeds; a
+whole qualifying session would be several MB per driver). Requests are throttled to the free
+tier and the finished battle is cached whole in its own IndexedDB database
+(`box-this-lap-battles`), so a repeat battle is instant. There are no pre-baked battle assets.
+
+The button follows the same availability rule as the replay: the session has to be finished plus
+thirty minutes, when OpenF1's free historical window opens.
 
 ### Where the data comes from
 
@@ -589,6 +629,10 @@ src/
 │   ├── teams.ts     # team colours + readable chip ink
 │   └── types.ts     # response types for both API layers
 ├── components/
+│   ├── BattleCockpit.tsx        # 1v1 telemetry panel: speed, gear, rpm, pedals, DRS
+│   ├── BattleControls.tsx       # 1v1 transport: play, speed, scrubber, change drivers
+│   ├── BattleDialog.tsx         # 1v1 setup + battle screen + lap playhead
+│   ├── BattleTrack.tsx          # ghost cars on the circuit, progress ribbons
 │   ├── Calendar.tsx
 │   ├── CircuitInfo.tsx          # circuit info popup: layout, facts, racing history
 │   ├── ConstructorStandings.tsx
@@ -618,6 +662,9 @@ src/
 │   ├── useMediaQuery.ts         # width queries, for layout CSS cannot switch
 │   └── useTheme.ts              # light/dark theme: read, toggle, remember
 ├── lib/
+│   ├── battle.ts                # 1v1 lap normalisation, distance gap, sector deltas
+│   ├── battleCache.ts           # IndexedDB cache for finished 1v1 battles
+│   ├── battleSource.ts          # 1v1 session picker + lap-sized telemetry loader
 │   ├── circuit.ts               # replay geometry: rotate, fit, project x/y to SVG
 │   ├── circuitHistory.ts        # past winners → editions, records, recent winners
 │   ├── circuits.ts              # circuit track layouts: Ergast id → vendored SVG

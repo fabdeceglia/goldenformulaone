@@ -62,6 +62,10 @@
   --gold: #ffbc05;
   --magenta: #c9217f;
 
+  /* The battle's "gain" colour, used for throttle, the lead badge and the
+     live gap. Named separately because it has to lighten after dark. */
+  --battle-green: #1f7a4a;
+
   --radius: 10px;
   --radius-sm: 4px;
 
@@ -102,6 +106,7 @@
   /* Accent text */
   --red-ink: #ff7a70;
   --amber-ink: #ffb765;
+  --battle-green: #5acb8c;
 }
 
 /* The pastel haze after dark: the same warm glows, dimmed from paper in daylight
@@ -327,7 +332,8 @@ a:hover {
   font-weight: 700;
 }
 
-.field__select {
+.field__select,
+.battle__field select {
   appearance: none;
   min-width: 7.5rem;
   padding: 0.45rem 2rem 0.45rem 0.7rem;
@@ -346,7 +352,8 @@ a:hover {
   cursor: pointer;
 }
 
-.field__select:disabled {
+.field__select:disabled,
+.battle__field select:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -520,18 +527,21 @@ a:hover {
   margin-left: 0;
 }
 
-.replay-open {
+.replay-open,
+.battle-open {
   white-space: nowrap;
 }
 
 /* `aria-disabled`, not `disabled`: the button stays focusable so a keyboard or
    screen-reader visitor can reach the explanation it is described by. */
-.replay-open[aria-disabled='true'] {
+.replay-open[aria-disabled='true'],
+.battle-open[aria-disabled='true'] {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.replay-open[aria-disabled='true']:hover {
+.replay-open[aria-disabled='true']:hover,
+.battle-open[aria-disabled='true']:hover {
   border-color: var(--line-strong);
   background: transparent;
   color: var(--ink);
@@ -2803,5 +2813,700 @@ a:hover {
   .tabs:not(.tabs--compact) .tabs__button {
     padding: 0.38rem 0.55rem;
     font-size: 0.68rem;
+  }
+}
+
+/* ---------- Qualifying battle (1v1) ---------- */
+
+.battle {
+  padding: 1.2rem 1.3rem 1.35rem;
+}
+
+/* ---------- Setup ---------- */
+
+.battle__setup {
+  margin-top: 0.9rem;
+}
+
+.battle__slots {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: stretch;
+}
+
+.battle__slot {
+  padding: 0.85rem 0.9rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+}
+
+.battle__slot-label {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.64rem;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.battle__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.6rem;
+  color: var(--ink-muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+}
+
+/* The shared `.field__select` sets a minimum width for the results header; in a
+   battle slot the select fills the column instead. */
+.battle__field select {
+  width: 100%;
+  min-width: 0;
+}
+
+.battle__slot-team {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.7rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+}
+
+.battle__team-dot {
+  flex: none;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(20, 14, 4, 0.18);
+}
+
+.battle__vs {
+  display: grid;
+  place-items: center;
+  min-width: 2.2rem;
+  color: var(--ink-muted);
+  font-size: 0.7rem;
+  font-weight: 900;
+  font-stretch: var(--condensed);
+  letter-spacing: 0.08em;
+}
+
+.battle__setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  margin-top: 0.9rem;
+}
+
+.battle__hint {
+  max-width: 40rem;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+}
+
+/* ---------- Scoreboard ---------- */
+
+.battle__score {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 0.9rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+}
+
+.battle__score-side {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: var(--radius-sm);
+  opacity: 0.7;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.battle__score-side[data-leading='true'] {
+  background: var(--paper);
+  opacity: 1;
+}
+
+.battle__score-side:last-child {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.battle__score-dot {
+  flex: none;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+}
+
+.battle__score-id {
+  min-width: 0;
+}
+
+.battle__score-code {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 900;
+  font-stretch: 88%;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.battle__score-team {
+  overflow: hidden;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.64rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.battle__score-time {
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.battle__delta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05rem;
+  padding: 0 0.7rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.battle__delta-label {
+  color: var(--ink-muted);
+  font-size: 0.58rem;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.battle__delta strong {
+  color: var(--battle-green);
+  font-size: 0.9rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.battle__delta-sub {
+  color: var(--ink-muted);
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Map ---------- */
+
+/* ---------- Stage: track + sectors left, cockpits right ---------- */
+
+.battle__stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(19rem, 1fr);
+  grid-template-areas:
+    'track cockpits'
+    'sectors cockpits';
+  gap: 0.8rem;
+  align-items: start;
+  margin-top: 0.9rem;
+}
+
+.battle__figure {
+  grid-area: track;
+  margin: 0;
+}
+
+.battle__stage .battle__cockpits {
+  grid-area: cockpits;
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 0;
+}
+
+.battle__stage .battle__sectors {
+  grid-area: sectors;
+  margin-top: 0;
+}
+
+.battle__map {
+  max-height: 46vh;
+}
+
+.battle__ribbons {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.battle__ribbon-row {
+  display: grid;
+  grid-template-columns: 3.2rem minmax(0, 1fr) 2.6rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.battle__ribbon-code {
+  font-size: 0.64rem;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  letter-spacing: 0.05em;
+}
+
+.battle__ribbon {
+  position: relative;
+  height: 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper-sunken);
+}
+
+/* No transition: the playhead moves every frame, and a transition would make
+   the marker lag behind the car on the map. */
+.battle__ribbon-marker {
+  position: absolute;
+  top: 50%;
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 2px solid var(--paper-raised);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.battle__ribbon-pct {
+  color: var(--ink-muted);
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.battle__caption {
+  margin: 0;
+}
+
+/* ---------- Cockpits ---------- */
+
+.battle__cockpits {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-top: 0.8rem;
+}
+
+.battle__cockpit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.7rem 0.8rem 0.75rem;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+}
+
+.battle__cockpit[data-finished='true'] {
+  opacity: 0.85;
+}
+
+.battle__cockpit-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.battle__cockpit-id {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.battle__cockpit-code {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 900;
+  font-stretch: 88%;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.battle__lead {
+  padding: 0.08rem 0.34rem;
+  border-radius: 999px;
+  background: var(--battle-green);
+  /* Paper against green flips with the theme, so the badge stays readable on
+     both the dark green and its lighter dark-mode counterpart. */
+  color: var(--paper);
+  font-size: 0.55rem;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  letter-spacing: 0.06em;
+}
+
+.battle__cockpit-name {
+  overflow: hidden;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.66rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.battle__cockpit-lap {
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.battle__readout {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.1rem 0;
+}
+
+.battle__speed {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+.battle__speed strong {
+  font-size: clamp(2rem, 5vw, 2.7rem);
+  font-weight: 900;
+  font-stretch: 82%;
+  font-variant-numeric: tabular-nums;
+  line-height: 0.9;
+  letter-spacing: -0.01em;
+}
+
+.battle__speed span {
+  color: var(--ink-muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.battle__gear {
+  display: flex;
+  min-width: 3.2rem;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+
+.battle__gear strong {
+  font-size: 1.5rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.battle__gear span {
+  color: var(--ink-muted);
+  font-size: 0.54rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.battle__mini-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-bottom: 0.22rem;
+  color: var(--ink-muted);
+  font-size: 0.58rem;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.battle__mini-head strong {
+  color: var(--ink);
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.battle__bar {
+  height: 0.42rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--paper-sunken);
+}
+
+.battle__bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ink-soft);
+}
+
+.battle__bar--throttle > span {
+  background: var(--battle-green);
+}
+
+.battle__bar--brake > span {
+  background: var(--red);
+}
+
+.battle__pedals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+/* A rule between the two pedal blocks: without it the two label/value pairs on
+   one baseline read as a single "0% brake" line. */
+.battle__pedals > div + div {
+  padding-left: 0.6rem;
+  border-left: 1px solid var(--line);
+}
+
+.battle__cockpit-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--line);
+}
+
+.battle__drs,
+.battle__finished {
+  padding: 0.1rem 0.42rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink-muted);
+  font-size: 0.56rem;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.battle__drs[data-state='ready'] {
+  border-color: var(--amber);
+  background: rgba(255, 150, 11, 0.12);
+  color: var(--amber-ink);
+}
+
+.battle__drs[data-state='on'] {
+  border-color: var(--battle-green);
+  background: var(--battle-green);
+  color: var(--paper);
+}
+
+.battle__finished {
+  border-color: transparent;
+  background: var(--paper-sunken);
+}
+
+/* ---------- Sectors ---------- */
+
+.battle__sectors {
+  width: 100%;
+  margin-top: 0.9rem;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.battle__sectors th,
+.battle__sectors td {
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.battle__sectors th:first-child,
+.battle__sectors td:first-child {
+  text-align: left;
+}
+
+.battle__sectors thead th {
+  color: var(--ink-muted);
+  font-size: 0.58rem;
+  font-weight: 800;
+  font-stretch: var(--condensed);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.battle__sectors tbody th {
+  color: var(--ink-muted);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.battle__sector-total th,
+.battle__sector-total td {
+  border-bottom: 0;
+  font-weight: 800;
+}
+
+/* The faster of the two times is green: the delta's sign alone made a positive
+   "loss" look like a gain when the colour followed the winning side. */
+.battle__sectors td[data-fast='true'] {
+  color: var(--battle-green);
+  font-weight: 700;
+}
+
+/* ---------- Footer and states ---------- */
+
+.battle__transport {
+  margin-top: 0.75rem;
+}
+
+.battle__foot {
+  margin-top: 0.45rem;
+}
+
+.battle__change {
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-stretch: var(--condensed);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+/* In the transport the action sits at the far end of the row, so it stays on
+   screen when the dialog is short instead of falling below the fold. */
+.battle__change--transport {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.battle__change:hover {
+  border-color: var(--ink-muted);
+  background: var(--paper-hover);
+}
+
+.battle__loading .battle__hint {
+  max-width: 26rem;
+  margin: 0.8rem auto 0;
+  text-align: center;
+}
+
+.battle__error {
+  padding: 0.5rem 0;
+}
+
+.battle__error .battle__change {
+  margin-top: 0.8rem;
+}
+
+/* ---------- Responsive ---------- */
+
+/* Below a phone in portrait the side-by-side stage gets too narrow to read
+   the circuit, so it returns to the single column: map, cockpits, sectors. */
+@media (max-width: 720px) {
+  .battle__stage {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'track'
+      'cockpits'
+      'sectors';
+  }
+
+  .battle__stage .battle__cockpits {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 780px) {
+  /* Two stacked slots with a "VS" between them reads as a stray word, so the
+     setup becomes a plain list and the action bar follows it. */
+  .battle__slots {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .battle__vs {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .battle {
+    padding: 1rem 0.9rem 1.1rem;
+  }
+
+  .battle__score {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem 0.6rem;
+  }
+
+  /* The gap is the headline number, so it drops under the two drivers rather
+     than squeezing the lap times out of the row. */
+  .battle__delta {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    flex-flow: row wrap;
+    justify-content: center;
+    gap: 0.1rem 0.6rem;
+    padding: 0.35rem 0 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .battle__stage .battle__cockpits {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .battle__map {
+    max-height: 38vh;
+  }
+
+  .battle__sectors {
+    font-size: 0.72rem;
+  }
+
+  .battle__sectors th,
+  .battle__sectors td {
+    padding: 0.28rem 0.3rem;
+  }
+}
+
+@media (max-width: 420px) {
+  /* The team name is the first thing that can go: the code and the colour
+     already identify the driver at this width. */
+  .battle__score-team {
+    display: none;
   }
 }

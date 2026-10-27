@@ -81,6 +81,30 @@ export interface OpenF1Lap {
   lap_number: number
   date_start: string
   lap_duration?: number | null
+  duration_sector_1?: number | null
+  duration_sector_2?: number | null
+  duration_sector_3?: number | null
+  i1_speed?: number | null
+  i2_speed?: number | null
+  st_speed?: number | null
+  is_pit_out_lap?: boolean | null
+}
+
+/** One row of OpenF1's per-car telemetry (`/car_data`), about 3.7 Hz. */
+export interface OpenF1CarData {
+  date: string
+  driver_number: number
+  session_key?: number
+  meeting_key?: number
+  speed?: number | null
+  rpm?: number | null
+  /** OpenF1 calls the gear `n_gear`; 0 means neutral. */
+  n_gear?: number | null
+  throttle?: number | null
+  /** 100 when the pedal is pressed, 0 when it is not. */
+  brake?: number | null
+  /** 8 = eligible; 10/12/14 = open. */
+  drs?: number | null
 }
 
 export interface OpenF1Stint {
@@ -336,6 +360,19 @@ export async function resolveSessionKey(
   return { sessionKey: nearest.session_key, circuitKey: nearest.circuit_key, session: nearest }
 }
 
+/**
+ * A query fragment that bounds an endpoint to `[from, to)`.
+ *
+ * The operators have to stay literal. `URLSearchParams` turns `>=` into `%3D`,
+ * and OpenF1 answers a date-filtered `car_data` request with a 500 when it
+ * receives the encoded form. UTC without a timezone suffix is the format the
+ * filters expect (`2023-09-02T14:58:52.514`).
+ */
+function dateWindow(from: number, to: number): string {
+  const stamp = (value: number) => new Date(value).toISOString().slice(0, 23)
+  return `&date>=${stamp(from)}&date<${stamp(to)}`
+}
+
 export const openf1 = {
   sessions,
 
@@ -368,8 +405,26 @@ export const openf1 = {
     request<OpenF1Position[]>(`/position?session_key=${sessionKey}`, signal),
 
   /** Lap start/end times, used for the lap counter and the replay window. */
-  laps: (sessionKey: number, signal?: AbortSignal) =>
-    request<OpenF1Lap[]>(`/laps?session_key=${sessionKey}`, signal),
+  laps: (sessionKey: number, signal?: AbortSignal, gap = REQUEST_GAP_MS) =>
+    request<OpenF1Lap[]>(`/laps?session_key=${sessionKey}`, signal, OPENF1_BASE, gap),
+
+  /**
+   * One driver's telemetry for a lap-sized window. Filtering by date is
+   * mandatory: a whole qualifying session is about 2.9 MB for one driver.
+   */
+  carData: (
+    sessionKey: number,
+    driverNumber: number,
+    from: number,
+    to: number,
+    signal?: AbortSignal,
+  ) =>
+    request<OpenF1CarData[]>(
+      `/car_data?session_key=${sessionKey}&driver_number=${driverNumber}${dateWindow(from, to)}`,
+      signal,
+      OPENF1_BASE,
+      SHORT_REQUEST_GAP_MS,
+    ),
 
   /** Tyre stints, used by the timing tower. */
   stints: (sessionKey: number, signal?: AbortSignal) =>
@@ -390,18 +445,39 @@ export const openf1 = {
   /**
    * One driver's location feed. The endpoint refuses an unfiltered query
    * ("too much data at once"), so a full field is one request per car.
+   * Passing `from`/`to` crops the response to a lap-sized window and tightens
+   * the request gap, which is what the qualifying battle uses.
    */
-  location: (sessionKey: number, driverNumber: number, signal?: AbortSignal) =>
+  location: (
+    sessionKey: number,
+    driverNumber: number,
+    signal?: AbortSignal,
+    from?: number,
+    to?: number,
+  ) =>
     request<OpenF1Location[]>(
-      `/location?session_key=${sessionKey}&driver_number=${driverNumber}`,
+      `/location?session_key=${sessionKey}&driver_number=${driverNumber}${
+        from !== undefined && to !== undefined ? dateWindow(from, to) : ''
+      }`,
       signal,
+      OPENF1_BASE,
+      from !== undefined && to !== undefined ? SHORT_REQUEST_GAP_MS : REQUEST_GAP_MS,
     ),
 
-  /** Circuit outline in the same x/y frame as the location feed. */
-  circuit: (circuitKey: number, year: number | string): Promise<MultiviewerCircuit> =>
+  /**
+   * Circuit outline in the same x/y frame as the location feed. The battle
+   * passes the short gap: Multiviewer has no OpenF1-style rate limit, and the
+   * queue would otherwise add two seconds to the setup screen.
+   */
+  circuit: (
+    circuitKey: number,
+    year: number | string,
+    gap = REQUEST_GAP_MS,
+  ): Promise<MultiviewerCircuit> =>
     request<MultiviewerCircuit>(
       `/circuits/${circuitKey}/${year}`,
       undefined,
       MULTIVIEWER_BASE,
+      gap,
     ),
 }
