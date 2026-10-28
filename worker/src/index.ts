@@ -131,7 +131,19 @@ function isFresh(cached: CachedResult, now: number): boolean {
     // day-old final can be revalidated once in the background.
     return now - Date.parse(cached.checkedAt) < ON_DEMAND_STALE_MS
   }
-  return now - Date.parse(cached.checkedAt) < ON_DEMAND_STALE_MS
+
+  if (now - Date.parse(cached.checkedAt) >= ON_DEMAND_STALE_MS) return false
+
+  // A transient upstream failure must not freeze a session for a full day:
+  // once its retry time has passed, the next request revalidates it. A good
+  // provisional result keeps the day-long window instead, because jolpica may
+  // simply not publish that session and every view would otherwise refetch it.
+  const failed =
+    cached.sources.jolpica.state === 'error' || cached.sources.openf1.state === 'error'
+  if (!failed) return true
+
+  const retryAt = cached.nextAttemptAt ? Date.parse(cached.nextAttemptAt) : Number.NaN
+  return !Number.isFinite(retryAt) || now < retryAt
 }
 
 async function handleResults(

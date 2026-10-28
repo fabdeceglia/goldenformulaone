@@ -65,6 +65,97 @@ describe('results endpoint', () => {
     expect(body.source).toBe('jolpica')
     expect(fetchSpy).not.toHaveBeenCalled()
   })
+
+  it('revalidates a pending result once its error retry is due', async () => {
+    const kv = new FakeKV()
+    const now = Date.now()
+    seedMetadata(kv, now)
+
+    const checkedAt = new Date(now - 20 * 60_000).toISOString()
+    const retryAt = new Date(now - 10 * 60_000).toISOString()
+    kv.seed(
+      keys.result('2026', '18', 'FP1'),
+      makeCached({
+        state: 'pending',
+        source: null,
+        complete: false,
+        session: null,
+        checkedAt,
+        fetchedAt: checkedAt,
+        nextAttemptAt: retryAt,
+        recheckAt: null,
+        sources: {
+          jolpica: {
+            state: 'error',
+            count: 0,
+            complete: false,
+            checkedAt,
+            error: 'HTTP 429',
+            retryAt,
+          },
+          openf1: { state: 'empty', count: 0, complete: false, checkedAt },
+        },
+      }),
+    )
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: unknown) =>
+        Promise.resolve(
+          String(input).includes('/f1/alpha/results/')
+            ? json(makeSessionResults('FP1'))
+            : json([]),
+        ),
+      ),
+    )
+
+    let background: Promise<unknown> = Promise.resolve()
+    const response = await worker.fetch(
+      new Request('https://worker.test/api/results/2026/18/FP1'),
+      makeEnv(kv),
+      {
+        waitUntil: (promise: Promise<unknown>) => {
+          background = promise
+        },
+      } as unknown as ExecutionContext,
+    )
+
+    expect(response.status).toBe(200)
+    expect(((await response.json()) as { state: string }).state).toBe('pending')
+
+    await background
+
+    const stored = (await kv.get(keys.result('2026', '18', 'FP1'), { type: 'json' })) as {
+      state: string
+    }
+    expect(stored.state).toBe('final')
+  })
+
+  it('keeps serving a provisional result inside the stale window', async () => {
+    const kv = new FakeKV()
+    const now = Date.now()
+    kv.seed(
+      keys.result('2026', '18', 'FP1'),
+      makeCached({
+        state: 'provisional',
+        complete: true,
+        checkedAt: new Date(now - 60_000).toISOString(),
+        nextAttemptAt: new Date(now + 5 * 60_000).toISOString(),
+      }),
+    )
+
+    const fetchSpy = vi.fn(() => Promise.resolve(json([])))
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const response = await worker.fetch(
+      new Request('https://worker.test/api/results/2026/18/FP1'),
+      makeEnv(kv),
+      { waitUntil: () => undefined } as unknown as ExecutionContext,
+    )
+
+    expect(((await response.json()) as { state: string }).state).toBe('provisional')
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
 })
 
 describe('scheduled handler', () => {
