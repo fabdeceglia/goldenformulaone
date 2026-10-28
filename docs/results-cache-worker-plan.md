@@ -1,8 +1,10 @@
 # Results Cache Worker — Implementation Plan
 
-> Status: **planning**. No implementation yet.
+> Status: **planning**. No implementation yet. Revised 2026-10-28 after checking the
+> platform and upstream limits against current Cloudflare, Vercel, jolpica and OpenF1
+> documentation.
 > Setup: Cloudflare free account created 2026-10-23; Wrangler authentication pending.
-> Owner: Fabrizio · Created: 2026-10-23
+> Owner: Fabrizio · Created: 2026-10-23 · Revised: 2026-10-28
 > Target branch: `feat/results-cache-worker`
 > Folder note: `docs/` sits outside the Vite build (the build only bundles
 > `index.html` + `src/` and copies `public/`), so this document is version-controlled
@@ -114,24 +116,48 @@ per-browser.
 
 ### 3.2 Free-tier budget
 
-Cloudflare Free, as of 2026:
+Cloudflare Free (checked 2026-10-28):
 
 | Limit | Free tier | Our expected use |
 | --- | --- | --- |
-| Worker requests | ~100k/day | Cron 720/day + client reads |
-| Worker CPU | 10 ms/invocation | Fetch wait is not CPU; mapping ~22 rows is tiny |
-| Cron triggers | 5/account, minimum every minute | 1 trigger |
-| Subrequests | ~50/invocation | 3–6 per refresh |
+| Worker requests | 100,000/day | Cron 720/day + client reads |
+| Worker CPU | 10 ms/invocation, including cron | Keep each tick to a few sessions and measure |
+| Cron triggers | 5/account, minute-level | 1 trigger |
+| Cron wall time | 15 min/invocation | Far more than needed |
+| Subrequests | 50/invocation | ~6 per session; cap the tick at 3–5 sessions |
+| Simultaneous connections | 6/invocation | Serialize per-source calls |
 | KV storage | 1 GB | ~1–2 MB/season |
-| KV reads | ~100k/day | One or two per client request |
-| KV writes | ~1k/day | Only when a result or source state changes |
+| KV reads | 100,000/day | Metadata + one or two per client request |
+| KV writes | 1,000/day to different keys | Transitions only, plus the heartbeat |
+| KV same-key writes | 1/sec | One writer per key; guard against races |
 
-The design must **not write a status key every tick**. Write only when the result changes
-or a source state transitions. A separate heartbeat can be written every 10 minutes if
-needed.
+**Write discipline.** A 2-minute cron is 720 ticks/day. Persisting `checkedAt` or source
+status for every session on every tick would be 5,040 writes/day for seven sessions, five
+times the free limit. The persisted `CachedResult` therefore changes only when:
 
-KV is eventually consistent: a write can take up to about 60 seconds to be visible
-everywhere. That is acceptable for results that already take minutes to publish.
+- the result state or the displayed classification changes;
+- a source transitions between `ready`, `empty`, `locked` and `error`;
+- a final result is rechecked and the classification actually differs.
+
+Volatile "last checked" information belongs in logs or in a single `meta:status` blob,
+not in every `result:` key. The heartbeat is one key every 10 minutes (144 writes/day);
+do not also write a per-session status key every tick.
+
+**Upstream budgets.** jolpica allows **4 requests/second burst and 500 requests/hour**
+sustained for unauthenticated clients. Seven pending sessions polled every 2 minutes is
+210 requests/hour, which fits but is not free: metadata refreshes and on-demand calls must
+fit in the same budget. OpenF1's free tier is 3 requests/second and 30/minute, so the
+Worker must reuse the serial request queue rather than fire every session at once.
+
+Cron Triggers execute in **UTC** and are not guaranteed to run at the exact scheduled
+second. All session-window math must therefore be UTC, and the design must tolerate a tick
+arriving a little late.
+
+KV is eventually consistent: a write can take **60 seconds or more** to be visible in
+other locations, and negative lookups ("the key does not exist") are cached too. That is
+acceptable for results that already take minutes to publish, but client polling should
+not be faster than that window. KV's `cacheTtl` defaults to 60 seconds and cannot be set
+below 30; lowering it does not make writes visible faster.
 
 ---
 
@@ -141,7 +167,7 @@ everywhere. That is acceptable for results that already take minutes to publish.
 
 - One Worker endpoint for one session's result.
 - jolpica canonical fetch and normalization.
-- OpenF1 results fallback for every session, with server-side 401/429 handling.
+- OpenF1 results fallback for every session, with server-side 401/403/429 handling.
 - KV cache with `pending` / `provisional` / `final` states.
 - Cron warmer around session windows.
 - Vercel rewrite so the frontend calls `/api/results/...` same-origin.
@@ -216,12 +242,17 @@ the target OpenF1-primary priority is in §18.
 
 A payload is complete when:
 
-- it contains at least the expected number of drivers (from the season's driver
-  standings, falling back to 20), and
-- at least one entry has a position.
+- it contains at least `expected - 1` drivers, where `expected` comes from the season's
+  driver standings and falls back to 20. Standings can include reserve or replacement
+  drivers, and a DNS or withdrawal reduces the starters, so an exact count is too strict;
+- **at least one raw source row has a real position** — not a position synthesized while
+  mapping; and
+- for races and sprints, the winner and at least one classified finisher are present.
 
-Retirements may legitimately lack a position. This matches the readiness probe's existing
-definition and avoids promoting a partial classification to `final`.
+Retirements may legitimately lack a position. The check is applied to the raw source
+payload (or the pre-mapping rows) so a partial OpenF1 response cannot be promoted to
+`final` just because the mapper filled in positions. This otherwise matches the readiness
+probe's existing definition.
 
 ---
 
@@ -235,11 +266,12 @@ definition and avoids promoting a partial classification to `final`.
 | `meta:rounds:{season}` | round number → alpha round id | daily / 12h |
 | `meta:openf1:sessions:{season}` | OpenF1 session list for name/date matching | 6h |
 | `meta:drivers:{season}` | expected driver count | daily |
-| `meta:heartbeat` | last cron run, last error | every 10 min |
+| `meta:status` | last cron run, last error, per-session summary | every 10 min |
 | `result:{season}:{round}:{code}` | one `CachedResult` | on change |
 
-Final results have no TTL. Old sessions can stay in KV; 1 GB is far more than this app
-needs. A later cleanup job can prune seasons if necessary.
+Final results have no TTL, but they are rechecked for post-race amendments (see §7.6). Old
+sessions can stay in KV; 1 GB is far more than this app needs. A later cleanup job can
+prune seasons if necessary.
 
 ### 6.2 `CachedResult`
 
@@ -247,6 +279,7 @@ needs. A later cleanup job can prune seasons if necessary.
 type ResultState = 'pending' | 'provisional' | 'final'
 type SourceState = 'ready' | 'empty' | 'locked' | 'error'
 
+/** Persisted with CachedResult; updated only when the summary changes. */
 interface SourceStatus {
   state: SourceState
   count: number
@@ -256,8 +289,15 @@ interface SourceStatus {
   retryAt?: string
 }
 
+/** Returned by a refresh, not written to KV on every tick. */
+interface SourceCheck extends SourceStatus {
+  source: 'jolpica' | 'openf1'
+}
+
 interface CachedResult {
-  v: 1
+  v: 2
+  /** Monotonic per key. A writer refuses to replace a higher revision. */
+  revision: number
   season: string
   round: string
   code: SessionCode
@@ -268,6 +308,8 @@ interface CachedResult {
   fetchedAt: string | null
   checkedAt: string
   nextAttemptAt: string | null
+  /** Final results only: when the next amendment check is due (§7.6). */
+  recheckAt: string | null
   sources: {
     jolpica: SourceStatus
     openf1: SourceStatus
@@ -279,10 +321,18 @@ Notes:
 
 - `session` is the existing wire shape, so `SessionResultTable` needs no changes.
 - `fetchedAt` is when the displayed session data was fetched.
-- `checkedAt` is the last upstream attempt, even if nothing changed.
-- `nextAttemptAt` implements backoff without hammering a failing source.
-- `sources.openf1.state = "locked"` is exact: the Worker can read the 401 response.
+- `checkedAt` is the last **persisted** upstream check. Transient per-tick checks are
+  logged and summarized in `meta:status`; they are not written to every result key.
+- `nextAttemptAt` implements backoff without hammering a failing source. Write it when
+  entering a backoff state, not on every attempt that is already backing off.
+- `recheckAt` is set when a result becomes `final`; the cron uses it to re-fetch for
+  post-race amendments.
+- `revision` increases on every accepted write. A writer re-reads the key and refuses to
+  overwrite a higher revision, or to replace `final` with a lower-priority state.
+- `sources.openf1.state = "locked"` is exact: the Worker can read the 401/403 response.
 - `sources` is exposed to the frontend so the UI can explain *why* a result is pending.
+- If `v` is not the current version, treat the key as missing and refetch rather than
+  guessing at an old shape.
 
 ### 6.3 HTTP response
 
@@ -299,11 +349,14 @@ interface ResultsResponse {
 }
 ```
 
-- `pollAfterMs`: 30s while pending, 60s while provisional, `null` when final.
+- `pollAfterMs`: 60s while pending or provisional, `null` when final. This is not faster
+  than KV's 60-second propagation window; a 30-second poll can return the same stale value.
 - Return HTTP 200 for `pending`; it is a valid state, not an error.
-- Return 400 for invalid parameters and 404 for an unknown route.
-- Phase 1 can send `Cache-Control: no-store`. The Worker cache is the important cache.
-  ETag/CDN caching can be added later if request volume needs it.
+- Return 400 for invalid parameters and 404 for an unknown route. Validate `season`,
+  `round` and `code` before using them in KV keys.
+- Send `Cache-Control: no-store` for `pending` and `provisional`. For `final`, a short
+  `public, max-age=30` (or an ETag) is safe and reduces Worker/KV reads; keep it short
+  because final results can still be amended. ETag/CDN caching can be expanded later.
 
 ---
 
@@ -333,40 +386,55 @@ refreshSession(session):
   cached = read KV
   now = Date.now()
 
-  if cached.state == 'final': return cached
+  if cached.state == 'final' and cached.recheckAt != null and now < cached.recheckAt:
+      return cached
 
+  checks = []
   jolpica = fetchJolpica(session)
+  checks.push(jolpica)
+
   if jolpica.complete:
-      write final(jolpica)
-      return
-
-  if !isPractice(session.code):
-      write pending-or-provisional(jolpica)
-      return
-
-  openf1 = fetchOpenF1(session)
-  if openf1.complete:
-      write provisional(openf1)
-  else if openf1.locked:
-      write pending-or-provisional(jolpica, openf1.locked)
-      set openf1.retryAt = now + 15 min
+      candidate = final(jolpica)
+  else if openf1Allowed(cached, now):
+      # v1: OpenF1 is tried for every session, including Q, SR and R.
+      openf1 = fetchOpenF1(session)
+      checks.push(openf1)
+      candidate = chooseBest(jolpica, openf1)
   else:
-      write best-available(jolpica, openf1)
+      candidate = bestOf(jolpica)
+
+  candidate.sources = summarize(cached?.sources, checks)
+  writeIfNewer(session, candidate)   # never downgrade final; compare revision
+  return candidate
 ```
 
 Rules:
 
 - Always try jolpica first.
 - If jolpica is complete, never overwrite it with OpenF1.
+- If jolpica is incomplete, try OpenF1 for **all** sessions in v1 (`FP1`–`FP3`, `SQ`,
+  `SR`, `Q`, `R`), not just practice. This is what §8.2 and the Phase 7 goal require.
 - If jolpica is incomplete but non-empty, it can be shown provisionally.
 - If OpenF1 is more complete than jolpica, show OpenF1 provisionally.
 - Keep polling jolpica after a provisional result; promote as soon as it is complete.
-- If OpenF1 returns 401, mark `locked` and skip OpenF1 until `retryAt`; keep polling
-  jolpica.
+- If OpenF1 returns 401 or 403, mark `locked` and skip OpenF1 until `retryAt`; keep
+  polling jolpica. `openf1Allowed` is false while `sources.openf1.retryAt` is in the
+  future, and the skip still costs no OpenF1 request.
 - If OpenF1 returns 429 or a network error, mark `error` and back off; respect
   `Retry-After` when present.
-- If jolpica errors, still try OpenF1 for practice.
-- Use a 5-second timeout on upstream requests so a stuck source cannot hold the Worker.
+- If jolpica errors, still try OpenF1.
+- Use a 5-second timeout on upstream requests, and a single overall deadline for an
+  on-demand refresh (see §7.4). Two sequential 5-second requests must not turn into a
+  10-second wait.
+- All writes go through `writeIfNewer`: set `candidate.revision = cached.revision + 1`,
+  re-read the key, skip if `current.revision >= candidate.revision`, and never replace
+  `final` with `pending` or `provisional`. The guard is best-effort because KV reads can
+  be stale across regions; if strict serialization is ever needed, use a Durable Object.
+- Route OpenF1 requests through one serial queue with a 500 ms gap. Do not issue a
+  session's result, driver and grid calls concurrently.
+- Do **not** write `checkedAt` on every tick. Only persist when the state, count or
+  displayed classification changes, when a source state transitions, or when a final
+  result is amended.
 
 ### 7.3 Cron selection
 
@@ -375,35 +443,50 @@ The cron runs every 2 minutes. It does **not** fetch every session every time.
 A session is due when:
 
 - `now >= estimated end` (results do not exist before the flag);
-- `now <= estimated end + 24h`, unless the result is already final;
-- the cached `nextAttemptAt` is in the past;
-- and the session is not already final.
+- the session is not `final`, or it is `final` and `now >= recheckAt`;
+- for a non-final session, `now <= estimated end + 24h`; final results use `recheckAt`
+  instead;
+- and the cached `nextAttemptAt` is in the past.
 
 Additional rules:
 
-- Poll jolpica every tick while pending.
+- Poll jolpica every tick while pending, subject to the per-tick cap and the 500
+  requests/hour budget.
 - After a provisional result, poll jolpica less often (e.g. every 5 minutes) and keep the
   provisional table available.
-- After 24 hours, stop frequent polling. Keep the provisional result and retry jolpica
-  occasionally (e.g. once a day) or leave it until the next page request.
-- Limit concurrent refreshes to a small number (3–5) to stay well inside subrequest and
-  CPU limits.
+- After 24 hours, stop frequent polling. Keep the provisional result and let an on-demand
+  request refresh it when `checkedAt` is stale (see §7.4).
+- Cap each tick at **3–5 sessions**. Concurrency limits simultaneous connections, not
+  total subrequests: seven sessions at roughly six subrequests each is close to the free
+  limit of 50. Prefer a smaller tick over a failed invocation.
+- Run refreshes with `Promise.allSettled` so one bad session does not fail the whole tick.
+- Serialize OpenF1 calls through the 500 ms queue and stay below 3 requests/second and
+  30/minute.
+- The 10 ms CPU limit applies to cron invocations too. Keep each tick small and watch
+  `cpuTime` in `wrangler tail`; a paid plan is the fallback if parsing several sessions
+  consistently exceeds it.
+- Cron runs in UTC. Do not reuse the browser's `TODAY` or `NOW_MILLIS`.
 
-The exact backoff can be tuned after the first race weekend.
+The exact backoff and batch size can be tuned after the first race weekend.
 
 ### 7.4 On-demand refresh
 
 `GET /api/results/...`:
 
 1. Read KV.
-2. If present, return it.
-3. If missing and the session is old enough to have results, refresh once with a 5-second
-   budget, write the result, and return.
-4. If the refresh fails, return `pending` with source statuses.
+2. If present and fresh, return it.
+3. If present but stale (`final` with `recheckAt` due, or a non-final result whose
+   persisted `checkedAt` is more than 24 hours old), return the cached value immediately
+   and refresh in `ctx.waitUntil()`.
+4. If missing and the session is old enough to have results, refresh once with an overall
+   8-second deadline (5 seconds per upstream call), write the result, and return.
+5. If the refresh fails, return `pending` with source statuses.
 
-This makes the first visitor useful even if the cron has not run yet. A per-isolate
-in-memory promise can coalesce duplicate refreshes; a distributed lock is unnecessary for
-this traffic level.
+This makes the first visitor useful even if the cron has not run yet, and a stale
+provisional table never blocks a later jolpica result. A per-isolate in-memory promise can
+coalesce duplicate refreshes; it does not prevent cross-region duplicate work, which is
+acceptable at this traffic level. Writes still go through the revision guard, so a
+duplicate refresh cannot downgrade a `final` result.
 
 ### 7.5 Session windows
 
@@ -429,7 +512,26 @@ src/shared/schedule.ts
 ```
 
 `src/lib/schedule.ts` can keep the browser-specific `TODAY`, `NOW_MILLIS` and live/featured
-logic and re-export/use the pure helpers.
+logic and re-export/use the pure helpers. The Worker must do all window math in **UTC**;
+the visitor's timezone is a presentation concern only.
+
+### 7.6 Final reconciliation
+
+`final` is not immutable. Race classifications can change after publication (DSQ,
+penalties, fastest-lap corrections), so a cached final result must be rechecked:
+
+- set `recheckAt` when a result becomes final: first at +1 hour, then +6 hours, +24 hours
+  and +72 hours; if an existing final has no `recheckAt`, treat it as due once;
+- on each recheck, fetch jolpica, compare a hash of the classification (positions, status,
+  points and components) and write only when it changed;
+- after the last recheck, leave the final result in KV and stop polling;
+- if a recheck fails or returns an incomplete payload, keep the final result and push
+  `recheckAt` forward (e.g. +1 hour) instead of retrying on every tick;
+- an on-demand request for a final result past `recheckAt` refreshes it in the background
+  with `ctx.waitUntil()`.
+
+That keeps the write cost tiny while ensuring a post-race penalty reaches every visitor.
+A recheck that finds no change updates only `recheckAt`, so it is one write per step.
 
 ---
 
@@ -442,7 +544,9 @@ logic and re-export/use the pure helpers.
 - Round ids: `/f1/alpha/core/rounds/?year={season}`
 - Results: `/f1/alpha/results/{roundId}/{code}/`
 - Drivers: `/ergast/f1/{season}/driverstandings/?limit=100`
-- Headers: `Accept: application/json`, `User-Agent: GoldenFormulaOne/1.0.0 (+GitHub URL)`
+- Headers: `Accept: application/json`, `User-Agent: GoldenFormulaOne/1.0.0 (+https://github.com/fabdeceglia/goldenformulaone)`
+- Rate limits: 4 requests/second burst and 500 requests/hour sustained for unauthenticated
+  access. Back off on `429` and respect `Retry-After`; keep the cron well inside the budget.
 - Normalize the alpha envelope (`{ metadata, data }` or bare payload) in one place.
 - Treat an empty `results` array as `empty`, not an error.
 
@@ -454,10 +558,18 @@ logic and re-export/use the pure helpers.
 - Drivers: `/drivers?session_key={key}`
 - Match jolpica session → OpenF1 session by year + session name + scheduled start, with
   circuit key as a tiebreaker. This is the same join the current frontend uses.
-- `401` means the free-tier live blackout. Store `locked` and the exact message/status.
-- `404` means no results yet; treat as `empty`.
-- `429` means rate limited; back off and respect `Retry-After`.
-- Map OpenF1 rows into `AlphaSessionResults` with the existing mapping logic.
+- `401` or `403` means the free-tier live blackout. Store `locked` and the exact
+  status/message.
+- `404` or a `200` with `[]` means no results yet; treat as `empty`.
+- `429` means rate limited; back off and respect `Retry-After` in either seconds or
+  HTTP-date form.
+- OpenF1's real-time feed requires a paid subscription. The Worker only needs the
+  historical classification after the flag, which is free.
+- Route all OpenF1 requests through one serial queue (500 ms gap). Do not issue a
+  session's result, driver and grid calls concurrently.
+- Map OpenF1 rows into `AlphaSessionResults` with the existing mapping logic, but compute
+  completeness from the raw rows' real `position` values before mapping. Do not invent a
+  position for an unclassified row.
 - v1 uses OpenF1 for every session: `FP1`–`FP3`, `SQ`, `SR`, `Q` and `R`. The race and
   sprint grid is filled from the corresponding qualifying session's `starting_grid`
   feed (`Q` for `R`, `SQ` for `SR`), which is the actual grid including penalties; if
@@ -494,7 +606,7 @@ Default base: `/api/results` (same origin). In development, Vite proxies `/api` 
 
 ### 9.2 `RaceResults.tsx`
 
-Replace the current `alpha.session` + `practiceResults` split with one request.
+Replace the current `alpha.session` + `provisionalResults` split with one request.
 
 Render states:
 
@@ -508,24 +620,29 @@ Render states:
 
 The frontend no longer needs:
 
-- `src/lib/practiceCache.ts`;
-- `practiceResults()` / `isPracticeSession()` for the results view;
+- `src/lib/provisionalCache.ts`;
+- `provisionalResults()` / `isOpenF1FallbackSession()` for the results view;
 - the `openF1Locked` schedule heuristic;
 - direct OpenF1 result requests;
-- the practice-only `PracticeResults` union.
+- the provisional `ProvisionalResults` union.
 
-The session index (`alpha.resultsIndex`) can stay direct for v1. Moving it behind the
-Worker is a later optimization.
+The session index (`alpha.resultsIndex`) can stay direct for v1, **but the tab list must
+not depend on it alone**. If jolpica has not indexed a session, a Worker provisional result
+would be unreachable. Build the tabs from `raceSchedule(selectedRace)`, filtered to
+sessions that have started, and use `alpha.resultsIndex` only for labels or additional
+sessions. Moving the index behind the Worker is a later optimization.
 
 ### 9.3 Polling
 
-Keep the current polling behavior initially, but point it at `/api/results`. The Worker
-cache absorbs duplicate requests. Later, use `pollAfterMs` from the response to reduce
-client polling:
+Point the current polling loop at `/api/results` initially; the Worker cache absorbs
+duplicate requests. Use `pollAfterMs` from the response as soon as the Worker returns it:
 
-- pending: 30s
+- pending: 60s
 - provisional: 60s
 - final: stop
+
+Sixty seconds matches KV's propagation window; polling faster mostly returns the same
+cached value.
 
 ### 9.4 Rollout
 
@@ -551,9 +668,9 @@ worker/
   test/
     fixtures/         # small captured payloads for manual checks
   tsconfig.json
-wrangler.toml
+wrangler.jsonc
 src/shared/
-  results.ts          # CachedResult / ResultsResponse / SourceStatus types
+  results.ts          # CachedResult / ResultsResponse / SourceStatus / SourceCheck types
   schedule.ts         # pure session-window helpers
   openf1Map.ts        # pure OpenF1 -> AlphaSessionResults mapping
   alpha.ts            # pure alpha envelope unwrap helper
@@ -578,7 +695,7 @@ following must be in place:
 | Wrangler authentication | Owner runs `npx wrangler@latest login`, completes browser consent, then `npx wrangler@latest whoami` succeeds |
 | Worker name | `boxthislap-results` |
 | `workers.dev` subdomain | Existing or chosen once for the account; the Worker URL becomes `https://boxthislap-results.<subdomain>.workers.dev` |
-| KV namespace | Created in §11.2; the namespace id goes into `wrangler.toml` |
+| KV namespace | Created in §11.2; the namespace id goes into `wrangler.jsonc` |
 | Vercel project | Existing static deployment; rewrite added in §11.4 |
 | OpenF1 API key | Not needed in v1 |
 | Credit card / custom domain | Not needed |
@@ -617,23 +734,29 @@ npx wrangler whoami
 npx wrangler kv namespace create RESULTS
 ```
 
-The last command prints a namespace id. Copy it into `wrangler.toml`:
+The last command prints a namespace id. Copy it into `wrangler.jsonc` (the recommended
+config format; `wrangler.toml` is still supported):
 
-```toml
-name = "boxthislap-results"
-main = "worker/src/index.ts"
-compatibility_date = "2026-10-01"
-
-[[kv_namespaces]]
-binding = "RESULTS"
-id = "<namespace-id>"
-
-[triggers]
-crons = ["*/2 * * * *"]
-
-[vars]
-JOLPICA_USER_AGENT = "GoldenFormulaOne/1.0.0 (+https://github.com/fabdeceglia/goldenformulaone)"
+```jsonc
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "boxthislap-results",
+  "main": "worker/src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "kv_namespaces": [
+    { "binding": "RESULTS", "id": "<namespace-id>" }
+  ],
+  "triggers": {
+    "crons": ["*/2 * * * *"]
+  },
+  "vars": {
+    "JOLPICA_USER_AGENT": "GoldenFormulaOne/1.0.0 (+https://github.com/fabdeceglia/goldenformulaone)"
+  }
+}
 ```
+
+Run `npx wrangler types` after adding bindings, and include the generated
+`worker-configuration.d.ts` in `worker/tsconfig.json`.
 
 Dashboard alternative: **Workers & Pages → KV → Create namespace**, name it `RESULTS`,
 then copy the namespace id from its details page.
@@ -644,7 +767,7 @@ Optional later, if a paid OpenF1 key is added:
 npx wrangler secret put OPENF1_API_KEY
 ```
 
-Do not put secrets in `wrangler.toml`, the frontend, or this document.
+Do not put secrets in `wrangler.jsonc`, the frontend, or this document.
 
 ### 11.3 Package scripts
 
@@ -654,6 +777,7 @@ Do not put secrets in `wrangler.toml`, the frontend, or this document.
     "worker:dev": "wrangler dev",
     "worker:deploy": "wrangler deploy",
     "worker:tail": "wrangler tail",
+    "worker:types": "wrangler types",
     "worker:typecheck": "tsc -p worker/tsconfig.json --noEmit"
   }
 }
@@ -663,18 +787,32 @@ Add `.wrangler/` and `.dev.vars` to `.gitignore`.
 
 ### 11.4 Vercel rewrite
 
-Add to `vercel.json`:
+Add these entries to the existing `rewrites` array in `vercel.json` (keep the news
+rewrites):
 
 ```json
-{
-  "source": "/api/results/:path*",
-  "destination": "https://<worker-subdomain>.workers.dev/api/results/:path*"
-}
+[
+  {
+    "source": "/api/results/:path*",
+    "destination": "https://<worker-subdomain>.workers.dev/api/results/:path*"
+  },
+  {
+    "source": "/api/status",
+    "destination": "https://<worker-subdomain>.workers.dev/api/status"
+  },
+  {
+    "source": "/health",
+    "destination": "https://<worker-subdomain>.workers.dev/health"
+  }
+]
 ```
 
 This keeps the browser same-origin, so no CORS work is needed. The Worker URL is public
-and contains no secret.
+and contains no secret. Vercel's external-rewrite proxy has a 120-second timeout, well
+above the Worker's on-demand budget.
 
+If `/api/status` and `/health` are only used for debugging, the rewrites can be skipped
+and the Worker URL called directly; the production `curl` checks in §12.3 already do that.
 If external path rewrites cause trouble, fall back to calling the Worker directly with
 `VITE_RESULTS_BASE` and restrict CORS to `https://boxthislap.vercel.app` and
 `http://localhost:5173`.
@@ -683,17 +821,18 @@ If external path rewrites cause trouble, fall back to calling the Worker directl
 
 - `npm run worker:dev` starts Wrangler on `http://127.0.0.1:8787`.
 - `npm run dev` proxies `/api` to Wrangler.
-- Use `wrangler dev --test-scheduled` and the `__scheduled` endpoint to run the cron
-  handler locally.
-- Add a `?now=` test path later if needed; the Worker should accept an injected `now`
-  in its refresh functions so tests can freeze time without browser globals.
+- Use `wrangler dev --test-scheduled` and the local route
+  `/cdn-cgi/local/scheduled?cron=*/2+*+*+*+*` to run the cron handler. Add
+  `?time=<epoch-ms>` to override `controller.scheduledTime` for deterministic tests.
+- The Worker should accept an injected `now` in its refresh functions so tests can freeze
+  time without browser globals. The scheduled test route covers the cron entry point.
 
 ### 11.6 Deploy order
 
-1. Deploy the Worker and KV namespace.
+1. Deploy the Worker and KV namespace (`wrangler types`, then `wrangler deploy`).
 2. Seed the calendar/round metadata by calling `/api/results/...` or the cron.
-3. Verify `/api/status`.
-4. Add the Vercel rewrite and deploy the frontend.
+3. Verify `/api/status` and `/health`.
+4. Add the Vercel rewrites for results, status and health, then deploy the frontend.
 5. Verify the app in production.
 6. Keep the previous frontend commit as the rollback point.
 
@@ -707,30 +846,40 @@ Test the pure functions without Cloudflare:
 
 - alpha envelope unwrap;
 - OpenF1 → `AlphaSessionResults` mapping;
-- completeness calculation;
-- session window calculation;
-- source-priority selection (jolpica complete vs partial vs OpenF1).
+- completeness calculation from **raw** OpenF1 rows (not mapped positions);
+- session window calculation in UTC;
+- source-priority selection (jolpica complete vs partial vs OpenF1);
+- state-rank/revision guard (a provisional result cannot replace `final`);
+- final-recheck hash comparison.
 
 The repo has no test runner today. Start with a small Node script or `node:test` over the
-shared modules; add Vitest only if the test surface grows.
+shared modules; add Vitest if the test surface grows or if Node cannot strip the shared
+TypeScript syntax.
 
 ### 12.2 Worker integration
 
 Use `wrangler dev` and fixture-backed source adapters:
 
 1. jolpica ready → `final`, source `jolpica`.
-2. jolpica empty + OpenF1 ready → `provisional`, source `openf1`.
-3. jolpica empty + OpenF1 401 → `pending`, `openf1.state = locked`.
+2. jolpica empty + OpenF1 ready → `provisional`, source `openf1` — for a practice session
+   **and** for `Q`, `SR` and `R`.
+3. jolpica empty + OpenF1 401 or 403 → `pending`, `openf1.state = locked`.
 4. cached provisional + jolpica later ready → promoted to `final`.
-5. cached final → cron skips it.
-6. OpenF1 429 → backoff, no repeated hammering.
-7. malformed alpha envelope → normalized or reported as an error, not a crash.
-8. missing KV key → on-demand refresh path.
+5. cached final before `recheckAt` → cron skips it.
+6. cached final after `recheckAt` with a changed classification → updated in place.
+7. OpenF1 429 → backoff, no repeated hammering.
+8. malformed alpha envelope → normalized or reported as an error, not a crash.
+9. missing KV key → on-demand refresh path.
+10. stale provisional → returned immediately, refreshed in `ctx.waitUntil()`.
+11. cron and a request writing the same key → `final` is not downgraded.
+12. a tick with the maximum session count stays under the subrequest and write budgets.
+13. OpenF1 `200 []` → `empty`, indistinguishable from `404` for completeness purposes.
 
 ### 12.3 Production validation
 
 Before the next session:
 
+- `curl https://<worker>/health`
 - `curl https://<worker>/api/status`
 - `curl https://<worker>/api/results/2026/18/FP1`
 - check the Vercel rewrite path in the browser
@@ -741,7 +890,10 @@ During the weekend:
 - compare the Worker's first-seen times with `npm run readiness:report`
 - confirm a cached provisional table survives the next live lock
 - confirm jolpica promotion happens without a page reload (polling)
-- watch `wrangler tail` for upstream errors and CPU/timeout warnings
+- watch `wrangler tail` for upstream errors, `cpuTime`, jolpica 429s and timeouts
+- check the KV write count in the Cloudflare dashboard; a 2-minute cron should not
+  approach 1,000 writes/day
+- confirm the session tabs appear even when `alpha.resultsIndex` is empty or late
 
 Success criteria:
 
@@ -749,16 +901,19 @@ Success criteria:
 - every client sees the same source/state;
 - a provisional table remains available during the next live lock;
 - jolpica replaces it when it publishes;
+- a post-race amendment is picked up by the final recheck;
 - no direct OpenF1 result calls from the frontend;
-- free-tier usage stays comfortably within limits.
+- free-tier usage stays comfortably within limits, including KV writes and jolpica's
+  500 requests/hour.
 
 ---
 
 ## 13. Observability
 
-- `/api/status` returns the last cron heartbeat and per-session source status.
+- `/api/status` returns the last cron heartbeat and a per-session summary from one
+  `meta:status` blob. It must not list every `result:` key on each request.
 - `console.log` structured events: session, source, count, state transition, duration,
-  error.
+  `cpuTime`, KV writes, 429s, error.
 - `wrangler tail` for live logs.
 - Later, an external uptime monitor can hit `/health` or `/api/status` and alert if the
   cron heartbeat is older than, say, 15 minutes.
@@ -771,18 +926,23 @@ Success criteria:
 
 | Risk | Mitigation |
 | --- | --- |
-| KV eventual consistency | Results are not instant; 60s propagation is acceptable |
-| KV write limit | Write only on result/state change; heartbeat every 10 min |
-| Worker 10ms CPU | Keep normalization small; fetch wait is not CPU; use paid plan only if needed |
+| KV eventual consistency | Results are not instant; 60s+ propagation is acceptable; poll at 60s and accept cached negatives |
+| KV write limit | Persist only transitions; one `meta:status` blob; no per-tick `checkedAt` writes |
+| KV same-key write race | Revision guard; never downgrade `final`; one writer per key where possible |
+| Worker 10ms CPU | Cap the tick at 3–5 sessions; watch `cpuTime`; paid plan only if needed |
 | Cron failure is silent on free tier | `/status` heartbeat + optional uptime monitor; on-demand refresh still works |
 | jolpica alpha changes shape | Isolate unwrap/normalization in one module; add fixtures |
+| jolpica 429 / 500-per-hour limit | Budget polling; back off and respect `Retry-After`; keep cron batches small |
 | jolpica publishes late | Keep polling; serve OpenF1 provisional in the meantime |
-| OpenF1 live lock | Capture results before the lock; cache them; exact 401 handling server-side |
-| OpenF1 rate limits | Centralized backoff; respect `Retry-After` |
-| Vercel external rewrite issue | Fallback to direct Worker URL + CORS |
+| Final result is amended after publication | `recheckAt` at 1h/6h/24h/72h; compare hash and update |
+| OpenF1 live lock | Capture results before the lock; cache them; exact 401/403 handling server-side |
+| OpenF1 rate limits | Serial 500 ms queue; stay below 3/s and 30/min; respect `Retry-After` |
+| Vercel external rewrite issue | Fallback to direct Worker URL + CORS; 120s proxy timeout |
 | Two-platform deploy | Document deploy order and keep rollback to the previous frontend commit |
-| Duplicate refresh from cron + request | Low traffic; optional in-isolate promise coalescing |
-| Partial result shown as final | Completeness threshold; keep polling until complete |
+| Duplicate refresh from cron + request | In-isolate coalescing plus the revision guard; cross-region duplicates are acceptable |
+| Partial result shown as final | Completeness from raw positions; race winner/finisher check; keep polling until complete |
+| Session tabs hidden by a late alpha index | Build tabs from the calendar/session windows, not `alpha.resultsIndex` alone |
+| Stale provisional never promotes | On-demand staleness check and background refresh after 24h |
 
 ---
 
@@ -790,14 +950,18 @@ Success criteria:
 
 1. Worker name and `workers.dev` subdomain.
 2. KV namespace id (needs the Cloudflare account).
-3. Cron cadence: start with 2 minutes; tune after the first weekend.
+3. Cron cadence and batch size: start with 2 minutes and 3–5 sessions; tune after the
+   first weekend against the jolpica hourly budget.
 4. How long to keep polling jolpica after a provisional result: 24h initially.
 5. Whether to add a protected manual refresh endpoint.
-6. Whether to move the results index behind the Worker in v1 or later.
+6. Whether to move the results index behind the Worker in v1 or later; the tab list must
+   fall back to the calendar either way.
 7. Whether to add a paid OpenF1 key later.
 8. Whether to add ETag/CDN caching after measuring traffic.
 9. Whether to keep the local readiness scripts as-is or fold their reporting into
    `/api/status`.
+10. Final recheck schedule: 1h/6h/24h/72h is the starting point; add a weekly check only
+    if real amendments are missed.
 
 ---
 
@@ -810,7 +974,7 @@ Success criteria:
 - [ ] Authenticate Wrangler (`npx wrangler@latest login`; verify `wrangler whoami`)
 - [ ] Confirm Worker name `boxthislap-results` and the `workers.dev` subdomain
 - [ ] Create KV namespace `RESULTS` and capture its id
-- [ ] Add `wrangler.toml`
+- [ ] Add `wrangler.jsonc` and run `wrangler types`
 - [ ] Add `/health` and `/api/status`
 - [ ] Deploy a skeleton Worker and verify the URL
 
@@ -819,9 +983,11 @@ Success criteria:
 - [ ] Add shared types and alpha unwrap
 - [ ] Add calendar/round-id metadata cache
 - [ ] Add jolpica adapter
-- [ ] Add KV `CachedResult` read/write
+- [ ] Add KV `CachedResult` read/write with `revision` and `state` guard
+- [ ] Split durable `CachedResult` from transient `SourceCheck`
 - [ ] Add `GET /api/results/...`
-- [ ] Add completeness calculation
+- [ ] Add completeness calculation from raw source rows
+- [ ] Add final recheck (`recheckAt`) scaffolding
 - [ ] Test with a finished session (e.g. FP1) via curl
 
 ### Phase 2 — OpenF1 fallback
@@ -829,16 +995,20 @@ Success criteria:
 - [ ] Add OpenF1 session list cache and session-key join
 - [ ] Move/reuse the OpenF1 → alpha mapping
 - [ ] Add all-session OpenF1 fallback, including race/sprint grid enrichment
-- [ ] Add 401/404/429 handling and backoff
+- [ ] Add 401/403/404/`[]`/429 handling and backoff
+- [ ] Add the serial OpenF1 request queue
 - [ ] Test locked/empty/ready cases
 
 ### Phase 3 — cron
 
 - [ ] Add scheduled handler
-- [ ] Add session-window selection
+- [ ] Add session-window selection in UTC
 - [ ] Add promotion/backoff state machine
-- [ ] Add heartbeat
-- [ ] Test locally with `--test-scheduled`
+- [ ] Add final-recheck schedule
+- [ ] Add `Promise.allSettled` and per-session logging
+- [ ] Add the tick cap (3–5 sessions) and subrequest/CPU budget check
+- [ ] Add one `meta:status` heartbeat, not per-session status writes
+- [ ] Test locally with `--test-scheduled` and `?time=`
 - [ ] Deploy and verify cron runs
 
 ### Phase 4 — frontend
@@ -846,18 +1016,19 @@ Success criteria:
 - [ ] Add `resultsService.ts`
 - [ ] Switch `RaceResults.tsx`
 - [ ] Add final/provisional/pending/locked UI states
+- [ ] Build tabs from `raceSchedule()` with `alpha.resultsIndex` as a supplement
 - [ ] Remove `provisionalCache.ts`, the FE OpenF1 result fallback and the lock heuristic
-- [ ] Keep `alpha.resultsIndex` direct for now
-- [ ] Update polling to use `pollAfterMs` (or keep current cadence initially)
+- [ ] Update polling to use `pollAfterMs` at 60s (or keep current cadence initially)
 
 ### Phase 5 — production verification
 
-- [ ] Add Vercel rewrite
+- [ ] Add Vercel rewrites for results, status and health
 - [ ] Deploy frontend
 - [ ] Verify `/api/results/...` through Vercel
 - [ ] Verify `/api/status`
 - [ ] Run through a practice session
 - [ ] Confirm promotion when jolpica publishes
+- [ ] Check KV writes/day and jolpica 429s
 - [ ] Update README and this document's status
 
 ### Phase 6 — optional hardening
@@ -867,11 +1038,12 @@ Success criteria:
 - [ ] Manual refresh endpoint
 - [ ] Proxy results index/calendar
 - [ ] Paid OpenF1 key if the free gap is still a problem
+- [ ] Evaluate a SQLite-backed Durable Object if KV write/consistency races appear
 
 ### Phase 7 — OpenF1-primary migration
 
 - [ ] Add `PRIMARY_SOURCE` flag, default `jolpica`
-- [ ] Add `primary` / `enrichment` fields to `CachedResult`
+- [ ] Add `primary` / `enrichment` fields to `CachedResult` and bump `v`
 - [ ] Split refresh into primary and enrichment passes
 - [ ] Merge jolpica points, fastest lap and official grid into OpenF1 results
 - [ ] Compare both sources for one race weekend
@@ -939,7 +1111,7 @@ Rules:
 - If the two sources disagree, keep the OpenF1 timing/position for the provisional view,
   log the discrepancy, and use jolpica's official field for the final view. A mismatch is
   a signal to inspect, not a reason to blank the table.
-- OpenF1 `401` during a live session means "locked", not "empty". Serve the cached
+- OpenF1 `401`/`403` during a live session means "locked", not "empty". Serve the cached
   provisional result and retry after the lock window.
 
 ### 18.3 Merge rules
@@ -976,11 +1148,12 @@ Starting-grid clarification:
 
 1. Add a `PRIMARY_SOURCE` setting with `openf1` and `jolpica` values. Ship with
    `jolpica` during the transition; flip to `openf1` after a race weekend of comparison.
-2. Extend `CachedResult`:
+2. Extend `CachedResult` and bump `v`:
    ```ts
    type ResultSource = 'openf1' | 'jolpica' | 'openf1+jolpica'
    interface CachedResult {
      // existing fields...
+     v: 3
      primary: ResultSource
      enrichment: {
        jolpica: SourceStatus
@@ -991,15 +1164,16 @@ Starting-grid clarification:
 3. Split the refresh into two operations:
    - `refreshPrimary(session)` — OpenF1 first when the flag is `openf1`, otherwise jolpica.
    - `refreshEnrichment(session, primary)` — the other source, merged only when complete.
-4. Keep the current completeness rule (expected drivers + at least one position). Add a
-   race-specific check: the winner and at least one classified finisher must be present.
+4. Reuse the §5.4 completeness rule: expected drivers with tolerance, a real position from
+   the source rows, and for races the winner plus at least one classified finisher.
 5. Write a provisional result as soon as OpenF1 is complete; do not wait for the
    enrichment pass.
 6. Promote to `final` when the primary is complete and either:
    - jolpica enrichment is complete, or
    - the enrichment grace period has passed (e.g. 6 hours) and the primary has been stable.
+   Set `recheckAt` on promotion and use the §7.6 amendment checks.
 7. Keep polling jolpica after a provisional result. Never overwrite a good provisional
-   with a worse one.
+   with a worse one; the revision/state guard applies to the merged result too.
 8. Cache the OpenF1 session list and driver list for the season; only fetch per-session
    results and qualifying grids on refresh.
 
@@ -1028,8 +1202,8 @@ lose the table during the switch.
 
 ### 18.7 Risks
 
-- **OpenF1 live lock**: the free tier returns `401` during live sessions. Mitigate with the
-  cron warmer, the KV cache and jolpica fallback.
+- **OpenF1 live lock**: the free tier returns `401`/`403` during live sessions. Mitigate
+  with the cron warmer, the KV cache and jolpica fallback.
 - **OpenF1 is not the official classification**: use jolpica for points, fastest lap,
   penalties and the final canonical check.
 - **Grid penalties**: OpenF1's qualifying order is not the official grid. Prefer jolpica
@@ -1053,6 +1227,8 @@ lose the table during the switch.
 - No user-facing source note. Source and state are available in the API response and the
   browser console.
 - The Worker survives the OpenF1 live lock using cached provisional results.
+- A post-race amendment is reflected by the final-recheck schedule.
+- Session tabs appear even when `alpha.resultsIndex` has not listed the session yet.
 
 ---
 
@@ -1060,7 +1236,15 @@ lose the table during the switch.
 
 - Cloudflare Workers limits: <https://developers.cloudflare.com/workers/platform/limits/>
 - Cloudflare Cron Triggers: <https://developers.cloudflare.com/workers/configuration/cron-triggers/>
-- Cloudflare KV: <https://developers.cloudflare.com/kv/>
+- Cloudflare KV overview: <https://developers.cloudflare.com/kv/>
+- Cloudflare KV limits: <https://developers.cloudflare.com/kv/platform/limits/>
+- Cloudflare KV consistency: <https://developers.cloudflare.com/kv/concepts/how-kv-works/>
+- Cloudflare KV reads and `cacheTtl`: <https://developers.cloudflare.com/kv/api/read-key-value-pairs/>
+- Wrangler configuration: <https://developers.cloudflare.com/workers/wrangler/configuration/>
+- Wrangler cron testing: <https://developers.cloudflare.com/workers/examples/cron-trigger/>
 - Vercel Hobby cron limits: <https://vercel.com/docs/cron-jobs/usage-and-pricing>
+- Vercel rewrite limits: <https://vercel.com/docs/limits>
 - jolpica-f1: <https://github.com/jolpica/jolpica-f1>
+- jolpica rate limits: <https://github.com/jolpica/jolpica-f1/blob/main/docs/rate_limits.md>
 - OpenF1: <https://openf1.org/>
+- OpenF1 API docs: <https://openf1.org/docs>
