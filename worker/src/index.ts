@@ -279,14 +279,24 @@ export default {
     try {
       const context = await createRefreshContext(env, now)
       const batch = await refreshDueSessions(context, now)
-      const previous = await readStatus(env)
+      const previous = await readStatus(env, true)
 
       const sessions = new Map(previous.sessions.map((session) => [
         `${session.season}:${session.round}:${session.code}`,
         session,
       ]))
+
+      // Only a real state change has to bypass the ten-minute heartbeat, so a
+      // tick that merely rechecked a session does not consume a KV write.
+      let changed = false
       for (const result of batch.results) {
-        sessions.set(`${result.season}:${result.round}:${result.code}`, {
+        const id = `${result.season}:${result.round}:${result.code}`
+        const before = sessions.get(id)
+        if (!before || before.state !== result.state || before.source !== result.source) {
+          changed = true
+        }
+
+        sessions.set(id, {
           season: result.season,
           round: result.round,
           code: result.code,
@@ -304,6 +314,8 @@ export default {
           sessions: [...sessions.values()].slice(-100),
         },
         now,
+        changed,
+        previous,
       )
 
       if (batch.errors.length > 0) {

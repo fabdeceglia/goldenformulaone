@@ -22,9 +22,18 @@ export interface MetaEnvelope<T> {
   data: T
 }
 
-export async function readMeta<T>(env: Env, key: string): Promise<MetaEnvelope<T> | null> {
+export async function readMeta<T>(
+  env: Env,
+  key: string,
+  fresh = false,
+): Promise<MetaEnvelope<T> | null> {
   try {
-    const value = await env.RESULTS.get<MetaEnvelope<T>>(key, { type: 'json', cacheTtl: 60 })
+    // The cron merges the per-session status into the previous heartbeat, so it
+    // must not read a copy that the edge cached a whole heartbeat ago.
+    const value = await env.RESULTS.get<MetaEnvelope<T>>(
+      key,
+      fresh ? { type: 'json' } : { type: 'json', cacheTtl: 60 },
+    )
     if (!value || typeof value !== 'object' || typeof value.savedAt !== 'number') return null
     return value
   } catch {
@@ -139,29 +148,31 @@ export interface StatusBlob {
   sessions: StatusSession[]
 }
 
-export async function readStatus(env: Env): Promise<StatusBlob> {
-  const value = await readMeta<StatusBlob>(env, keys.status)
+export async function readStatus(env: Env, fresh = false): Promise<StatusBlob> {
+  const value = await readMeta<StatusBlob>(env, keys.status, fresh)
   return value?.data ?? { lastRunAt: null, lastError: null, sessions: [] }
 }
 
 /**
  * One heartbeat key every ten minutes. Per-session status is not written on
  * every cron tick: a two-minute cron would otherwise use thousands of KV writes
- * a day.
+ * a day. A changed session state still forces a write, so the list does not
+ * wait for the next heartbeat.
  */
 export async function writeStatus(
   env: Env,
   next: StatusBlob,
   now: number,
   force = false,
+  previous?: StatusBlob,
 ): Promise<void> {
   if (!force) {
-    const previous = await readStatus(env)
-    const last = previous.lastRunAt ? Date.parse(previous.lastRunAt) : Number.NaN
+    const current = previous ?? (await readStatus(env, true))
+    const last = current.lastRunAt ? Date.parse(current.lastRunAt) : Number.NaN
     if (
       Number.isFinite(last) &&
       now - last < HEARTBEAT_MS &&
-      previous.lastError === next.lastError
+      current.lastError === next.lastError
     ) {
       return
     }

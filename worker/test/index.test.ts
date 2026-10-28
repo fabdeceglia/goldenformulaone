@@ -142,3 +142,87 @@ describe('scheduled handler', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 })
+
+describe('status heartbeat', () => {
+  const STORED = {
+    season: '2026',
+    round: '17',
+    code: 'R',
+    state: 'final' as const,
+    source: 'jolpica' as const,
+    checkedAt: '2026-10-23T16:00:00.000Z',
+  }
+
+  it('keeps the session list across a tick that has nothing due', async () => {
+    const kv = new FakeKV()
+    const now = Date.parse('2026-10-23T19:00:00Z')
+    seedMetadata(kv, now)
+
+    // FP1 is final with a recheck an hour away, so this tick has no work.
+    kv.seed(
+      keys.result('2026', '18', 'FP1'),
+      makeCached({
+        state: 'final',
+        complete: true,
+        checkedAt: new Date(now - 60_000).toISOString(),
+        recheckAt: new Date(now + 60 * 60_000).toISOString(),
+      }),
+    )
+    kv.seed(keys.status, {
+      savedAt: now - 20 * 60_000,
+      data: {
+        lastRunAt: new Date(now - 20 * 60_000).toISOString(),
+        lastError: null,
+        sessions: [STORED],
+      },
+    })
+
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(json([]))))
+
+    await worker.scheduled(
+      { scheduledTime: now, cron: '*/2 * * * *', noRetry: () => undefined },
+      makeEnv(kv),
+      {} as ExecutionContext,
+    )
+
+    const status = (await kv.get(keys.status, { type: 'json' })) as {
+      data: { lastRunAt: string; sessions: Array<{ code: string }> }
+    }
+    expect(status.data.lastRunAt).toBe(new Date(now).toISOString())
+    expect(status.data.sessions.map((session) => session.code)).toContain('R')
+  })
+
+  it('skips the heartbeat write inside the ten-minute window', async () => {
+    const kv = new FakeKV()
+    const now = Date.parse('2026-10-23T19:00:00Z')
+    seedMetadata(kv, now)
+
+    kv.seed(
+      keys.result('2026', '18', 'FP1'),
+      makeCached({
+        state: 'final',
+        complete: true,
+        checkedAt: new Date(now - 60_000).toISOString(),
+        recheckAt: new Date(now + 60 * 60_000).toISOString(),
+      }),
+    )
+    kv.seed(keys.status, {
+      savedAt: now - 5 * 60_000,
+      data: {
+        lastRunAt: new Date(now - 5 * 60_000).toISOString(),
+        lastError: null,
+        sessions: [STORED],
+      },
+    })
+
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(json([]))))
+
+    await worker.scheduled(
+      { scheduledTime: now, cron: '*/2 * * * *', noRetry: () => undefined },
+      makeEnv(kv),
+      {} as ExecutionContext,
+    )
+
+    expect(kv.puts).toBe(0)
+  })
+})
