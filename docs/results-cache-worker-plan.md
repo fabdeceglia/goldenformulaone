@@ -970,66 +970,66 @@ Success criteria:
 ### Phase 0 — Account and skeleton
 
 - [x] Create Cloudflare free account (done 2026-10-23)
-- [ ] Install Wrangler
-- [ ] Authenticate Wrangler (`npx wrangler@latest login`; verify `wrangler whoami`)
-- [ ] Confirm Worker name `boxthislap-results` and the `workers.dev` subdomain
-- [ ] Create KV namespace `RESULTS` and capture its id
-- [ ] Add `wrangler.jsonc` and run `wrangler types`
-- [ ] Add `/health` and `/api/status`
-- [ ] Deploy a skeleton Worker and verify the URL
+- [x] Install Wrangler
+- [x] Authenticate Wrangler (`npx wrangler@latest login`; verify `wrangler whoami`)
+- [x] Confirm the `workers.dev` subdomain (`boxthislap-results.fabrizio-dec90.workers.dev`)
+- [x] Create KV namespace `RESULTS` and capture its id
+- [x] Add `wrangler.jsonc` and run `wrangler types`
+- [x] Add `/health` and `/api/status`
+- [x] Deploy a skeleton Worker and verify the URL
 
 ### Phase 1 — jolpica + KV
 
-- [ ] Add shared types and alpha unwrap
-- [ ] Add calendar/round-id metadata cache
-- [ ] Add jolpica adapter
-- [ ] Add KV `CachedResult` read/write with `revision` and `state` guard
-- [ ] Split durable `CachedResult` from transient `SourceCheck`
-- [ ] Add `GET /api/results/...`
-- [ ] Add completeness calculation from raw source rows
-- [ ] Add final recheck (`recheckAt`) scaffolding
-- [ ] Test with a finished session (e.g. FP1) via curl
+- [x] Add shared types and alpha unwrap
+- [x] Add calendar/round-id metadata cache
+- [x] Add jolpica adapter
+- [x] Add KV `CachedResult` read/write with `revision` and `state` guard
+- [x] Split durable `CachedResult` from transient `SourceCheck`
+- [x] Add `GET /api/results/...`
+- [x] Add completeness calculation from raw source rows
+- [x] Add final recheck (`recheckAt`) scaffolding
+- [x] Test with a finished session (e.g. FP1) via curl
 
 ### Phase 2 — OpenF1 fallback
 
-- [ ] Add OpenF1 session list cache and session-key join
-- [ ] Move/reuse the OpenF1 → alpha mapping
-- [ ] Add all-session OpenF1 fallback, including race/sprint grid enrichment
-- [ ] Add 401/403/404/`[]`/429 handling and backoff
-- [ ] Add the serial OpenF1 request queue
-- [ ] Test locked/empty/ready cases
+- [x] Add OpenF1 session list cache and session-key join
+- [x] Move/reuse the OpenF1 → alpha mapping
+- [x] Add all-session OpenF1 fallback, including race/sprint grid enrichment
+- [x] Add 401/403/404/`[]`/429 handling and backoff
+- [x] Add the serial OpenF1 request queue
+- [x] Test locked/empty/ready cases
 
 ### Phase 3 — cron
 
-- [ ] Add scheduled handler
-- [ ] Add session-window selection in UTC
-- [ ] Add promotion/backoff state machine
-- [ ] Add final-recheck schedule
-- [ ] Add `Promise.allSettled` and per-session logging
-- [ ] Add the tick cap (3–5 sessions) and subrequest/CPU budget check
-- [ ] Add one `meta:status` heartbeat, not per-session status writes
-- [ ] Test locally with `--test-scheduled` and `?time=`
-- [ ] Deploy and verify cron runs
+- [x] Add scheduled handler
+- [x] Add session-window selection in UTC
+- [x] Add promotion/backoff state machine
+- [x] Add final-recheck schedule
+- [x] Add `Promise.allSettled` and per-session logging
+- [x] Add the tick cap (3–5 sessions) and subrequest/CPU budget check
+- [x] Add one `meta:status` heartbeat, not per-session status writes
+- [x] Test locally with `--test-scheduled` and `?time=`
+- [x] Deploy and verify cron runs
 
 ### Phase 4 — frontend
 
-- [ ] Add `resultsService.ts`
-- [ ] Switch `RaceResults.tsx`
-- [ ] Add final/provisional/pending/locked UI states
-- [ ] Build tabs from `raceSchedule()` with `alpha.resultsIndex` as a supplement
-- [ ] Remove `provisionalCache.ts`, the FE OpenF1 result fallback and the lock heuristic
-- [ ] Update polling to use `pollAfterMs` at 60s (or keep current cadence initially)
+- [x] Add `resultsService.ts`
+- [x] Switch `RaceResults.tsx`
+- [x] Add final/provisional/pending/locked UI states
+- [x] Build tabs from `raceSchedule()` with `alpha.resultsIndex` as a supplement
+- [x] Remove `provisionalCache.ts`, the FE OpenF1 result fallback and the lock heuristic
+- [x] Update polling to use `pollAfterMs` at 60s (or keep current cadence initially)
 
 ### Phase 5 — production verification
 
-- [ ] Add Vercel rewrites for results, status and health
+- [x] Add Vercel rewrites for results, status and health
 - [ ] Deploy frontend
 - [ ] Verify `/api/results/...` through Vercel
 - [ ] Verify `/api/status`
 - [ ] Run through a practice session
 - [ ] Confirm promotion when jolpica publishes
 - [ ] Check KV writes/day and jolpica 429s
-- [ ] Update README and this document's status
+- [x] Update README and this document's status
 
 ### Phase 6 — optional hardening
 

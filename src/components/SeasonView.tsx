@@ -44,14 +44,9 @@ export function SeasonView({ season, races }: SeasonViewProps) {
   const featured = useMemo(() => findFeaturedEvent(races, TODAY), [races])
 
   // Results are keyed by the alpha API's own opaque round ids, so resolve the
-  // whole season's mapping once rather than per round. The mapping is cached
-  // from a previous visit, which lets the results request start immediately.
-  const {
-    rounds,
-    loading: roundsLoading,
-    error: roundsError,
-    reload: reloadRounds,
-  } = useSeasonRounds(season)
+  // whole season's mapping once rather than per round. The Worker resolves the
+  // same mapping itself; this is only used for tab labels now.
+  const { rounds } = useSeasonRounds(season)
 
   const roundIds = useMemo(
     () => new Map(rounds.map((item) => [item.number, item.id])),
@@ -122,9 +117,6 @@ export function SeasonView({ season, races }: SeasonViewProps) {
             races={races}
             round={round}
             roundId={round ? roundIds.get(round) : undefined}
-            roundsLoading={roundsLoading}
-            roundsError={roundsError}
-            onRetryRounds={reloadRounds}
             initialSession={requestedSession}
             onRoundChange={setRequestedRound}
           />

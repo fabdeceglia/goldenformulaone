@@ -1,6 +1,15 @@
 import type { Race, SessionCode } from '../api/types'
+import {
+  SESSION_MINUTES,
+  raceSchedule,
+  sessionStart as startOf,
+} from '../shared/schedule'
+import type { ScheduleEntry } from '../shared/schedule'
 import { clockNow } from './clock'
 import { parseUtcInstant, toDateKey } from './format'
+
+export { raceSchedule }
+export type { ScheduleEntry }
 
 const LOADED_AT = new Date(clockNow())
 
@@ -16,95 +25,6 @@ export const TODAY = toDateKey(LOADED_AT)
 
 /** Timestamp of module load, for ordering sessions that share a date. */
 export const NOW_MILLIS = LOADED_AT.getTime()
-
-const SESSION_KEYS = [
-  'FirstPractice',
-  'SecondPractice',
-  'ThirdPractice',
-  'SprintQualifying',
-  'Sprint',
-  'Qualifying',
-] as const satisfies readonly (keyof Race)[]
-
-const SESSION_KEY_LABELS: Record<(typeof SESSION_KEYS)[number], string> = {
-  FirstPractice: 'Practice 1',
-  SecondPractice: 'Practice 2',
-  ThirdPractice: 'Practice 3',
-  SprintQualifying: 'Sprint qualifying',
-  Sprint: 'Sprint',
-  Qualifying: 'Qualifying',
-}
-
-/**
- * How the Ergast race schedule maps onto the codes the alpha results endpoint
- * accepts. Sprint weekends replace FP2/FP3 with sprint qualifying and the
- * sprint, which is why this is a mapping rather than a positional list.
- */
-const SESSION_CODE_BY_KEY: Record<(typeof SESSION_KEYS)[number] | 'race', SessionCode> = {
-  FirstPractice: 'FP1',
-  SecondPractice: 'FP2',
-  ThirdPractice: 'FP3',
-  SprintQualifying: 'SQ',
-  Sprint: 'SR',
-  Qualifying: 'Q',
-  race: 'R',
-}
-
-export interface ScheduleEntry {
-  key: string
-  label: string
-  code: SessionCode
-  date: string
-  time?: string
-  isRace?: boolean
-}
-
-/**
- * Longest a session can plausibly run before it is treated as over, in minutes.
- * Deliberately generous: a red flag or a safety car can stretch one well past
- * its scheduled slot, and the live marker should only clear once the session is
- * genuinely done. The race is the one that can really run long, so it gets the
- * widest allowance.
- */
-const SESSION_MINUTES: Record<SessionCode, number> = {
-  FP1: 60,
-  FP2: 60,
-  FP3: 60,
-  SQ: 30,
-  SR: 45,
-  Q: 60,
-  R: 120,
-}
-
-/** Every session of a race weekend, including the race itself, in order. */
-export function raceSchedule(race: Race): ScheduleEntry[] {
-  const entries: ScheduleEntry[] = []
-
-  for (const key of SESSION_KEYS) {
-    const session = race[key]
-    if (session) {
-      entries.push({
-        key,
-        label: SESSION_KEY_LABELS[key],
-        code: SESSION_CODE_BY_KEY[key],
-        date: session.date,
-        time: session.time,
-      })
-    }
-  }
-
-  entries.push({
-    key: 'race',
-    label: 'Race',
-    code: 'R',
-    date: race.date,
-    time: race.time,
-    isRace: true,
-  })
-
-  const stamp = (entry: ScheduleEntry) => `${entry.date}T${entry.time ?? '23:59:59Z'}`
-  return entries.sort((a, b) => stamp(a).localeCompare(stamp(b)))
-}
 
 /**
  * The window a race weekend occupies: from the first session to race day, as
@@ -216,53 +136,6 @@ export function sessionPhase(entry: ScheduleEntry, now: number = Date.now()): Se
   return 'finished'
 }
 
-/**
- * OpenF1's free tier blocks every endpoint, including past sessions, while a
- * session is live. The block starts a little before the scheduled start and
- * lifts about thirty minutes after the flag, so this window is deliberately
- * wider than the session itself. It is only used to explain a failed
- * provisional fetch, never to decide whether to try one.
- */
-export function openF1Locked(race: Race, now: number = Date.now()): boolean {
-  return raceSchedule(race).some((entry) => {
-    const start = sessionStart(entry)
-    if (!Number.isFinite(start)) return false
-
-    const end = sessionEnd(entry)
-    return now >= start - 30 * 60_000 && now <= end + 30 * 60_000
-  })
-}
-
-/**
- * How long the app keeps expecting results to appear after a session ends.
- * Generous enough to cover a race day and the following morning, but bounded so
- * browsing an old round does not turn the results view into a permanent poller.
- */
-const RESULTS_WINDOW_MINUTES = 24 * 60
-
-/**
- * Delay before the next background check for a session's results, or `null`
- * when the clock is outside the window where a result could plausibly arrive.
- *
- * The session is considered close enough to poll from ten minutes before its
- * estimated end (a red flag can finish one early). Checks are frequent around
- * the flag, then relax quickly so a tab left open on race day is cheap.
- */
-export function resultsPollDelay(
-  entry: ScheduleEntry,
-  now: number = Date.now(),
-): number | null {
-  const end = sessionEnd(entry)
-  if (!Number.isFinite(end)) return null
-
-  const afterEnd = now - end
-  if (afterEnd < -10 * 60_000) return null
-  if (afterEnd < 15 * 60_000) return 30_000
-  if (afterEnd < 60 * 60_000) return 60_000
-  if (afterEnd < RESULTS_WINDOW_MINUTES * 60_000) return 5 * 60_000
-  return null
-}
-
 export interface WeekendProgress {
   /** The session on track right now, if the clock falls inside one. */
   live: ScheduleEntry | null
@@ -308,5 +181,5 @@ export function defaultSession(race: Race | undefined, now: number = NOW_MILLIS)
 }
 
 function sessionStart(entry: ScheduleEntry): number {
-  return Date.parse(`${entry.date}T${entry.time ?? '00:00:00Z'}`)
+  return startOf(entry.date, entry.time)
 }

@@ -155,33 +155,69 @@ runs them.
 
 Notes:
 
-- **Which sessions a round has comes from the API**, not from a guess. Each round is asked
-  for its list of available results, so a sprint weekend correctly offers practice 1, sprint
-  qualifying, the sprint, qualifying and the race, while a normal weekend offers practice
-  1–3, qualifying and the race.
+- **Which sessions a round has comes from the calendar**, not from a guess. Every session of
+  the weekend is listed from the round's schedule, so a sprint weekend correctly offers
+  practice 1, sprint qualifying, the sprint, qualifying and the race, while a normal weekend
+  offers practice 1–3, qualifying and the race. The alpha results index is used only to add a
+  label if it lists a session the calendar does not.
 - **The opening session is the most recent one that has already started.** Visiting a round
   mid-weekend lands on whatever just ran — during a Friday practice the app opens on practice
   1 rather than jumping ahead to the race.
 - Sessions with no data yet show an explicit "not available yet" notice, which is the normal
   case for rounds still to come.
-- **Every session has a provisional fallback.** While jolpica has not published a
-  classification, the table is rendered from OpenF1's `session_result`. It appears for
-  `FP1`–`FP3`, `SQ`, `SR`, `Q` and `R` once the session has finished (OpenF1's free tier
-  stays closed for about thirty minutes after the flag), and swaps to the jolpica table as
-  soon as that arrives. For qualifying, OpenF1's per-segment `duration` array is mapped to
-  the same Q1/Q2/Q3 components the starting grid already uses. For races and sprints, the
-  grid column comes from OpenF1's starting-grid feed for the corresponding qualifying
-  session (`Q` for `R`, `SQ` for `SR`). That feed is the actual grid and can include
-  penalties; if it is unavailable, the app falls back to the qualifying classification
-  order. The fallback is logged to the browser console rather than labelled in the table.
-- **Inside a session's results window** — from ten minutes before its estimated end until 24
-  hours after it — the view re-checks the API on its own: every 30 seconds around the flag,
-  then every minute, then every five. Polling stops as soon as the classification arrives,
-  and a hidden tab is checked immediately when it comes back into view. Outside that window
-  the view makes a single request, so opening an old round or a race weeks away does not
-  keep the API busy. The window and cadence live in `resultsPollDelay` in
-  `src/lib/schedule.ts`; the development clock override (`?now=2026-10-25T22:05:00Z`)
-  exercises it without waiting for a race.
+- **jolpica is canonical and OpenF1 is the provisional fallback.** A small Cloudflare Worker
+  (see "The results Worker" below) fetches each session, keeps the durable result in Workers
+  KV and serves the table. When jolpica has not published a complete classification, the
+  Worker asks OpenF1 for `session_result` — for `FP1`–`FP3`, `SQ`, `SR`, `Q` and `R`. The
+  provisional table is labelled with its source; it is never presented as final, and jolpica
+  replaces it as soon as a complete classification is available. For qualifying, OpenF1's
+  per-segment `duration` array is mapped to the same Q1/Q2/Q3 components the starting grid
+  uses. For races and sprints, the grid column comes from OpenF1's starting-grid feed for the
+  corresponding qualifying session (`Q` for `R`, `SQ` for `SR`), falling back to the
+  qualifying classification order when that feed is unavailable.
+- **The Worker does the polling.** While a result is pending or provisional it is refreshed
+  about once a minute (`pollAfterMs` in the response); polling stops as soon as the table is
+  final, and a hidden tab is checked immediately when it comes back into view. A two-minute
+  cron warms sessions around their windows, and final classifications are rechecked at
+  roughly +1h, +6h, +24h and +72h so a post-race amendment (a penalty or disqualification)
+  lands without a page reload. The development clock override
+  (`?now=2026-10-25T22:05:00Z`) exercises the time-based tabs without waiting for a race.
+
+### The results Worker
+
+Session results are served by a single Cloudflare Worker, not fetched by the browser:
+
+```text
+browser ── /api/results/{season}/{round}/{code} ──▶ Vercel rewrite ──▶ Worker ──▶ KV
+                                                                        ├──▶ jolpica (canonical)
+                                                                        └──▶ OpenF1 (provisional)
+```
+
+- **One endpoint per session.** `GET /api/results/{season}/{round}/{code}` returns the same
+  table shape for every state (`pending`, `provisional`, `final`), plus the source, the last
+  check time and a `pollAfterMs` hint. `GET /api/status` exposes the cron heartbeat and the
+  last state seen for each session; `GET /health` is a cheap liveness probe.
+- **KV is the cache, not a database.** A durable `CachedResult` stores the classification and
+  the per-source summary. A monotonic `revision` and a state-rank guard prevent a late
+  provisional refresh from overwriting a `final` result. Writes happen only on a real state
+  change, so a two-minute cron does not hammer the KV write limit.
+- **The cron warms what is due.** `*/2 * * * *` refreshes at most four finished sessions from
+  the last week, prioritising sessions that have gone longest without a check. It only emits
+  a `meta:status` heartbeat every ten minutes.
+- **OpenF1 is server-side.** The free tier's 401/403 live lock and 429 rate limits are
+  handled in the Worker (with a `retryAt` backoff), so the browser never calls OpenF1 for a
+  result. The fallback is tried only while jolpica is incomplete.
+- **Deployment is separate from the frontend.** `npm run worker:deploy` publishes the Worker to
+  `https://boxthislap-results.fabrizio-dec90.workers.dev`, and `vercel.json` rewrites
+  `/api/results/*`, `/api/status` and `/health` there. `npm run dev` proxies `/api` to
+  `wrangler dev` on port 8787. To call the Worker directly instead, build the frontend with
+  `VITE_RESULTS_BASE=https://boxthislap-results.fabrizio-dec90.workers.dev/api/results`; the
+  Worker sends `Access-Control-Allow-Origin: *` for that case. The Worker name is
+  `boxthislap-results`, and the KV binding is `RESULTS`.
+
+The shared wire types and pure helpers live in `src/shared/` and are imported by both the
+browser and the Worker. The Worker itself lives under `worker/src/` and is bundled by
+Wrangler; Vite ignores it.
 
 ### The Starting Grid
 
@@ -567,6 +603,12 @@ Open http://localhost:5173.
 | `npm run build` | Type-check and build for production into `dist/` |
 | `npm run preview` | Serve the production build locally |
 | `npm run lint` | Run oxlint |
+| `npm run test` | Run the Worker/shared Vitest suite |
+| `npm run worker:dev` | Run the results Worker locally on port 8787 |
+| `npm run worker:deploy` | Deploy the results Worker |
+| `npm run worker:tail` | Stream the deployed Worker's logs |
+| `npm run worker:types` | Regenerate `worker-configuration.d.ts` after a binding change |
+| `npm run worker:typecheck` | Type-check the Worker bundle |
 | `npm run readiness` | Sample jolpica and OpenF1 result readiness (see above) |
 | `npm run readiness:report` | Summarise the readiness samples |
 | `npm run replays` | Bake static replay assets from OpenF1 (see "Race replay") |
@@ -581,15 +623,17 @@ without CORS headers — and are listed with the rest:
 
 | Prefix | Upstream |
 | --- | --- |
+| `/api` | the results Worker (`wrangler dev` on port 8787; in production, a Vercel rewrite) |
 | `/ergast` | the Ergast-compatible endpoints |
 | `/f1` | jolpica's own alpha endpoints |
 | `/news/<id>` | one feed per outlet, one path each |
 
 The same proxies are configured for `vite preview`, so both `dev` and `preview` work out of
 the box. Production is a static build on Vercel, which has no dev server: `vercel.json`
-rewrites the five `/news/<id>` paths to the feeds there, and the app talks to jolpica
-directly, because that API does send CORS headers (set `VITE_API_BASE` and `VITE_ALPHA_BASE`
-to the absolute URLs at build time).
+rewrites the five `/news/<id>` paths to the feeds and `/api/results/*`, `/api/status` and
+`/health` to the results Worker. The rest of the app talks to jolpica directly, because that
+API does send CORS headers (set `VITE_API_BASE` and `VITE_ALPHA_BASE` to the absolute URLs at
+build time).
 
 Endpoints used:
 
@@ -601,7 +645,8 @@ Endpoints used:
 | Circuit info (history) | `/ergast/f1/circuits/{circuitId}/results/1/?limit=100` |
 | Round ids for the season | `/f1/alpha/core/rounds/?year={season}` |
 | Sessions a round has | `/f1/alpha/results/{roundId}/` |
-| One session's results | `/f1/alpha/results/{roundId}/{code}/` |
+| One session's results | `/api/results/{season}/{round}/{code}` (Worker) |
+| Worker health / cron status | `/health`, `/api/status` |
 | Paddock and Coffee | `/news/{outlet}`, proxied to that outlet's RSS feed |
 
 The alpha results endpoints are keyed by an opaque round id (`round_JqmngOvt`), not by season
@@ -625,7 +670,7 @@ src/
 │   ├── client.ts    # Ergast-compatible client (calendar, standings)
 │   ├── news.ts      # the trade press: feeds, parsing, the merged list
 │   ├── openf1.ts    # OpenF1 client, session-key resolution, rate limiting
-│   ├── openf1Results.ts # provisional practice/qualifying mapping
+│   ├── resultsService.ts # browser client for the results Worker
 │   ├── teams.ts     # team colours + readable chip ink
 │   └── types.ts     # response types for both API layers
 ├── components/
@@ -671,14 +716,31 @@ src/
 │   ├── format.ts                # date, time and gap formatting
 │   ├── grid.ts                  # qualifying classification → grid slots and gaps
 │   ├── pace.ts                  # replay lap times → race-pace series
-│   ├── provisionalCache.ts      # localStorage cache for the OpenF1 fallback
 │   ├── replay.ts               # replay timeline, interpolation, standings, encoding
 │   ├── replayCache.ts          # IndexedDB cache for fallback downloads
 │   ├── replaySource.ts         # baked-first loader with OpenF1 fallback
 │   └── schedule.ts              # weekend windows, session codes, race-day status
 ├── App.tsx                      # resolves the current season
 ├── index.css                    # theme tokens + all styling
-└── main.tsx
+├── main.tsx
+└── shared/                      # pure modules imported by the app and the Worker
+    ├── alpha.ts                 # alpha envelope unwrap
+    ├── openf1Map.ts             # OpenF1 rows → the alpha table shape
+    ├── results.ts               # wire types, completeness, hashing, state rank
+    └── schedule.ts              # UTC session windows and codes
+
+worker/
+├── src/
+│   ├── index.ts                 # fetch + scheduled handlers, routing
+│   ├── config.ts                # bindings, timeouts, retry policy
+│   ├── cache.ts                 # KV keys + the revision/state guard
+│   ├── schedule.ts              # calendar, round ids, OpenF1 session list
+│   ├── results.ts               # refresh, promotion and final-recheck state machine
+│   └── sources/
+│       ├── jolpica.ts           # canonical results + metadata
+│       └── openf1.ts            # provisional fallback + grid enrichment
+├── test/                        # Vitest suite and small fixtures
+└── tsconfig.json
 
 public/
 ├── apple-touch-icon.png         # 180x180 touch icon
@@ -706,7 +768,10 @@ scripts/
 ├── build-replays.mjs            # bakes public/replays from OpenF1
 └── results-readiness.mjs        # samples how soon results are published
 
-vercel.json                          # production: proxies the news feeds
+vercel.json                          # production: news feeds + results Worker rewrites
+wrangler.jsonc                       # Worker name, KV binding, cron, vars
+worker-configuration.d.ts            # generated Cloudflare bindings/runtime types
+vitest.config.ts                     # Worker/shared test runner
 ```
 
 ## Notes
@@ -735,8 +800,9 @@ vercel.json                          # production: proxies the news feeds
   value would show a retirement as the fastest car on track. The Time/Status column is
   therefore rebuilt from the leader's laps and time: the winner's total, a gap for cars on
   the lead lap, `+1 Lap` for cars a lap down, and the status for retirements.
-- The API is free and rate limited; responses are not cached, so each round and session
-  selection refetches.
+- The upstream APIs are free and rate limited. Session results are cached by the Worker, so
+  selecting the same round and session again is served from KV rather than refetched; the
+  calendar and standings still come straight from jolpica.
 - The link-preview tags in `index.html` (`og:*` and `twitter:*`) are pinned to the deployed
   origin, `https://boxthislap.vercel.app`, because `og:url` and `og:image` have to be
   absolute URLs — update them if the site moves. The cards (`public/og-image.png`,

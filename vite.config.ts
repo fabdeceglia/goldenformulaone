@@ -10,6 +10,12 @@ const USER_AGENT = 'F1Explorer/1.0.0'
 // /ergast/* (stable endpoints) and /f1/* (alpha session results) to the real API
 // and attach the header for us.
 const proxy = {
+  // The results cache Worker. `wrangler dev` listens on 8787, and Vercel
+  // mirrors this path with an external rewrite in production.
+  '/api': {
+    target: 'http://127.0.0.1:8787',
+    changeOrigin: true,
+  },
   '/ergast': {
     target: API_TARGET,
     changeOrigin: true,

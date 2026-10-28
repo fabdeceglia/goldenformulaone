@@ -527,6 +527,16 @@ a:hover {
   margin-left: 0;
 }
 
+/* A provisional table keeps the canonical table layout and only adds a short
+   source note above it. */
+.results-note {
+  margin: 0;
+  padding: 0.6rem 1.15rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-size: 0.76rem;
+}
+
 .replay-open,
 .battle-open {
   white-space: nowrap;

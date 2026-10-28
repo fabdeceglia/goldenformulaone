@@ -1,5 +1,8 @@
-import type { AlphaSessionEntry, AlphaSessionResults, SessionCode } from '../api/types'
+import type { AlphaSessionEntry, AlphaSessionResults } from '../api/types'
+import { QUALIFYING_SEGMENTS } from '../shared/openf1Map'
 import { formatGap, parseSessionTime } from './format'
+
+export { QUALIFYING_SEGMENTS }
 
 /**
  * The Starting Grid is a second reading of a qualifying classification — the same
@@ -10,12 +13,9 @@ import { formatGap, parseSessionTime } from './format'
 
 /**
  * The segments each qualifying session runs, in order. This is also the column
- * list the qualifying table uses, so the two views cannot drift apart.
+ * list the qualifying table uses, so the two views cannot drift apart. It lives
+ * in the shared OpenF1 mapper so the Worker sees the same list.
  */
-export const QUALIFYING_SEGMENTS: Partial<Record<SessionCode, readonly string[]>> = {
-  Q: ['Q1', 'Q2', 'Q3'],
-  SQ: ['SQ1', 'SQ2', 'SQ3'],
-}
 
 /** One car on the grid, with everything a plate needs already worked out. */
 export interface GridEntry {

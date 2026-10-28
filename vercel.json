@@ -2,6 +2,18 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/api/results/:path*",
+      "destination": "https://boxthislap-results.fabrizio-dec90.workers.dev/api/results/:path*"
+    },
+    {
+      "source": "/api/status",
+      "destination": "https://boxthislap-results.fabrizio-dec90.workers.dev/api/status"
+    },
+    {
+      "source": "/health",
+      "destination": "https://boxthislap-results.fabrizio-dec90.workers.dev/health"
+    },
+    {
       "source": "/news/autosport",
       "destination": "https://www.autosport.com/rss/f1/news/"
     },

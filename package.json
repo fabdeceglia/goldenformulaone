@@ -8,9 +8,15 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "test": "vitest run",
     "readiness": "node scripts/results-readiness.mjs",
     "readiness:report": "node scripts/results-readiness.mjs --report",
-    "replays": "node scripts/build-replays.mjs"
+    "replays": "node scripts/build-replays.mjs",
+    "worker:dev": "wrangler dev",
+    "worker:deploy": "wrangler deploy",
+    "worker:tail": "wrangler tail",
+    "worker:types": "wrangler types",
+    "worker:typecheck": "tsc -p worker/tsconfig.json --noEmit"
   },
   "dependencies": {
     "react": "^19.2.8",
@@ -23,6 +29,8 @@
     "@vitejs/plugin-react": "^6.1.1",
     "oxlint": "^1.81.0",
     "typescript": "~6.0.2",
-    "vite": "^8.3.0"
+    "vite": "^8.3.0",
+    "vitest": "^4.1.12",
+    "wrangler": "^4.155.0"
   }
 }

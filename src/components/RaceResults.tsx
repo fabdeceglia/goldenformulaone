@@ -1,20 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { SESSION_CODES, alpha } from '../api/alpha'
-import { isOpenF1FallbackSession, provisionalResults } from '../api/openf1Results'
-import type { ProvisionalResults } from '../api/openf1Results'
+import { sessionResults } from '../api/resultsService'
+import type { ResultsResponse } from '../api/resultsService'
 import type { Race, SessionCode } from '../api/types'
 import { useFetch } from '../hooks/useFetch'
 import { useNow } from '../hooks/useNow'
-import { clockNow } from '../lib/clock'
 import { formatDateTime } from '../lib/format'
-import {
-  NOW_MILLIS,
-  defaultSession,
-  openF1Locked,
-  raceSchedule,
-  resultsPollDelay,
-  sessionPhase,
-} from '../lib/schedule'
+import { defaultSession, raceSchedule, sessionPhase } from '../lib/schedule'
 import { BattleDialog } from './BattleDialog'
 import { Empty, ErrorState, Loading } from './Feedback'
 import { ReplayDialog } from './ReplayDialog'
@@ -29,24 +21,16 @@ interface RaceResultsProps {
   round: string
   /** Alpha round id for the selected round, when one could be resolved. */
   roundId: string | undefined
-  /** The season-wide round-id lookup is still in flight or failed. */
-  roundsLoading: boolean
-  roundsError: string | null
-  onRetryRounds: () => void
   /** Session to open first, e.g. the one the hero sent the visitor to see. */
   initialSession?: SessionCode | null
   onRoundChange: (round: string) => void
 }
 
-/** The OpenF1 fallback either produced a provisional classification or has nothing. */
 export function RaceResults({
   season,
   races,
   round,
   roundId,
-  roundsLoading,
-  roundsError,
-  onRetryRounds,
   initialSession,
   onRoundChange,
 }: RaceResultsProps) {
@@ -56,32 +40,36 @@ export function RaceResults({
   const [battleOpen, setBattleOpen] = useState(false)
 
   const selectedRace = races.find((race) => race.round === round)
+  const now = useNow()
 
-  // The alpha API reports which sessions the round actually ran, so sprint
-  // weekends list practice 1 plus sprint qualifying and the sprint, rather than
-  // practice 2 and 3.
-  const {
-    data: index,
-    loading: indexLoading,
-    error: indexError,
-    reload: reloadIndex,
-    refresh: refreshIndex,
-  } = useFetch(roundId ? (signal) => alpha.resultsIndex(roundId, signal) : null, [roundId])
+  // The results index is now only a label source. The tab list itself comes
+  // from the calendar so a late alpha index cannot hide a Worker result.
+  const { data: index } = useFetch(
+    roundId ? (signal) => alpha.resultsIndex(roundId, signal) : null,
+    [roundId],
+  )
 
   const sessionTabs = useMemo<readonly Tab<SessionCode>[]>(() => {
-    const tabs = (index?.available_results ?? [])
+    if (!selectedRace) return []
+
+    const entries = raceSchedule(selectedRace)
+    const order = new Map(entries.map((entry, index) => [entry.code, index]))
+    const started = entries
+      .filter((entry) => sessionPhase(entry, now) !== 'upcoming')
+      .map((entry) => ({ id: entry.code, label: entry.label }))
+
+    const known = new Set(started.map((tab) => tab.id))
+    const extra = (index?.available_results ?? [])
       .filter((available) => (SESSION_CODES as readonly string[]).includes(available.code))
+      .filter((available) => !known.has(available.code as SessionCode))
       .map((available) => ({ id: available.code as SessionCode, label: available.title }))
 
-    if (!selectedRace) return tabs
+    return [...started, ...extra].sort(
+      (a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99),
+    )
+  }, [index, selectedRace, now])
 
-    // The results index lists sessions backwards (R, Q, SQ, SR, FP1), so order
-    // them the way the weekend actually runs.
-    const order = new Map(raceSchedule(selectedRace).map((entry, i) => [entry.code, i]))
-    return [...tabs].sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99))
-  }, [index, selectedRace])
-
-  const defaultCode = useMemo(() => defaultSession(selectedRace, NOW_MILLIS), [selectedRace])
+  const defaultCode = useMemo(() => defaultSession(selectedRace, now), [selectedRace, now])
 
   // Keep an explicit choice while it is valid for the selected round, otherwise
   // default to the most recent session that has already started.
@@ -89,25 +77,9 @@ export function RaceResults({
     const codes = sessionTabs.map((tab) => tab.id)
     if (sessionChoice && codes.includes(sessionChoice)) return sessionChoice
     if (codes.includes(defaultCode)) return defaultCode
-    return codes[codes.length - 1] ?? 'R'
+    return codes[codes.length - 1] ?? defaultCode
   }, [sessionChoice, sessionTabs, defaultCode])
 
-  const {
-    data,
-    loading,
-    error,
-    reload,
-    refresh: refreshSession,
-  } = useFetch(
-    roundId && sessionTabs.length > 0
-      ? (signal) => alpha.session(roundId, session, signal)
-      : null,
-    [roundId, session, sessionTabs.length],
-  )
-
-  const sessionLabel = sessionTabs.find((tab) => tab.id === session)?.label ?? session
-
-  const now = useNow()
   const selectedEntry = useMemo(
     () =>
       selectedRace
@@ -115,10 +87,77 @@ export function RaceResults({
         : undefined,
     [selectedRace, session],
   )
+  const sessionStarted = selectedEntry ? sessionPhase(selectedEntry, now) !== 'upcoming' : false
+  const sessionLabel =
+    sessionTabs.find((tab) => tab.id === session)?.label ?? selectedEntry?.label ?? session
 
-  // Both extras need the flag plus OpenF1's thirty-minute free-tier window. The
-  // replay is for race and sprint classifications; the 1v1 battle is for the two
-  // qualifying sessions.
+  // One request for every state: pending, provisional and final all carry the
+  // same table shape, so the Worker is the only thing that knows the source.
+  const { data, loading, error, reload, refresh } = useFetch<ResultsResponse>(
+    selectedRace && sessionStarted
+      ? (signal) => sessionResults(selectedRace.season, selectedRace.round, session, signal)
+      : null,
+    [selectedRace?.season, selectedRace?.round, session, sessionStarted],
+  )
+
+  // The Worker tells us how often to poll: 60 seconds while pending or
+  // provisional, null once the result is final.
+  const pollAfterMs = data?.pollAfterMs ?? null
+  useEffect(() => {
+    if (pollAfterMs === null) return
+
+    let cancelled = false
+    let timer = 0
+
+    const check = async () => {
+      if (cancelled) return
+      await refresh()
+      if (cancelled) return
+      timer = window.setTimeout(check, pollAfterMs)
+    }
+
+    // Timers are throttled in a hidden tab. Checking as soon as the visitor
+    // comes back avoids making them wait for the next slot.
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refresh()
+    }
+
+    timer = window.setTimeout(check, pollAfterMs)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [pollAfterMs, refresh, selectedRace?.season, selectedRace?.round, session])
+
+  const resultSession = data?.session ?? null
+  const hasResults = (resultSession?.results.length ?? 0) > 0
+  const usingProvisional = data?.state === 'provisional' && hasResults
+  const openF1Locked = data?.state === 'pending' && data.sources.openf1.state === 'locked'
+
+  const pendingMessage = (label: string) => {
+    if (selectedEntry && sessionPhase(selectedEntry, now) === 'live') {
+      return `${label} results will be available after the session.`
+    }
+    if (openF1Locked) {
+      return 'OpenF1 is locked while another session is live. The provisional classification will return after the session.'
+    }
+    if (data?.pollAfterMs != null) {
+      return `${label} results are not published yet — checking again automatically.`
+    }
+    if (selectedEntry && sessionPhase(selectedEntry, now) !== 'finished') {
+      return `${label} results will be available after the session.`
+    }
+    return `${label} results are not available.`
+  }
+
+  // Only qualifying has a starting grid to show, and the toggle is the only way
+  // to reach it: every other session stays on the table it has always had.
+  const gridAvailable = session === 'Q' || session === 'SQ'
+  const showingGrid = gridAvailable && view === 'grid'
+
   const replaySession = session === 'R' || session === 'SR'
   const battleCode: 'Q' | 'SQ' | null = session === 'Q' || session === 'SQ' ? session : null
   const sessionUnlocked = selectedEntry
@@ -138,151 +177,6 @@ export function RaceResults({
     : !sessionUnlocked
       ? 'The 1v1 battle will be available about 30 minutes after the chequered flag.'
       : undefined
-
-  // The API gives no "published at" signal, so the app only polls inside the
-  // window where a result can plausibly arrive. Opening Abu Dhabi in October
-  // therefore stays a single request; leaving the results tab open after the
-  // flag keeps checking until the classification appears.
-  const pollDelay = selectedEntry ? resultsPollDelay(selectedEntry, now) : null
-  const hasResults = (data?.results.length ?? 0) > 0
-
-  // jolpica has been slow to publish practice and qualifying classifications,
-  // so show OpenF1's provisional table while the canonical one is missing.
-  // OpenF1 is free from about thirty minutes after the flag, so early attempts
-  // fail closed and the poll below retries them.
-  const fallbackEligible = isOpenF1FallbackSession(session)
-  const sessionFinished = selectedEntry
-    ? sessionPhase(selectedEntry, now) === 'finished'
-    : false
-  const wantFallback =
-    fallbackEligible &&
-    sessionFinished &&
-    !loading &&
-    (!!error || (data?.results.length ?? 0) === 0)
-
-  const {
-    data: fallback,
-    loading: fallbackLoading,
-    error: fallbackError,
-    refresh: refreshFallback,
-  } = useFetch<ProvisionalResults>(
-    wantFallback && selectedRace
-      ? (signal) => provisionalResults(selectedRace, session, roundId, signal)
-      : null,
-    [wantFallback, selectedRace, session, roundId],
-  )
-
-  const fallbackSession = fallback?.status === 'ready' ? fallback.session : null
-  const usingFallback = fallbackSession !== null && !hasResults && !loading
-  // The browser cannot read OpenF1's 401 body through CORS, so the schedule is
-  // the reliable signal that the free tier is in its live-session blackout.
-  const openF1Blocked = selectedRace ? openF1Locked(selectedRace, now) : false
-  const fallbackLocked =
-    (fallback?.status === 'unavailable' && fallback.reason === 'locked') ||
-    (wantFallback && openF1Blocked)
-  // While OpenF1 is being asked, "not published yet" would be wrong: the
-  // fallback may already have the classification. Only show that notice once
-  // the attempt has settled without a table.
-  const fallbackPending =
-    wantFallback && !fallbackError && (fallbackLoading || fallback === null)
-
-  // Keep the source visible to power users without putting an API note in the
-  // results UI. The table itself should read like the canonical one.
-  const fallbackCode = fallbackSession?.code
-  const fallbackCount = fallbackSession?.results.length ?? 0
-  const loggedFallback = useRef<string | null>(null)
-  useEffect(() => {
-    if (!usingFallback || !fallbackCode) {
-      loggedFallback.current = null
-      return
-    }
-
-    const key = `${season}:${round}:${fallbackCode}`
-    if (loggedFallback.current === key) return
-    loggedFallback.current = key
-
-    console.info('[results] provisional classification from OpenF1', {
-      season,
-      round,
-      session: fallbackCode,
-      results: fallbackCount,
-    })
-  }, [usingFallback, fallbackCode, fallbackCount, season, round])
-
-  const pollTarget: 'index' | 'session' | null =
-    pollDelay === null || !roundId
-      ? null
-      : sessionTabs.length === 0
-        ? !indexLoading && !indexError
-          ? 'index'
-          : null
-        : !loading && !error && !hasResults
-          ? 'session'
-          : null
-
-  useEffect(() => {
-    if (pollTarget === null || pollDelay === null) return
-
-    let cancelled = false
-    let timer = 0
-
-    const check = async () => {
-      if (cancelled) return
-      if (pollTarget === 'index') {
-        await refreshIndex()
-      } else {
-        await refreshSession()
-        await refreshFallback()
-      }
-
-      if (cancelled) return
-      const next = selectedEntry ? resultsPollDelay(selectedEntry, clockNow()) : null
-      if (next !== null) timer = window.setTimeout(check, next)
-    }
-
-    // Timers are throttled in a hidden tab. Checking as soon as the visitor
-    // comes back avoids making them wait for the next five-minute slot.
-    const onVisibilityChange = () => {
-      if (document.visibilityState !== 'visible') return
-      if (pollTarget === 'index') {
-        void refreshIndex()
-      } else {
-        void refreshSession()
-        void refreshFallback()
-      }
-    }
-
-    timer = window.setTimeout(check, pollDelay)
-    document.addEventListener('visibilitychange', onVisibilityChange)
-
-    return () => {
-      cancelled = true
-      window.clearTimeout(timer)
-      document.removeEventListener('visibilitychange', onVisibilityChange)
-    }
-  }, [pollTarget, pollDelay, selectedEntry, refreshIndex, refreshSession, refreshFallback])
-
-  const pendingMessage = (label: string) => {
-    if (pollDelay !== null) {
-      return `${label} results are not published yet — checking again automatically.`
-    }
-    if (selectedEntry && sessionPhase(selectedEntry, now) !== 'finished') {
-      return `${label} results will be available after the session.`
-    }
-    return `${label} results are not available.`
-  }
-
-  const pendingRoundMessage =
-    pollDelay !== null
-      ? 'Results are not published yet — checking again automatically.'
-      : selectedEntry && sessionPhase(selectedEntry, now) !== 'finished'
-        ? 'Results will be available after the session.'
-        : 'Results are not available for this round.'
-
-  // Only qualifying has a starting grid to show, and the toggle is the only way
-  // to reach it: every other session stays on the table it has always had.
-  const gridAvailable = session === 'Q' || session === 'SQ'
-  const showingGrid = gridAvailable && view === 'grid'
 
   return (
     <section className="panel" aria-labelledby="results-title">
@@ -398,56 +292,37 @@ export function RaceResults({
       )}
 
       {!round && <Empty message="Select a round to see its results." />}
-      {round && !roundId && roundsLoading && (
-        <Loading message="Loading the results index…" />
-      )}
-      {round && !roundId && !roundsLoading && roundsError && (
-        <ErrorState message={roundsError} onRetry={onRetryRounds} />
-      )}
-      {round && !roundId && !roundsLoading && !roundsError && (
-        <Empty message={`Results are not available for round ${round}.`} />
-      )}
-      {roundId && indexLoading && <Loading message="Loading sessions…" />}
-      {indexError && <ErrorState message={indexError} onRetry={reloadIndex} />}
+      {round && !selectedRace && <Empty message={`Results are not available for round ${round}.`} />}
 
-      {/* A round can be on the calendar before the API lists any of its
-          sessions, which is the other half of "not published yet". */}
-      {roundId && !indexLoading && !indexError && sessionTabs.length === 0 && (
-        <Empty message={pendingRoundMessage} />
+      {selectedRace && !sessionStarted && (
+        <Empty message={pendingMessage(sessionLabel)} />
       )}
 
       {loading && !error && (
         <Loading message={`Loading ${sessionLabel.toLowerCase()} results…`} />
       )}
-      {fallbackPending && !usingFallback && (
-        <Loading message="Loading results…" />
-      )}
-      {error && !usingFallback && !fallbackPending && !fallbackLocked && (
-        <ErrorState message={error} onRetry={reload} />
-      )}
+      {error && <ErrorState message={error} onRetry={reload} />}
 
-      {data &&
-        !loading &&
-        !error &&
-        data.results.length === 0 &&
-        !usingFallback &&
-        !fallbackPending &&
-        !fallbackLocked && <Empty message={pendingMessage(sessionLabel)} />}
+      {data && !loading && !error && (
+        <>
+          {usingProvisional && (
+            <p className="results-note">
+              {data.source === 'openf1'
+                ? 'Provisional classification from OpenF1 — jolpica has not published this session yet.'
+                : 'Provisional classification from jolpica — the classification is not complete yet.'}
+            </p>
+          )}
 
-      {fallbackLocked && !usingFallback && !hasResults && !fallbackPending && (
-        <Empty message="OpenF1 is locked while another session is live. The provisional classification will return after the session." />
-      )}
-
-      {usingFallback &&
-        fallbackSession &&
-        (showingGrid ? (
-          <StartingGridView session={fallbackSession} />
-        ) : (
-          <SessionResultTable session={fallbackSession} />
-        ))}
-
-      {data && !loading && !error && data.results.length > 0 && (
-        showingGrid ? <StartingGridView session={data} /> : <SessionResultTable session={data} />
+          {hasResults && resultSession ? (
+            showingGrid ? (
+              <StartingGridView session={resultSession} />
+            ) : (
+              <SessionResultTable session={resultSession} />
+            )
+          ) : (
+            <Empty message={pendingMessage(sessionLabel)} />
+          )}
+        </>
       )}
 
       {replayOpen && replaySession && selectedRace && (

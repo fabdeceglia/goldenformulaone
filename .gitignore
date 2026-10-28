@@ -13,6 +13,8 @@ dist-ssr
 *.local
 .readiness
 .cache
+.wrangler
+.dev.vars
 
 # Editor directories and files
 .vscode/*

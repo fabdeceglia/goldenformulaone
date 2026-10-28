@@ -1,3 +1,4 @@
+import { unwrapAlpha } from '../shared/alpha'
 import { getJson } from './http'
 import type {
   AlphaEnvelope,
@@ -13,21 +14,12 @@ import type {
  */
 const ALPHA_BASE = (import.meta.env.VITE_ALPHA_BASE as string | undefined) ?? '/f1/alpha'
 
-/**
- * Alpha list endpoints answer either with a bare payload or wrapped in
- * `{ metadata, data }`, and that has been observed to change between requests.
- * Normalising here keeps every caller on one shape.
- */
-function unwrap<T>(payload: T | AlphaEnvelope<T>): T {
-  if (payload && typeof payload === 'object' && 'data' in payload && 'metadata' in payload) {
-    return (payload as AlphaEnvelope<T>).data
-  }
-  return payload as T
-}
-
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   const payload = await getJson(`${ALPHA_BASE}${path}`, { signal })
-  return unwrap<T>(payload as T | AlphaEnvelope<T>)
+  // Alpha list endpoints answer either bare or wrapped in `{ metadata, data }`,
+  // and that has been observed to change between requests. The shared helper is
+  // the same one the Worker uses.
+  return unwrapAlpha<T>(payload as T | AlphaEnvelope<T>)
 }
 
 /**
