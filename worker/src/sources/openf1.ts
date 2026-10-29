@@ -15,7 +15,8 @@ import {
   OPENF1_REQUEST_GAP_MS,
   type Env,
 } from '../config'
-import { fetchJson, sleep, UpstreamError, type FetchOptions } from '../http'
+import { sleep, UpstreamError, type FetchOptions } from '../http'
+import { fetchViaRelay } from '../relay'
 
 /**
  * OpenF1 fallback adapter.
@@ -89,7 +90,12 @@ function request<T>(path: string, env: Env, options: SourceOptions): Promise<T> 
     if (wait > 0) await sleep(wait)
     if (options.signal?.aborted) throw new Error('Request aborted')
 
-    return fetchJson<T>(`${base(env)}${path}`, { headers: headers(env) }, options)
+    return fetchViaRelay<T>(
+      `${base(env)}${path}`,
+      env.OPENF1_RELAY,
+      { headers: headers(env) },
+      options,
+    )
   }
 
   // `queue` never settles into a rejected state, otherwise one failure would

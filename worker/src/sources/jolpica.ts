@@ -11,7 +11,8 @@ import {
   FALLBACK_EXPECTED_DRIVERS,
   type Env,
 } from '../config'
-import { fetchJson, UpstreamError, type FetchOptions } from '../http'
+import { UpstreamError, type FetchOptions } from '../http'
+import { fetchViaRelay } from '../relay'
 
 /**
  * jolpica adapter: the calendar, the alpha round map and session results.
@@ -73,8 +74,9 @@ export async function fetchCalendar(
   env: Env,
   options: SourceOptions,
 ): Promise<Race[]> {
-  const payload = await fetchJson<RacesPayload>(
+  const payload = await fetchViaRelay<RacesPayload>(
     `${base(env)}/ergast/f1/${encodeURIComponent(season)}/races/?limit=100`,
+    env.JOLPICA_RELAY,
     { headers: headers(env) },
     options,
   )
@@ -86,8 +88,11 @@ export async function fetchRoundIds(
   env: Env,
   options: SourceOptions,
 ): Promise<Record<string, string>> {
-  const payload = await fetchJson<AlphaRound[] | { metadata: unknown; data: AlphaRound[] }>(
+  const payload = await fetchViaRelay<
+    AlphaRound[] | { metadata: unknown; data: AlphaRound[] }
+  >(
     `${base(env)}/f1/alpha/core/rounds/?year=${encodeURIComponent(season)}`,
+    env.JOLPICA_RELAY,
     { headers: headers(env) },
     options,
   )
@@ -113,8 +118,9 @@ export async function fetchExpectedDrivers(
   options: SourceOptions,
 ): Promise<number> {
   try {
-    const payload = await fetchJson<DriverStandingsPayload>(
+    const payload = await fetchViaRelay<DriverStandingsPayload>(
       `${base(env)}/ergast/f1/${encodeURIComponent(season)}/driverstandings/?limit=100`,
+      env.JOLPICA_RELAY,
       { headers: headers(env) },
       options,
     )
@@ -143,10 +149,11 @@ export async function fetchSessionResult(
   }
 
   try {
-    const payload = await fetchJson<
+    const payload = await fetchViaRelay<
       AlphaSessionResults | { metadata: unknown; data: AlphaSessionResults }
     >(
       `${base(env)}/f1/alpha/results/${encodeURIComponent(roundId)}/${code}/`,
+      env.JOLPICA_RELAY,
       { headers: headers(env) },
       options,
     )

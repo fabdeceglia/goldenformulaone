@@ -9,7 +9,9 @@ export interface Env {
   RESULTS: KVNamespace
   JOLPICA_USER_AGENT?: string
   JOLPICA_BASE?: string
+  JOLPICA_RELAY?: string
   OPENF1_BASE?: string
+  OPENF1_RELAY?: string
   OPENF1_API_KEY?: string
 }
 
