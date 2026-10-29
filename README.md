@@ -214,6 +214,14 @@ browser ── /api/results/{season}/{round}/{code} ──▶ Vercel rewrite ─
   `VITE_RESULTS_BASE=https://boxthislap-results.fabrizio-dec90.workers.dev/api/results`; the
   Worker sends `Access-Control-Allow-Origin: *` for that case. The Worker name is
   `boxthislap-results`, and the KV binding is `RESULTS`.
+- **The Worker reads both APIs through `api/upstream.ts` on Vercel.** A Cloudflare Worker
+  subrequest to `api.jolpi.ca` carries `cf-cache-status: BYPASS`, so it reaches the origin
+  instead of the CDN cache, and the origin rate-limits Cloudflare's shared egress IPs with an
+  nginx 429. A Vercel edge fetch is ordinary internet traffic and gets the cached response, so
+  `wrangler.jsonc` sets `JOLPICA_RELAY` and `OPENF1_RELAY` to
+  `https://boxthislap.vercel.app/api/upstream`. The function only forwards to those two hosts,
+  and the Worker falls back to the direct URL if the relay answers 5xx. If the production domain
+  changes, update both relay variables and redeploy the Worker.
 
 The shared wire types and pure helpers live in `src/shared/` and are imported by both the
 browser and the Worker. The Worker itself lives under `worker/src/` and is bundled by

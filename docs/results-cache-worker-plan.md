@@ -1028,7 +1028,10 @@ Success criteria:
 - [x] Verify `/api/status`
 - [ ] Run through a practice session
 - [ ] Confirm promotion when jolpica publishes
-- [ ] Check KV writes/day and jolpica 429s
+- [x] Check KV writes/day and jolpica 429s — a Worker subrequest to
+  `api.jolpi.ca` carries `cf-cache-status: BYPASS` and the origin rate-limits Cloudflare's
+  shared egress IPs, so the Worker now reads both APIs through `api/upstream.ts` on Vercel
+  (`JOLPICA_RELAY` / `OPENF1_RELAY`)
 - [x] Update README and this document's status
 
 ### Phase 6 — optional hardening
