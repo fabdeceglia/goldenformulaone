@@ -49,10 +49,61 @@ export interface FetchOptions {
   deadline?: number
 }
 
+/**
+ * Statuses worth another attempt inside the same refresh.
+ *
+ * Both upstreams sit behind Cloudflare and rate-limit the shared Worker egress
+ * IPs, so a burst can produce a transient 429 even when the request itself is
+ * fine. Retrying here recovers the session in the same tick instead of leaving
+ * it pending until the five-minute backoff expires.
+ */
+const RETRYABLE_STATUSES = new Set([429, 502, 503, 504])
+
+/** One initial attempt plus two retries. */
+const MAX_ATTEMPTS = 3
+
+/** First retry waits this long; the second doubles it. */
+const BASE_RETRY_MS = 500
+
+/** Never sleep longer than this, whatever `Retry-After` says. */
+const MAX_RETRY_MS = 2_000
+
 export async function fetchJson<T>(
   url: string,
   init: RequestInit,
   options: FetchOptions = {},
+): Promise<T> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await fetchJsonOnce<T>(url, init, options)
+    } catch (cause) {
+      if (!(cause instanceof UpstreamError)) throw cause
+
+      const retryable =
+        cause.kind === 'http' &&
+        cause.status !== undefined &&
+        RETRYABLE_STATUSES.has(cause.status)
+      if (!retryable || attempt >= MAX_ATTEMPTS) throw cause
+
+      const remaining = options.deadline
+        ? options.deadline - Date.now()
+        : Number.POSITIVE_INFINITY
+      const requested = cause.retryAfterMs ?? BASE_RETRY_MS * 2 ** (attempt - 1)
+      const delay = Math.max(0, Math.min(requested, MAX_RETRY_MS, remaining))
+
+      // A retry only makes sense if it still leaves room for the attempt.
+      if (remaining - delay < 500) throw cause
+      if (options.signal?.aborted) throw cause
+
+      if (delay > 0) await sleep(delay)
+    }
+  }
+}
+
+async function fetchJsonOnce<T>(
+  url: string,
+  init: RequestInit,
+  options: FetchOptions,
 ): Promise<T> {
   const controller = new AbortController()
   const forwardAbort = () => controller.abort()
