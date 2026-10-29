@@ -2,22 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
-      "source": "/jp/:path*",
-      "destination": "https://api.jolpi.ca/:path*"
-    },
-    {
-      "source": "/jp-probe/:path*",
-      "destination": "https://api.jolpi.ca/:path*"
-    },
-    {
-      "source": "/api/jolpica-probe/:path*",
-      "destination": "https://api.openf1.org/:path*"
-    },
-    {
-      "source": "/api/jolpica/:path*",
-      "destination": "https://api.jolpi.ca/:path*"
-    },
-    {
       "source": "/api/openf1/:path*",
       "destination": "https://api.openf1.org/:path*"
     },
