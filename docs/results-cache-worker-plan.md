@@ -1023,9 +1023,9 @@ Success criteria:
 ### Phase 5 — production verification
 
 - [x] Add Vercel rewrites for results, status and health
-- [ ] Deploy frontend
-- [ ] Verify `/api/results/...` through Vercel
-- [ ] Verify `/api/status`
+- [x] Deploy frontend
+- [x] Verify `/api/results/...` through Vercel
+- [x] Verify `/api/status`
 - [ ] Run through a practice session
 - [ ] Confirm promotion when jolpica publishes
 - [ ] Check KV writes/day and jolpica 429s
