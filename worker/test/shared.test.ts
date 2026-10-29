@@ -158,6 +158,15 @@ describe('completeness', () => {
     expect(assessCompleteness({ ...counts, positioned: 0 }, 20, 'Q').complete).toBe(false)
   })
 
+  it('accepts a short session when the entry list counts a substitute', () => {
+    // 2026 driver standings list 23 names; qualifying omits drivers without a
+    // time, so a real payload can be 20 rows.
+    const counts = { drivers: 20, positioned: 20, classified: 20, hasWinner: true }
+    expect(assessCompleteness(counts, 23, 'Q')).toEqual({ count: 20, complete: true })
+
+    expect(assessCompleteness({ ...counts, drivers: 19 }, 23, 'Q').complete).toBe(false)
+  })
+
   it('requires a winner and a finisher for races and sprints', () => {
     const noWinner = { drivers: 20, positioned: 20, classified: 20, hasWinner: false }
     expect(assessCompleteness(noWinner, 20, 'R').complete).toBe(false)

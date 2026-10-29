@@ -69,6 +69,13 @@ export const RESULT_CACHE_VERSION = 2 as const
 /** Sixty seconds matches KV's propagation window. */
 export const RESULTS_POLL_MS = 60_000
 
+/**
+ * At least this many classified drivers make a payload complete, whatever the
+ * season entry list says. An F1 grid is 20 cars even when the standings count
+ * a substitute who does not appear in a given session.
+ */
+export const MIN_COMPLETE_DRIVERS = 20
+
 const SESSION_CODES: readonly SessionCode[] = ['FP1', 'FP2', 'FP3', 'SQ', 'SR', 'Q', 'R']
 
 export function isSessionCode(value: unknown): value is SessionCode {
@@ -137,7 +144,12 @@ export function assessCompleteness(
   code: SessionCode,
 ): { count: number; complete: boolean } {
   const expected = Math.max(1, expectedDrivers)
-  const enoughDrivers = counts.drivers >= expected - 1
+  // The season entry list is not the session entry list: it counts a
+  // mid-season substitute, and qualifying omits drivers who never set a time.
+  // Requiring the full list marked genuinely complete payloads as provisional
+  // forever, so the bar is capped at a realistic field size.
+  const required = Math.min(expected - 1, MIN_COMPLETE_DRIVERS)
+  const enoughDrivers = counts.drivers >= Math.max(1, required)
   const hasRealPosition = counts.positioned >= 1
   const raceComplete =
     code === 'R' || code === 'SR' ? counts.hasWinner && counts.classified >= 1 : true
