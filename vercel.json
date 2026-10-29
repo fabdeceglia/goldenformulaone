@@ -2,6 +2,14 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/api/jolpica/:path*",
+      "destination": "https://api.jolpi.ca/:path*"
+    },
+    {
+      "source": "/api/openf1/:path*",
+      "destination": "https://api.openf1.org/:path*"
+    },
+    {
       "source": "/api/results/:path*",
       "destination": "https://boxthislap-results.fabrizio-dec90.workers.dev/api/results/:path*"
     },
