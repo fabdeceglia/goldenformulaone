@@ -1,11 +1,13 @@
-# Results Cache Worker — Implementation Plan
+# Results Cache Worker — Design and Implementation Record
 
-> Status: **planning**. No implementation yet. Revised 2026-10-28 after checking the
-> platform and upstream limits against current Cloudflare, Vercel, jolpica and OpenF1
-> documentation.
-> Setup: Cloudflare free account created 2026-10-23; Wrangler authentication pending.
-> Owner: Fabrizio · Created: 2026-10-23 · Revised: 2026-10-28
-> Target branch: `feat/results-cache-worker`
+> Status: **implemented and live** since 2026-10-29. The Worker, the KV cache, the cron,
+> the frontend switch and the upstream relay are deployed on `main`. The only remaining
+> verification is a live race weekend: Mexico City, 30 Oct – 1 Nov (runbook in §12.4,
+> checklist in §16 Phase 5).
+> Owner: Fabrizio · Created: 2026-10-23 · Revised: 2026-10-29
+> Production: Worker `https://boxthislap-results.fabrizio-dec90.workers.dev`, app
+> `https://boxthislap.vercel.app` (Vercel rewrites `/api/results/*`, `/api/status`,
+> `/health` to the Worker).
 > Folder note: `docs/` sits outside the Vite build (the build only bundles
 > `index.html` + `src/` and copies `public/`), so this document is version-controlled
 > but **never shipped** in `dist/`.
@@ -28,6 +30,11 @@ Vercel static app
         └── Cloudflare Worker
               ├── KV: last good result per session
               └── Cron: warm the cache around session windows
+                    │
+                    ▼
+              Vercel edge function `api/upstream.ts` (relay)
+                    ├── jolpica alpha
+                    └── OpenF1
 ```
 
 The frontend keeps rendering the existing `AlphaSessionResults` shape. It no longer
@@ -98,6 +105,7 @@ frontend.
 | Frontend origin | Vercel, same-origin `/api/results/*` via a Vercel rewrite |
 | Canonical source | jolpica alpha |
 | Provisional fallback | OpenF1 `session_result`, all sessions in v1 |
+| Upstream egress | Vercel edge function `api/upstream.ts` (Workers subrequests bypass the upstream cache) |
 | Wire shape | Existing `AlphaSessionResults` plus cache metadata |
 | Cost | Cloudflare Free + Vercel Hobby = $0 |
 
@@ -205,9 +213,16 @@ Cloudflare Worker
   ├── if cached: return it
   └── if missing/stale: refresh once, write, return
         │
+        ▼
+Vercel edge function  api/upstream.ts   (relay, see §11.5)
+        │
         ├── jolpica alpha
         └── OpenF1 (results fallback, all sessions)
 ```
+
+The relay exists because a Worker subrequest reaches the jolpica origin with
+`cf-cache-status: BYPASS` and is rejected with an nginx `429`; Vercel's egress gets the
+normal cached response. See §11.5.
 
 ### 5.2 Cron path
 
@@ -215,9 +230,9 @@ Cloudflare Worker
 Cloudflare Cron (every 2 min)
   ├── load calendar + round-id map from KV (refresh daily)
   ├── find sessions that are finished and not final
-  ├── refresh jolpica
+  ├── refresh jolpica (through the relay)
   ├── if jolpica complete: write final, stop polling that session
-  ├── else refresh OpenF1 (all sessions)
+  ├── else refresh OpenF1 (all sessions, through the relay)
   ├── if OpenF1 ready: write provisional
   └── keep checking jolpica to promote when it publishes
 ```
@@ -794,15 +809,15 @@ rewrites):
 [
   {
     "source": "/api/results/:path*",
-    "destination": "https://<worker-subdomain>.workers.dev/api/results/:path*"
+    "destination": "https://boxthislap-results.fabrizio-dec90.workers.dev/api/results/:path*"
   },
   {
     "source": "/api/status",
-    "destination": "https://<worker-subdomain>.workers.dev/api/status"
+    "destination": "https://boxthislap-results.fabrizio-dec90.workers.dev/api/status"
   },
   {
     "source": "/health",
-    "destination": "https://<worker-subdomain>.workers.dev/health"
+    "destination": "https://boxthislap-results.fabrizio-dec90.workers.dev/health"
   }
 ]
 ```
@@ -817,7 +832,45 @@ If external path rewrites cause trouble, fall back to calling the Worker directl
 `VITE_RESULTS_BASE` and restrict CORS to `https://boxthislap.vercel.app` and
 `http://localhost:5173`.
 
-### 11.5 Local development
+### 11.5 Upstream relay (`api/upstream.ts`)
+
+**Why.** A Cloudflare Worker subrequest to `api.jolpi.ca` is sent with
+`cf-cache-status: BYPASS`, so it reaches the origin instead of the CDN cache, and the
+origin rate-limits Cloudflare's shared egress IPs with an nginx `429`. The same shared-IP
+problem hits OpenF1's three-requests-per-second budget. Nothing in the Worker can change
+that: the header is set by the runtime and the rate limit is per egress IP.
+
+**What.** `api/upstream.ts` is a Vercel edge function at a flat route:
+
+```
+GET /api/upstream?url=<percent-encoded absolute URL>
+```
+
+It forwards only to `https://api.jolpi.ca/…` and `https://api.openf1.org/…` (anything
+else is a `400`), sends the project User-Agent, forwards `Authorization` for a future
+paid OpenF1 key, and passes through the upstream status, `content-type` and
+`cache-control`. A Vercel edge fetch is ordinary internet traffic and gets the cached
+response.
+
+`wrangler.jsonc` points both adapters at it:
+
+```json
+"vars": {
+  "JOLPICA_RELAY": "https://boxthislap.vercel.app/api/upstream",
+  "OPENF1_RELAY": "https://boxthislap.vercel.app/api/upstream"
+}
+```
+
+`worker/src/relay.ts` wraps the direct URL in the relay query. If the relay answers 5xx,
+times out or fails at the network layer, the request is retried once against the origin
+directly; a real upstream error (404, 429) is not retried.
+
+**Notes.** The relay host is the production alias, so changing the domain means updating
+both variables and redeploying the Worker. A Vercel rewrite to `api.jolpi.ca` does not
+work at all (every prefix shape returns Vercel's own `NOT_FOUND`), which is why this is a
+function rather than a rewrite.
+
+### 11.6 Local development
 
 - `npm run worker:dev` starts Wrangler on `http://127.0.0.1:8787`.
 - `npm run dev` proxies `/api` to Wrangler.
@@ -827,7 +880,7 @@ If external path rewrites cause trouble, fall back to calling the Worker directl
 - The Worker should accept an injected `now` in its refresh functions so tests can freeze
   time without browser globals. The scheduled test route covers the cron entry point.
 
-### 11.6 Deploy order
+### 11.7 Deploy order
 
 1. Deploy the Worker and KV namespace (`wrangler types`, then `wrangler deploy`).
 2. Seed the calendar/round metadata by calling `/api/results/...` or the cron.
@@ -835,6 +888,10 @@ If external path rewrites cause trouble, fall back to calling the Worker directl
 4. Add the Vercel rewrites for results, status and health, then deploy the frontend.
 5. Verify the app in production.
 6. Keep the previous frontend commit as the rollback point.
+
+When the relay changes, deploy Vercel first and the Worker second: a Worker pointing at
+a missing relay retries it twice before falling back to the direct URL, which is slow but
+still correct, while the reverse order has no downside.
 
 ---
 
@@ -852,9 +909,10 @@ Test the pure functions without Cloudflare:
 - state-rank/revision guard (a provisional result cannot replace `final`);
 - final-recheck hash comparison.
 
-The repo has no test runner today. Start with a small Node script or `node:test` over the
-shared modules; add Vitest if the test surface grows or if Node cannot strip the shared
-TypeScript syntax.
+The repo now runs Vitest (`npm run test`, 49 tests over 6 files). The pure helpers are
+tested directly; the Worker is tested against an in-memory `FakeKV` with `fetch` stubbed,
+which covers the cron state machine, the on-demand revalidation rules, the HTTP retry and
+the relay fallback without network access.
 
 ### 12.2 Worker integration
 
@@ -877,27 +935,57 @@ Use `wrangler dev` and fixture-backed source adapters:
 
 ### 12.3 Production validation
 
-Before the next session:
+Completed on 2026-10-29 against the live deployment:
 
-- `curl https://<worker>/health`
-- `curl https://<worker>/api/status`
-- `curl https://<worker>/api/results/2026/18/FP1`
-- check the Vercel rewrite path in the browser
-- confirm the frontend shows `pending`, `provisional`, and `final` correctly
+- `/health` → `200` on the Worker and through Vercel;
+- `/api/status` → cron heartbeat current, per-session list accumulating, no `lastError`;
+- `/api/results/2026/18/FP1` → `final` / jolpica / 22 rows, directly and through Vercel;
+- full season audit, rounds 1–18 (90 sessions): 90 `final`, 0 empty;
+- the OpenF1 path exercised for real: a jolpica 429 on `2026/17/R` produced a
+  `provisional` / OpenF1 table with 22 rows and a `GRID` component, then promoted;
+- the relay exercised with 10 parallel requests, all `200`.
 
-During the weekend:
+### 12.4 Mexico City weekend runbook (30 Oct – 1 Nov)
 
-- compare the Worker's first-seen times with `npm run readiness:report`
-- confirm a cached provisional table survives the next live lock
-- confirm jolpica promotion happens without a page reload (polling)
-- watch `wrangler tail` for upstream errors, `cpuTime`, jolpica 429s and timeouts
-- check the KV write count in the Cloudflare dashboard; a 2-minute cron should not
-  approach 1,000 writes/day
-- confirm the session tabs appear even when `alpha.resultsIndex` is empty or late
+This is the first live weekend. The session results are the only thing to watch; the rest
+of the app is unchanged.
+
+**Before the first session**
+
+```bash
+curl -sS https://boxthislap-results.fabrizio-dec90.workers.dev/health
+curl -sS https://boxthislap-results.fabrizio-dec90.workers.dev/api/status | jq
+curl -sS https://boxthislap.vercel.app/api/results/2026/19/FP1
+npm run worker:tail   # keep this open for the weekend
+```
+
+Expected before FP1: `/health` → `200`, a `lastRunAt` no more than two minutes old, and
+`pending` for the Mexico sessions.
+
+**During a session**
+
+- watch `wrangler tail` for `results.refresh` events with `count` > 0 and for
+  `results.refresh.error`;
+- confirm the tab appears from the calendar even while `alpha.resultsIndex` is empty;
+- after the flag, the first non-empty table should arrive within five minutes.
+
+**After each session**
+
+```bash
+curl -sS https://boxthislap.vercel.app/api/results/2026/19/FP1 | jq '{state,source,complete,rows:(.session.results|length)}'
+```
+
+- `provisional` / `openf1` is fine immediately after the session, and it must stay on
+  screen during the next live lock;
+- it must become `final` / `jolpica` without a page reload once jolpica publishes;
+- check the Cloudflare KV write count for the day; the 2-minute cron plus transitions
+  should stay far below 1,000 writes/day;
+- note the first time jolpica published each session, and compare it with
+  `npm run readiness:report`.
 
 Success criteria:
 
-- first non-empty result captured within 5 minutes of either source publishing;
+- each session first appears within 5 minutes of either source publishing;
 - every client sees the same source/state;
 - a provisional table remains available during the next live lock;
 - jolpica replaces it when it publishes;
@@ -905,6 +993,10 @@ Success criteria:
 - no direct OpenF1 result calls from the frontend;
 - free-tier usage stays comfortably within limits, including KV writes and jolpica's
   500 requests/hour.
+
+If jolpica starts answering `429` to the relay as well, the next lever is a longer
+`Retry-After` cap plus a single retry, and then a paid OpenF1 key so a live lock cannot
+leave a session empty.
 
 ---
 
@@ -948,11 +1040,14 @@ Success criteria:
 
 ## 15. Open questions
 
-1. Worker name and `workers.dev` subdomain.
-2. KV namespace id (needs the Cloudflare account).
-3. Cron cadence and batch size: start with 2 minutes and 3–5 sessions; tune after the
-   first weekend against the jolpica hourly budget.
-4. How long to keep polling jolpica after a provisional result: 24h initially.
+Resolved by the implementation are marked; the rest stay open on purpose.
+
+1. ~~Worker name and `workers.dev` subdomain.~~ → `boxthislap-results`.
+2. ~~KV namespace id (needs the Cloudflare account).~~ → `cb08c37c411246d290bb52b9c3e1dd57`.
+3. Cron cadence and batch size: deployed with `*/2 * * * *` and a four-session cap; tune
+   after the first weekend against the jolpica hourly budget.
+4. ~~How long to keep polling jolpica after a provisional result: 24h initially.~~ → 24h
+   on demand, 5-minute provisional rechecks while the session is inside the cron window.
 5. Whether to add a protected manual refresh endpoint.
 6. Whether to move the results index behind the Worker in v1 or later; the tab list must
    fall back to the calendar either way.
@@ -962,6 +1057,8 @@ Success criteria:
    `/api/status`.
 10. Final recheck schedule: 1h/6h/24h/72h is the starting point; add a weekly check only
     if real amendments are missed.
+11. Whether to keep the Vercel relay permanently or revisit if Cloudflare stops bypassing
+    the upstream cache (`cf-cache-status: BYPASS` is the whole reason it exists).
 
 ---
 
@@ -1026,8 +1123,10 @@ Success criteria:
 - [x] Deploy frontend
 - [x] Verify `/api/results/...` through Vercel
 - [x] Verify `/api/status`
-- [ ] Run through a practice session
-- [ ] Confirm promotion when jolpica publishes
+- [x] Audit every completed 2026 session (rounds 1–18, 90 sessions): all `final` from
+  jolpica, no empty tables (2026-10-29)
+- [ ] Run through a practice session — **Mexico City, 30 Oct** (first live exercise)
+- [ ] Confirm promotion when jolpica publishes — **Mexico City, 30 Oct – 1 Nov**
 - [x] Check KV writes/day and jolpica 429s — a Worker subrequest to
   `api.jolpi.ca` carries `cf-cache-status: BYPASS` and the origin rate-limits Cloudflare's
   shared egress IPs, so the Worker now reads both APIs through `api/upstream.ts` on Vercel
@@ -1056,20 +1155,18 @@ Success criteria:
 
 ---
 
-## 17. Suggested commit plan
+## 17. Commit history
 
-On `feat/results-cache-worker`:
+The branch was merged as one feature commit rather than the five suggested steps:
 
-1. `worker: add cached results service skeleton`
-2. `worker: fetch jolpica and cache session results`
-3. `worker: add all-session OpenF1 fallback and cron`
-4. `web: read results from the cache worker`
-5. `docs: document the results cache worker`
+1. `9727ede` — Worker, frontend switch and docs in one commit, on
+   `feat/results-cache-worker`, then fast-forwarded to `main`.
+2. Follow-up fixes on `main` (heartbeat, on-demand retry, 429 retry, relay,
+   completeness) are listed in §19.
 
-If the Worker and frontend switch feel safer as separate reviews, split into two branches:
-
-- `feat/results-cache-worker` — Worker only, tested by curl.
-- `feat/results-cache-frontend` — switch the app after the Worker is verified.
+The Worker and frontend did not need separate reviews: the Worker was verified by `curl`
+before the frontend switch was merged, and the old browser fallback was removed in the
+same commit.
 
 ---
 
@@ -1235,7 +1332,46 @@ lose the table during the switch.
 
 ---
 
-## 19. References
+## 19. Implementation record
+
+Shipped on `main` on 2026-10-28/29, in this order:
+
+| Commit | What |
+| --- | --- |
+| `9727ede` | results cache Worker, frontend switch, Vercel rewrites, docs |
+| `580eb27` | cron heartbeat accumulates session state (uncached previous read; only a state/source change bypasses the 10-minute heartbeat) |
+| `5f22be1` | a failed on-demand result revalidates once its backoff expires instead of staying pending for 24h |
+| `7aefc33` | mark production endpoint verification complete |
+| `84ae9d0` | `fetchJson` retries `429/502/503/504` up to three attempts |
+| `a28a0e6` | `api/upstream.ts` relay, `worker/src/relay.ts`, `JOLPICA_RELAY` / `OPENF1_RELAY` |
+| `8c10c2d` | completeness bar capped at a realistic grid size |
+| `41773c3` | README and this document updated |
+
+Deviations from the original plan, and why:
+
+1. **Upstream relay.** The plan assumed the Worker could call jolpica directly. In
+   production every such call arrives with `cf-cache-status: BYPASS` and is rejected by
+   the origin with an nginx `429`, so results were empty for real sessions (Miami round 4
+   qualifying, Canada round 5 sprint/qualifying/race). Both adapters now read through the
+   Vercel edge function. The Worker still falls back to the direct URL if the relay fails.
+2. **429 retry inside a refresh.** Backing off for five minutes was too coarse: a single
+   transient burst froze a session long enough to look empty. `fetchJson` now retries
+   inside the same refresh.
+3. **Completeness floor.** `expectedDrivers` comes from the season standings and counts a
+   departed substitute, so a real 20-row qualifying payload never reached `final`. The
+   requirement is now `min(expected - 1, 20)`.
+4. **On-demand retry after backoff.** A cached error used to be served for the full 24-hour
+   stale window even though the cron had stopped polling.
+5. **Heartbeat read.** The cron merged into a status read that could come from KV's 60
+   second edge cache, so a tick could overwrite the accumulated session list with nothing.
+
+Result of the season audit (2026-10-29, rounds 1–18, 90 sessions): all `final` from
+jolpica, none empty. Short tables (20–21 rows) are genuine jolpica payloads where a
+driver set no time.
+
+---
+
+## 20. References
 
 - Cloudflare Workers limits: <https://developers.cloudflare.com/workers/platform/limits/>
 - Cloudflare Cron Triggers: <https://developers.cloudflare.com/workers/configuration/cron-triggers/>

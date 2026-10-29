@@ -189,8 +189,8 @@ Session results are served by a single Cloudflare Worker, not fetched by the bro
 
 ```text
 browser ── /api/results/{season}/{round}/{code} ──▶ Vercel rewrite ──▶ Worker ──▶ KV
-                                                                        ├──▶ jolpica (canonical)
-                                                                        └──▶ OpenF1 (provisional)
+                                                                        ├──▶ Vercel relay ──▶ jolpica (canonical)
+                                                                        └──▶ Vercel relay ──▶ OpenF1 (provisional)
 ```
 
 - **One endpoint per session.** `GET /api/results/{season}/{round}/{code}` returns the same
@@ -207,6 +207,10 @@ browser ── /api/results/{season}/{round}/{code} ──▶ Vercel rewrite ─
 - **OpenF1 is server-side.** The free tier's 401/403 live lock and 429 rate limits are
   handled in the Worker (with a `retryAt` backoff), so the browser never calls OpenF1 for a
   result. The fallback is tried only while jolpica is incomplete.
+- **Live since 2026-10-29.** All 90 sessions of rounds 1–18 are cached and `final` from
+  jolpica. The Mexico City weekend (30 Oct – 1 Nov) is the first live exercise of the cron
+  and the provisional-to-final promotion; the runbook is §12.4 of
+  `docs/results-cache-worker-plan.md`.
 - **Deployment is separate from the frontend.** `npm run worker:deploy` publishes the Worker to
   `https://boxthislap-results.fabrizio-dec90.workers.dev`, and `vercel.json` rewrites
   `/api/results/*`, `/api/status` and `/health` there. `npm run dev` proxies `/api` to
