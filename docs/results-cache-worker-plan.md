@@ -956,11 +956,18 @@ of the app is unchanged.
 curl -sS https://boxthislap-results.fabrizio-dec90.workers.dev/health
 curl -sS https://boxthislap-results.fabrizio-dec90.workers.dev/api/status | jq
 curl -sS https://boxthislap.vercel.app/api/results/2026/19/FP1
-npm run worker:tail   # keep this open for the weekend
+npm run worker:tail                    # upstream errors and refresh events
+npm run results:watch -- --round 19    # what visitors see, one line per change
 ```
 
-Expected before FP1: `/health` → `200`, a `lastRunAt` no more than two minutes old, and
-`pending` for the Mexico sessions.
+`results:watch` polls the deployed Worker every 60 s and prints a line only when a
+session's state or source changes (plus a heartbeat every fifth poll), which is the
+quickest way to see provisional → final promotion. Keep `worker:tail` in a second terminal
+for the underlying refresh events.
+
+Expected before FP1: `/health` → `200`, a `lastRunAt` no more than ten minutes old (the
+heartbeat is written every ten minutes, not every tick), and `pending` for the Mexico
+sessions.
 
 **During a session**
 

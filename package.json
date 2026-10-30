@@ -11,6 +11,7 @@
     "test": "vitest run",
     "readiness": "node scripts/results-readiness.mjs",
     "readiness:report": "node scripts/results-readiness.mjs --report",
+    "results:watch": "node scripts/results-watch.mjs",
     "replays": "node scripts/build-replays.mjs",
     "worker:dev": "wrangler dev",
     "worker:deploy": "wrangler deploy",
