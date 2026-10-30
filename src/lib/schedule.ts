@@ -117,7 +117,7 @@ function daysBetween(from: string, to: string): number {
 export type SessionPhase = 'upcoming' | 'live' | 'finished'
 
 /** Estimated end of a session, in epoch milliseconds. */
-function sessionEnd(entry: ScheduleEntry): number {
+export function sessionEndMillis(entry: ScheduleEntry): number {
   return sessionStart(entry) + SESSION_MINUTES[entry.code] * 60_000
 }
 
@@ -130,7 +130,7 @@ export function sessionPhase(entry: ScheduleEntry, now: number = Date.now()): Se
   const start = sessionStart(entry)
   if (!Number.isFinite(start)) return 'upcoming'
 
-  const end = sessionEnd(entry)
+  const end = sessionEndMillis(entry)
   if (now < start) return 'upcoming'
   if (now < end) return 'live'
   return 'finished'

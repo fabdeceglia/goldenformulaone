@@ -103,6 +103,11 @@ export function formatTime(date: string | undefined, time: string | undefined): 
   return instant ? localClock.format(instant) : ''
 }
 
+/** Clock time for an epoch instant, in the visitor's timezone, e.g. "21:00". */
+export function formatClock(millis: number): string {
+  return localClock.format(new Date(millis))
+}
+
 export function formatDateTime(date: string | undefined, time?: string): string {
   const day = formatDate(date, time)
   const clock = formatTime(date, time)

@@ -47,6 +47,17 @@ const MAX_ITEMS = 60
 /** How long a merged list is reused before the feeds are read again. */
 const CACHE_MS = 10 * 60 * 1000
 
+/**
+ * One stalled publisher must not hold the whole panel.
+ *
+ * The merged list waits for every source (`Promise.allSettled`), so without a
+ * deadline a single feed that sends headers and then never finishes the body
+ * keeps both the home panel and the news section on their spinner forever.
+ * Each feed therefore gets its own budget, covering the body as well as the
+ * headers; a source that misses it is dropped like any other failed feed.
+ */
+const FEED_TIMEOUT_MS = 10_000
+
 const parser = new DOMParser()
 
 /**
@@ -128,9 +139,19 @@ function itemsFrom(xml: string, source: NewsSource): NewsItem[] {
 }
 
 async function readFeed(source: NewsSource): Promise<NewsItem[]> {
-  const response = await fetch(`${NEWS_BASE}/${source.id}`)
-  if (!response.ok) throw new Error(`${source.name} returned status ${response.status}`)
-  return itemsFrom(await response.text(), source)
+  // The caller's signal is intentionally not forwarded here: the merged list is
+  // shared across components, so one unmounting must not cancel the load for
+  // the next one. That makes this internal deadline the only upper bound.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), FEED_TIMEOUT_MS)
+
+  try {
+    const response = await fetch(`${NEWS_BASE}/${source.id}`, { signal: controller.signal })
+    if (!response.ok) throw new Error(`${source.name} returned status ${response.status}`)
+    return itemsFrom(await response.text(), source)
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /** Case and punctuation are noise when comparing two pieces of copy. */

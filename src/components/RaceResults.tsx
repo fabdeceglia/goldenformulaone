@@ -5,8 +5,8 @@ import type { ResultsResponse } from '../api/resultsService'
 import type { Race, SessionCode } from '../api/types'
 import { useFetch } from '../hooks/useFetch'
 import { useNow } from '../hooks/useNow'
-import { formatDateTime } from '../lib/format'
-import { defaultSession, raceSchedule, sessionPhase } from '../lib/schedule'
+import { formatClock, formatDateTime } from '../lib/format'
+import { defaultSession, raceSchedule, sessionEndMillis, sessionPhase } from '../lib/schedule'
 import { BattleDialog } from './BattleDialog'
 import { Empty, ErrorState, Loading } from './Feedback'
 import { ReplayDialog } from './ReplayDialog'
@@ -14,6 +14,17 @@ import { SessionResultTable } from './SessionResultTable'
 import { StartingGridView } from './StartingGridView'
 import { Tabs } from './Tabs'
 import type { Tab } from './Tabs'
+
+/**
+ * How long after the chequered flag the official classification usually takes.
+ * Practice and qualifying are normally classified within half an hour; the
+ * message promises that window rather than an exact instant, because the
+ * upstream provider can be late.
+ */
+const RESULTS_ETA_MS = 30 * 60_000
+
+/** Past this much grace, the copy stops saying the result is about to land. */
+const RESULTS_OVERDUE_MS = 20 * 60_000
 
 interface RaceResultsProps {
   season: string
@@ -135,19 +146,33 @@ export function RaceResults({
   const resultSession = data?.session ?? null
   const hasResults = (resultSession?.results.length ?? 0) > 0
   const usingProvisional = data?.state === 'provisional' && hasResults
-  const openF1Locked = data?.state === 'pending' && data.sources.openf1.state === 'locked'
+
+  // The scheduled end and the usual publication window, both localised. The
+  // reader reasons in their own clock ("results around 21:00"), not in UTC.
+  const sessionEnd = selectedEntry ? sessionEndMillis(selectedEntry) : null
+  const resultsEta = sessionEnd !== null ? sessionEnd + RESULTS_ETA_MS : null
 
   const pendingMessage = (label: string) => {
-    if (selectedEntry && sessionPhase(selectedEntry, now) === 'live') {
-      return `${label} results will be available after the session.`
-    }
-    if (openF1Locked) {
-      return 'OpenF1 is locked while another session is live. The provisional classification will return after the session.'
+    const phase = selectedEntry ? sessionPhase(selectedEntry, now) : null
+
+    if (phase === 'live') {
+      return `${label} is on track now. The classification usually arrives within about 30 minutes of the chequered flag — this page updates automatically.`
     }
     if (data?.pollAfterMs != null) {
-      return `${label} results are not published yet — checking again automatically.`
+      if (sessionEnd === null || resultsEta === null) {
+        return `${label} results are not published yet — checking again automatically.`
+      }
+
+      const finishedAt = formatClock(sessionEnd)
+      if (now > resultsEta + RESULTS_OVERDUE_MS) {
+        return `${label} finished at ${finishedAt}. The official classification is taking longer than usual — still checking automatically.`
+      }
+      if (now >= resultsEta) {
+        return `${label} finished at ${finishedAt}. The official classification is due any minute — checking again automatically.`
+      }
+      return `${label} finished at ${finishedAt}. The official classification usually arrives within about 30 minutes, around ${formatClock(resultsEta)} — this page updates automatically.`
     }
-    if (selectedEntry && sessionPhase(selectedEntry, now) !== 'finished') {
+    if (phase !== 'finished') {
       return `${label} results will be available after the session.`
     }
     return `${label} results are not available.`
