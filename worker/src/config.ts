@@ -45,7 +45,14 @@ export const FINAL_RECHECK_OFFSETS_MS = [
 ] as const
 
 export const PROVISIONAL_RECHECK_MS = 5 * 60_000
-export const LOCK_RETRY_MS = 15 * 60_000
+
+/**
+ * How long a locked source is left alone. OpenF1's free tier answers 401/403
+ * for the live blackout, which ends about thirty minutes after the flag. A
+ * shorter retry only costs a cheap rejection, and it keeps the first check
+ * after the unlock within a few minutes instead of a fifteen-minute grid.
+ */
+export const LOCK_RETRY_MS = 5 * 60_000
 export const ERROR_RETRY_MS = 5 * 60_000
 export const HEARTBEAT_MS = 10 * 60_000
 
