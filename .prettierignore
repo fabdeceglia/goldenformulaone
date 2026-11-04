@@ -1,0 +1,10 @@
+# Generated, vendored, or too large to diff
+public
+worker-configuration.d.ts
+package-lock.json
+dist
+.cache
+.readiness
+
+# Prose is hand-wrapped on purpose: reflowing it changes the context budget
+*.md
