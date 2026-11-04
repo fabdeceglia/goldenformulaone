@@ -2926,7 +2926,9 @@ a:hover {
 
 .battle__score {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  /* The centre holds the live gap chase, so it gets the extra room: the two
+     driver panels shrink before the chase does. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr) minmax(0, 1fr);
   align-items: center;
   gap: 0.7rem;
   margin-top: 0.9rem;
@@ -3011,18 +3013,63 @@ a:hover {
   letter-spacing: 0.07em;
 }
 
-.battle__delta strong {
-  color: var(--battle-green);
-  font-size: 0.9rem;
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
 .battle__delta-sub {
   color: var(--ink-muted);
   font-size: 0.62rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Live gap chase (inside the scoreboard) ---------- */
+
+/* The gap lives in the middle of the scoreboard: two cars that move apart and
+   together with the live gap, joined by a stretching line, with the gap value
+   on top. It is deliberately unboxed so it reads as part of the header. */
+.battle__gapbar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  width: 100%;
+}
+
+.battle__gapbar-value {
+  color: var(--battle-green);
+  font-size: 1rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+.battle__gapbar-pair {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* The car is a side-view SVG whose body is filled with the driver colour, so it
+   needs a width rather than a box: the height follows the artwork's aspect. */
+.battle__gapbar-car {
+  flex: none;
+  width: 4.2rem;
+  height: auto;
+  overflow: visible;
+}
+
+/* No transition: the playhead moves every frame, and a transition would make
+   the rail lag behind the gap value above it. The width and the symmetric
+   inline margins come from the component (width + 2 * margin === gap), so it
+   may still shrink on narrow screens and the pair always fits between the two
+   cars. The colour matches the gap value above it, and the pill radius rounds
+   the caps of the 3px line. */
+.battle__gapbar-rail {
+  flex: 0 1 auto;
+  min-width: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--battle-green);
 }
 
 /* ---------- Map ---------- */
@@ -3483,15 +3530,14 @@ a:hover {
     gap: 0.4rem 0.6rem;
   }
 
-  /* The gap is the headline number, so it drops under the two drivers rather
-     than squeezing the lap times out of the row. */
+  /* The chase is the headline, so it drops under the two drivers rather than
+     squeezing the lap times out of the row. It keeps the column flow so the
+     value stays directly above the rail. */
   .battle__delta {
     grid-row: 2;
     grid-column: 1 / -1;
-    flex-flow: row wrap;
-    justify-content: center;
-    gap: 0.1rem 0.6rem;
-    padding: 0.35rem 0 0;
+    gap: 0.15rem;
+    padding: 0.55rem 0 0;
     border-top: 1px solid var(--line);
   }
 
@@ -3518,5 +3564,10 @@ a:hover {
      already identify the driver at this width. */
   .battle__score-team {
     display: none;
+  }
+
+  /* Give the rail a little more room to breathe on the narrowest screens. */
+  .battle__gapbar-car {
+    width: 3.4rem;
   }
 }

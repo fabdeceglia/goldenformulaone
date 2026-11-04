@@ -5,7 +5,6 @@ import {
   battleStateAt,
   fastestLap,
   formatBattleDelta,
-  formatBattleGap,
   lapDelta,
   sectorDeltas,
 } from '../lib/battle'
@@ -15,6 +14,7 @@ import { BattleUnavailableError, loadBattle, loadBattleSession } from '../lib/ba
 import type { BattleCode, BattleProgress, BattleSession } from '../lib/battleSource'
 import { BattleCockpit } from './BattleCockpit'
 import { BattleControls } from './BattleControls'
+import { BattleGapBar } from './BattleGapBar'
 import { BattleTrack } from './BattleTrack'
 import { ErrorState, Loading } from './Feedback'
 import { Modal } from './Modal'
@@ -540,18 +540,14 @@ function BattleView({
   const state = battleStateAt(battle.a.lap, battle.b.lap, current)
   const end = battleDuration(battle.a.lap, battle.b.lap)
   const overallDelta = lapDelta(battle.a.lap, battle.b.lap)
-  const leader =
-    state.lead === 'a' ? battle.a.driver : state.lead === 'b' ? battle.b.driver : null
 
   return (
     <>
-      <div className="battle__score">
+      <div className="battle__score" data-playing={playing}>
         <ScoreSide side={battle.a} leading={state.lead === 'a'} />
         <div className="battle__delta">
           <span className="battle__delta-label">Live gap</span>
-          <strong>
-            {leader ? `${leader.acronym} +${formatBattleGap(state.gap)}` : 'Level'}
-          </strong>
+          <BattleGapBar battle={battle} current={current} />
           <span className="battle__delta-sub">
             lap delta A−B {formatBattleDelta(overallDelta)}
           </span>

@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "localdev": "npm run dev & npm run worker:dev",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",

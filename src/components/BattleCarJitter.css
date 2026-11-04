@@ -1,0 +1,118 @@
+/*
+ * Speed vibration for the two chase cars in the battle gap strip.
+ *
+ * This is a stylised cue, not a physical simulation: a tiny, deliberately
+ * irregular vertical jitter that makes the pair read as travelling fast. The
+ * cars are roughly 15px tall, so the amplitude is held inside about
+ * -1.2px..+0.8px: enough to feel like vibration, far too small to bounce.
+ *
+ * The two cars run on different keyframe patterns, durations and phases, so
+ * they never move in lockstep and the strip never pulses as a single unit.
+ * Each segment is only a frame or two long, so the linear interpolation still
+ * lands as a snap rather than a smooth wobble.
+ */
+
+@keyframes battle-car-jitter-a {
+  0% {
+    transform: translateY(0);
+  }
+  6% {
+    transform: translateY(-0.6px);
+  }
+  13% {
+    transform: translateY(0.4px);
+  }
+  21% {
+    transform: translateY(-1.2px);
+  }
+  28% {
+    transform: translateY(-0.3px);
+  }
+  37% {
+    transform: translateY(0.8px);
+  }
+  44% {
+    transform: translateY(-0.7px);
+  }
+  53% {
+    transform: translateY(0.1px);
+  }
+  62% {
+    transform: translateY(-1.1px);
+  }
+  71% {
+    transform: translateY(0.5px);
+  }
+  78% {
+    transform: translateY(-0.4px);
+  }
+  86% {
+    transform: translateY(0.2px);
+  }
+  94% {
+    transform: translateY(-0.8px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes battle-car-jitter-b {
+  0% {
+    transform: translateY(0);
+  }
+  8% {
+    transform: translateY(0.5px);
+  }
+  15% {
+    transform: translateY(-0.9px);
+  }
+  24% {
+    transform: translateY(0.2px);
+  }
+  31% {
+    transform: translateY(-0.4px);
+  }
+  40% {
+    transform: translateY(0.7px);
+  }
+  47% {
+    transform: translateY(-1.2px);
+  }
+  58% {
+    transform: translateY(-0.2px);
+  }
+  65% {
+    transform: translateY(0.3px);
+  }
+  74% {
+    transform: translateY(-0.8px);
+  }
+  81% {
+    transform: translateY(0.6px);
+  }
+  89% {
+    transform: translateY(-0.5px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/* The rail is the middle child, so :first-child / :last-child pick out exactly
+   the two cars. Only run while the battle is actually playing. */
+.battle__score[data-playing='true'] .battle__gapbar-pair > .battle__gapbar-car:first-child {
+  animation: battle-car-jitter-a 190ms linear infinite;
+}
+
+.battle__score[data-playing='true'] .battle__gapbar-pair > .battle__gapbar-car:last-child {
+  animation: battle-car-jitter-b 240ms linear infinite;
+  animation-delay: -90ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .battle__score[data-playing='true'] .battle__gapbar-pair > .battle__gapbar-car:first-child,
+  .battle__score[data-playing='true'] .battle__gapbar-pair > .battle__gapbar-car:last-child {
+    animation: none;
+  }
+}
