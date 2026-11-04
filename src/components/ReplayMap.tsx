@@ -26,16 +26,18 @@ export function ReplayMap({ data, current, selected }: ReplayMapProps) {
         ? data.drivers
         : data.drivers.filter((driver) => selected.has(driver.number))
 
-    return drivers
-      .map((driver) => {
-        const point = interpolatePosition(driver, current)
-        if (!point) return null
-        const [sx, sy] = transform.project(point.x, point.y)
-        return { driver, sx, sy }
-      })
-      .filter((car): car is NonNullable<typeof car> => car !== null)
-      // Paint slower cars first so a leader's marker sits on top in a pack.
-      .sort((a, b) => b.driver.number - a.driver.number)
+    return (
+      drivers
+        .map((driver) => {
+          const point = interpolatePosition(driver, current)
+          if (!point) return null
+          const [sx, sy] = transform.project(point.x, point.y)
+          return { driver, sx, sy }
+        })
+        .filter((car): car is NonNullable<typeof car> => car !== null)
+        // Paint slower cars first so a leader's marker sits on top in a pack.
+        .sort((a, b) => b.driver.number - a.driver.number)
+    )
   }, [data.drivers, current, transform, selected])
 
   const carLabel = cars.length === 1 ? 'car' : 'cars'
@@ -95,8 +97,7 @@ function statusLabel(status: ReplayTrackStatusState | null): string {
   if (status.kind === 'SC') return ', safety car'
   if (status.kind === 'VSC') return ', virtual safety car'
 
-  const sectors =
-    status.sectors.length > 0 ? ` in sectors ${status.sectors.join(', ')}` : ''
+  const sectors = status.sectors.length > 0 ? ` in sectors ${status.sectors.join(', ')}` : ''
   return status.kind === 'DOUBLE YELLOW'
     ? `, double yellow flag${sectors}`
     : `, yellow flag${sectors}`

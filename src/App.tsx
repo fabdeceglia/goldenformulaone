@@ -6,10 +6,7 @@ import { useFetch } from './hooks/useFetch'
 
 export default function App() {
   // The app follows the season in progress, so there is no season to choose.
-  const { data, loading, error, reload } = useFetch(
-    (signal) => api.currentRaces(signal),
-    [],
-  )
+  const { data, loading, error, reload } = useFetch((signal) => api.currentRaces(signal), [])
 
   const races = data?.MRData.RaceTable.Races ?? []
   const season = data?.MRData.RaceTable.season ?? ''

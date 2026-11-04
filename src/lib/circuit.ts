@@ -44,10 +44,7 @@ function cacheKey(circuit: ReplayCircuit, viewHeight: number): string {
  * map reads like a map (world y grows north, SVG y grows down). Memoised per
  * circuit: a replay asks for this on every animation frame otherwise.
  */
-export function prepareCircuit(
-  circuit: ReplayCircuit,
-  viewHeight = VIEW_HEIGHT,
-): CircuitTransform {
+export function prepareCircuit(circuit: ReplayCircuit, viewHeight = VIEW_HEIGHT): CircuitTransform {
   const key = cacheKey(circuit, viewHeight)
   const cached = cache.get(key)
   if (cached) return cached
@@ -56,10 +53,7 @@ export function prepareCircuit(
   const cos = Math.cos(rotation)
   const sin = Math.sin(rotation)
 
-  const rotate = (x: number, y: number): [number, number] => [
-    x * cos - y * sin,
-    x * sin + y * cos,
-  ]
+  const rotate = (x: number, y: number): [number, number] => [x * cos - y * sin, x * sin + y * cos]
 
   const points = circuit.outline.map(([x, y]) => rotate(x, y))
 
@@ -74,10 +68,7 @@ export function prepareCircuit(
   const spanX = Math.max(maxX - minX, 1)
   const spanY = Math.max(maxY - minY, 1)
 
-  const scale = Math.min(
-    (VIEW_WIDTH - PADDING * 2) / spanX,
-    (viewHeight - PADDING * 2) / spanY,
-  )
+  const scale = Math.min((VIEW_WIDTH - PADDING * 2) / spanX, (viewHeight - PADDING * 2) / spanY)
   const offsetX = (VIEW_WIDTH - spanX * scale) / 2
   const offsetY = (viewHeight - spanY * scale) / 2
 

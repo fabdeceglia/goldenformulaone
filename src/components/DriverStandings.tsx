@@ -28,7 +28,9 @@ export function DriverStandings({ season }: DriverStandingsProps) {
   return (
     <section className="panel" aria-labelledby="drivers-title">
       <div className="panel__head">
-        <h2 className="panel__title" id="drivers-title">{season} Driver Standings</h2>
+        <h2 className="panel__title" id="drivers-title">
+          {season} Driver Standings
+        </h2>
         {round && <span className="panel__meta">After round {round}</span>}
       </div>
 

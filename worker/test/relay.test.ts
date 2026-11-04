@@ -34,7 +34,9 @@ describe('fetchViaRelay', () => {
   it('falls back to the direct URL when the relay is unavailable', async () => {
     const fetchSpy = vi.fn((input: unknown) =>
       String(input).includes('/api/upstream')
-        ? Promise.resolve(new Response('bad gateway', { status: 502, headers: { 'Retry-After': '0' } }))
+        ? Promise.resolve(
+            new Response('bad gateway', { status: 502, headers: { 'Retry-After': '0' } }),
+          )
         : Promise.resolve(json({ ok: true })),
     )
     vi.stubGlobal('fetch', fetchSpy)

@@ -75,9 +75,7 @@ export function RaceResults({
       .filter((available) => !known.has(available.code as SessionCode))
       .map((available) => ({ id: available.code as SessionCode, label: available.title }))
 
-    return [...started, ...extra].sort(
-      (a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99),
-    )
+    return [...started, ...extra].sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99))
   }, [index, selectedRace, now])
 
   const defaultCode = useMemo(() => defaultSession(selectedRace, now), [selectedRace, now])
@@ -93,9 +91,7 @@ export function RaceResults({
 
   const selectedEntry = useMemo(
     () =>
-      selectedRace
-        ? raceSchedule(selectedRace).find((entry) => entry.code === session)
-        : undefined,
+      selectedRace ? raceSchedule(selectedRace).find((entry) => entry.code === session) : undefined,
     [selectedRace, session],
   )
   const sessionStarted = selectedEntry ? sessionPhase(selectedEntry, now) !== 'upcoming' : false
@@ -317,15 +313,13 @@ export function RaceResults({
       )}
 
       {!round && <Empty message="Select a round to see its results." />}
-      {round && !selectedRace && <Empty message={`Results are not available for round ${round}.`} />}
-
-      {selectedRace && !sessionStarted && (
-        <Empty message={pendingMessage(sessionLabel)} />
+      {round && !selectedRace && (
+        <Empty message={`Results are not available for round ${round}.`} />
       )}
 
-      {loading && !error && (
-        <Loading message={`Loading ${sessionLabel.toLowerCase()} results…`} />
-      )}
+      {selectedRace && !sessionStarted && <Empty message={pendingMessage(sessionLabel)} />}
+
+      {loading && !error && <Loading message={`Loading ${sessionLabel.toLowerCase()} results…`} />}
       {error && <ErrorState message={error} onRetry={reload} />}
 
       {data && !loading && !error && (

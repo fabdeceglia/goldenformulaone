@@ -6,18 +6,18 @@
   "kv_namespaces": [
     {
       "binding": "RESULTS",
-      "id": "cb08c37c411246d290bb52b9c3e1dd57"
-    }
+      "id": "cb08c37c411246d290bb52b9c3e1dd57",
+    },
   ],
   "triggers": {
-    "crons": ["*/2 * * * *"]
+    "crons": ["*/2 * * * *"],
   },
   "vars": {
     "JOLPICA_USER_AGENT": "GoldenFormulaOne/1.0.0 (+https://github.com/fabdeceglia/goldenformulaone)",
     "JOLPICA_RELAY": "https://boxthislap.vercel.app/api/upstream",
-    "OPENF1_RELAY": "https://boxthislap.vercel.app/api/upstream"
+    "OPENF1_RELAY": "https://boxthislap.vercel.app/api/upstream",
   },
   "observability": {
-    "enabled": true
-  }
+    "enabled": true,
+  },
 }

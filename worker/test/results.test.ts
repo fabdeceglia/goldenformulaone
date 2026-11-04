@@ -10,8 +10,20 @@ import { sessionWindows } from '../../src/shared/schedule'
 import { FakeKV, makeCached, makeRace, makeSessionResults } from './fixtures'
 
 const DRIVERS: OpenF1DriverRow[] = [
-  { driver_number: 1, full_name: 'Max Verstappen', name_acronym: 'VER', team_name: 'Red Bull', team_colour: '1E41FF' },
-  { driver_number: 2, full_name: 'Lando Norris', name_acronym: 'NOR', team_name: 'McLaren', team_colour: 'FF8700' },
+  {
+    driver_number: 1,
+    full_name: 'Max Verstappen',
+    name_acronym: 'VER',
+    team_name: 'Red Bull',
+    team_colour: '1E41FF',
+  },
+  {
+    driver_number: 2,
+    full_name: 'Lando Norris',
+    name_acronym: 'NOR',
+    team_name: 'McLaren',
+    team_colour: 'FF8700',
+  },
 ]
 
 const OPENF1_SESSIONS: OpenF1SessionRow[] = [
@@ -151,9 +163,7 @@ describe('refreshSession source priority', () => {
 
     stubSources({
       jolpica: () => failing(404),
-      openf1: openF1Server((key) =>
-        key === 102 ? openF1Rows('Q') : openF1Rows('R'),
-      ),
+      openf1: openF1Server((key) => (key === 102 ? openF1Rows('Q') : openF1Rows('R'))),
     })
 
     const qualifying = await refreshSession(targetFor(race, 'Q'), ctx)

@@ -26,7 +26,9 @@ export function ConstructorStandings({ season }: ConstructorStandingsProps) {
   return (
     <section className="panel" aria-labelledby="constructors-title">
       <div className="panel__head">
-        <h2 className="panel__title" id="constructors-title">{season} Constructor Standings</h2>
+        <h2 className="panel__title" id="constructors-title">
+          {season} Constructor Standings
+        </h2>
         {round && <span className="panel__meta">After round {round}</span>}
       </div>
 

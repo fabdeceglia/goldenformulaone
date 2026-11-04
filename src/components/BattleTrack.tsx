@@ -62,9 +62,7 @@ export function BattleTrack({ battle, current }: BattleTrackProps) {
           role="img"
           aria-label={`Circuit map with ${battle.a.driver.acronym} and ${battle.b.driver.acronym}`}
         >
-          {transform.outlinePath && (
-            <path className="replay__outline" d={transform.outlinePath} />
-          )}
+          {transform.outlinePath && <path className="replay__outline" d={transform.outlinePath} />}
 
           {cars.map((car) => (
             <g

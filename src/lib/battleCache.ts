@@ -61,10 +61,7 @@ export async function readBattleCache(key: string): Promise<QualifyingBattle | n
   })
 }
 
-export async function writeBattleCache(
-  key: string,
-  data: QualifyingBattle,
-): Promise<void> {
+export async function writeBattleCache(key: string, data: QualifyingBattle): Promise<void> {
   const connection = await db()
   if (!connection) return
 

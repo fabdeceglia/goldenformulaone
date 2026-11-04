@@ -1,9 +1,5 @@
 import type { Race, SessionCode } from '../api/types'
-import {
-  SESSION_MINUTES,
-  raceSchedule,
-  sessionStart as startOf,
-} from '../shared/schedule'
+import { SESSION_MINUTES, raceSchedule, sessionStart as startOf } from '../shared/schedule'
 import type { ScheduleEntry } from '../shared/schedule'
 import { clockNow } from './clock'
 import { parseUtcInstant, toDateKey } from './format'
@@ -32,9 +28,7 @@ export const NOW_MILLIS = LOADED_AT.getTime()
  * `2026-10-23` -> `2026-10-25` for the United States Grand Prix.
  */
 export function eventWindow(race: Race): { start: string; end: string } {
-  const dates = raceSchedule(race)
-    .map(sessionDayKey)
-    .sort()
+  const dates = raceSchedule(race).map(sessionDayKey).sort()
   return { start: dates[0], end: dates[dates.length - 1] }
 }
 

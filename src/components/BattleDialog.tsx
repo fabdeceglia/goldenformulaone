@@ -273,9 +273,7 @@ export function BattleDialog({ race, code, onClose }: BattleDialogProps) {
   return (
     <Modal label={`Qualifying battle — ${race.raceName}`} size="wide" onClose={onClose}>
       <div className="battle">
-        {sessionState.status === 'loading' && (
-          <BattleLoading progress={sessionState.progress} />
-        )}
+        {sessionState.status === 'loading' && <BattleLoading progress={sessionState.progress} />}
 
         {sessionState.status === 'error' && (
           <div className="battle__error">
@@ -303,16 +301,11 @@ export function BattleDialog({ race, code, onClose }: BattleDialogProps) {
               />
             )}
 
-            {battleState.status === 'loading' && (
-              <BattleLoading progress={battleState.progress} />
-            )}
+            {battleState.status === 'loading' && <BattleLoading progress={battleState.progress} />}
 
             {battleState.status === 'error' && (
               <div className="battle__error">
-                <ErrorState
-                  message={battleState.message}
-                  onRetry={retryBattle}
-                />
+                <ErrorState message={battleState.message} onRetry={retryBattle} />
                 <button type="button" className="battle__change" onClick={changeDrivers}>
                   Change drivers
                 </button>
@@ -381,8 +374,8 @@ function BattleLoading({ progress }: { progress: BattleProgress }) {
         <progress className="replay__progress" value={progress.loaded} max={progress.total} />
       )}
       <p className="battle__hint">
-        The first battle downloads two telemetry and two location feeds for the selected laps.
-        Later battles are cached.
+        The first battle downloads two telemetry and two location feeds for the selected laps. Later
+        battles are cached.
       </p>
     </div>
   )
@@ -439,8 +432,8 @@ function BattleSetup({
           Start battle
         </button>
         <p className="battle__hint">
-          Both laps are normalised to the start line. Lap starts are approximate; the sector
-          splits are exact.
+          Both laps are normalised to the start line. Lap starts are approximate; the sector splits
+          are exact.
         </p>
       </div>
     </div>
@@ -548,9 +541,7 @@ function BattleView({
         <div className="battle__delta">
           <span className="battle__delta-label">Live gap</span>
           <BattleGapBar battle={battle} current={current} />
-          <span className="battle__delta-sub">
-            lap delta A−B {formatBattleDelta(overallDelta)}
-          </span>
+          <span className="battle__delta-sub">lap delta A−B {formatBattleDelta(overallDelta)}</span>
         </div>
         <ScoreSide side={battle.b} leading={state.lead === 'b'} />
       </div>
@@ -590,8 +581,8 @@ function BattleView({
       />
 
       <p className="battle__hint battle__foot">
-        Space plays and pauses · ←/→ scrubs one second · the live gap is estimated at the
-        same point on track
+        Space plays and pauses · ←/→ scrubs one second · the live gap is estimated at the same point
+        on track
       </p>
     </>
   )
@@ -659,9 +650,7 @@ function SectorTable({ a, b }: { a: BattleSide; b: BattleSide }) {
           <td data-fast={b.lap.duration < a.lap.duration ? 'true' : undefined}>
             {formatLapTime(b.lap.duration)}
           </td>
-          <td className="battle__sector-delta">
-            {formatBattleDelta(lapDelta(a.lap, b.lap))}
-          </td>
+          <td className="battle__sector-delta">{formatBattleDelta(lapDelta(a.lap, b.lap))}</td>
         </tr>
       </tbody>
     </table>

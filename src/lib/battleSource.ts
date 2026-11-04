@@ -4,24 +4,13 @@ import type { Race } from '../api/types'
 import type { ReplayCircuit } from './circuit'
 import { traceOutline } from './replay'
 import { battleLaps, buildBattleLap, rankDrivers } from './battle'
-import type {
-  BattleDriver,
-  BattleLap,
-  BattleLapRef,
-  QualifyingBattle,
-} from './battle'
+import type { BattleDriver, BattleLap, BattleLapRef, QualifyingBattle } from './battle'
 import { readBattleCache, writeBattleCache } from './battleCache'
 
 /** The battle only exists for the two qualifying sessions. */
 export type BattleCode = 'Q' | 'SQ'
 
-export type BattlePhase =
-  | 'session'
-  | 'drivers'
-  | 'laps'
-  | 'circuit'
-  | 'telemetry'
-  | 'location'
+export type BattlePhase = 'session' | 'drivers' | 'laps' | 'circuit' | 'telemetry' | 'location'
 
 export interface BattleProgress {
   phase: BattlePhase
@@ -78,9 +67,7 @@ function toDriver(driver: OpenF1Driver): BattleDriver {
     acronym: driver.name_acronym,
     name: driver.full_name,
     team: driver.team_name,
-    color: driver.team_colour?.trim()
-      ? `#${driver.team_colour.replace(/^#/, '')}`
-      : '#7d786b',
+    color: driver.team_colour?.trim() ? `#${driver.team_colour.replace(/^#/, '')}` : '#7d786b',
   }
 }
 

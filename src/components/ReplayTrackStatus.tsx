@@ -62,4 +62,3 @@ export function ReplayTrackStatus({ status }: { status: ReplayTrackStatusState |
 function sectorDetail(sectors: readonly number[]): string | null {
   return sectors.length > 0 ? sectors.map((sector) => `S${sector}`).join(', ') : null
 }
-

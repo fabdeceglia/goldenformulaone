@@ -10,8 +10,7 @@ export type { ResultsResponse }
  * production, and Vite proxies `/api` to `wrangler dev` locally. Set
  * `VITE_RESULTS_BASE` only if the Worker is called directly.
  */
-const RESULTS_BASE =
-  (import.meta.env.VITE_RESULTS_BASE as string | undefined) ?? '/api/results'
+const RESULTS_BASE = (import.meta.env.VITE_RESULTS_BASE as string | undefined) ?? '/api/results'
 
 /**
  * A bare `fetch` has no upper bound. The Worker normally answers in well under

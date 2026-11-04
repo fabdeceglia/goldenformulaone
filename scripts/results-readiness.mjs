@@ -292,9 +292,7 @@ async function loadTargets(args) {
 
   targets.sort((a, b) => a.start - b.start)
 
-  const selected = args.session
-    ? targets.filter((target) => target.code === args.session)
-    : targets
+  const selected = args.session ? targets.filter((target) => target.code === args.session) : targets
 
   if (args.source === 'openf1') {
     const mapped = selected.filter((target) => target.openf1Key != null)
@@ -547,12 +545,11 @@ async function report(path) {
     // moment; the next non-empty sample brackets publication. If the very first
     // sample is already non-empty we only have an upper bound.
     const emptyBefore = firstNonEmpty
-      ? [...samples]
+      ? ([...samples]
           .reverse()
           .find(
-            (sample) =>
-              sample.state === 'empty' && sample.checked_at < firstNonEmpty.checked_at,
-          ) ?? null
+            (sample) => sample.state === 'empty' && sample.checked_at < firstNonEmpty.checked_at,
+          ) ?? null)
       : null
 
     // The probe starts before the estimated end, so clamp the lower bound to
@@ -602,11 +599,7 @@ async function report(path) {
     const withinHour = bounded.filter((row) => row.upper !== null && row.upper <= 60)
     const overHour = bounded.filter((row) => row.lower !== null && row.lower > 60)
     const straddles = bounded.filter(
-      (row) =>
-        row.lower !== null &&
-        row.upper !== null &&
-        row.lower <= 60 &&
-        row.upper > 60,
+      (row) => row.lower !== null && row.upper !== null && row.lower <= 60 && row.upper > 60,
     )
     const upperOnly = sourceRows.filter((row) => row.note === 'upper bound only')
     const pending = sourceRows.length - bounded.length - upperOnly.length

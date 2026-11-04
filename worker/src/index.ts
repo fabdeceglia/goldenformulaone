@@ -7,11 +7,7 @@ import {
   type SourceStatus,
 } from '../../src/shared/results'
 import { readResult, readStatus, writeStatus } from './cache'
-import {
-  ON_DEMAND_DEADLINE_MS,
-  ON_DEMAND_STALE_MS,
-  type Env,
-} from './config'
+import { ON_DEMAND_DEADLINE_MS, ON_DEMAND_STALE_MS, type Env } from './config'
 import { createRefreshContext, refreshDueSessions, refreshSession } from './results'
 import { findRace, type SessionTarget } from './schedule'
 import { sessionWindows } from '../../src/shared/schedule'
@@ -81,7 +77,9 @@ function pending(
   }
 }
 
-function parseResultsPath(pathname: string): { season: string; round: string; code: string } | null {
+function parseResultsPath(
+  pathname: string,
+): { season: string; round: string; code: string } | null {
   const match = /^\/api\/results\/([^/]+)\/([^/]+)\/([^/]+)\/?$/.exec(pathname)
   if (!match) return null
 
@@ -138,8 +136,7 @@ function isFresh(cached: CachedResult, now: number): boolean {
   // once its retry time has passed, the next request revalidates it. A good
   // provisional result keeps the day-long window instead, because jolpica may
   // simply not publish that session and every view would otherwise refetch it.
-  const failed =
-    cached.sources.jolpica.state === 'error' || cached.sources.openf1.state === 'error'
+  const failed = cached.sources.jolpica.state === 'error' || cached.sources.openf1.state === 'error'
   if (!failed) return true
 
   const retryAt = cached.nextAttemptAt ? Date.parse(cached.nextAttemptAt) : Number.NaN
@@ -293,10 +290,12 @@ export default {
       const batch = await refreshDueSessions(context, now)
       const previous = await readStatus(env, true)
 
-      const sessions = new Map(previous.sessions.map((session) => [
-        `${session.season}:${session.round}:${session.code}`,
-        session,
-      ]))
+      const sessions = new Map(
+        previous.sessions.map((session) => [
+          `${session.season}:${session.round}:${session.code}`,
+          session,
+        ]),
+      )
 
       // Only a real state change has to bypass the ten-minute heartbeat, so a
       // tick that merely rechecked a session does not consume a KV write.

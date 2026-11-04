@@ -39,8 +39,7 @@ function gapToPixels(gapMs: number): number {
  */
 export function BattleGapBar({ battle, current }: BattleGapBarProps) {
   const state = battleStateAt(battle.a.lap, battle.b.lap, current)
-  const leader =
-    state.lead === 'a' ? battle.a.driver : state.lead === 'b' ? battle.b.driver : null
+  const leader = state.lead === 'a' ? battle.a.driver : state.lead === 'b' ? battle.b.driver : null
   const gapPx = gapToPixels(state.gap)
   // Inset the painted line from the cars by the same amount at both ends, so it
   // reads as a connector rather than something glued to the bodywork. The inset

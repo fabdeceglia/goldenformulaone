@@ -258,10 +258,7 @@ function request<T>(
 const sessionCache = new Map<string, Promise<OpenF1Session[]>>()
 
 /** Every session of a season, fetched once per page load. */
-export function sessions(
-  year: string | number,
-  gap = REQUEST_GAP_MS,
-): Promise<OpenF1Session[]> {
+export function sessions(year: string | number, gap = REQUEST_GAP_MS): Promise<OpenF1Session[]> {
   const key = String(year)
   const cached = sessionCache.get(key)
   if (cached) return cached

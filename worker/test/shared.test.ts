@@ -29,9 +29,7 @@ describe('unwrapAlpha', () => {
 
   it('unwraps the metadata envelope', () => {
     const data = { code: 'Q', results: [] }
-    expect(
-      unwrapAlpha({ metadata: { timestamp: '2026-01-01T00:00:00Z' }, data }),
-    ).toBe(data)
+    expect(unwrapAlpha({ metadata: { timestamp: '2026-01-01T00:00:00Z' }, data })).toBe(data)
   })
 
   it('leaves an object with data but no metadata alone', () => {
@@ -181,13 +179,7 @@ describe('session windows', () => {
   it('computes every window in UTC and keeps the running order', () => {
     const windows = sessionWindows(makeRace())
 
-    expect(windows.map((window) => window.entry.code)).toEqual([
-      'FP1',
-      'FP2',
-      'FP3',
-      'Q',
-      'R',
-    ])
+    expect(windows.map((window) => window.entry.code)).toEqual(['FP1', 'FP2', 'FP3', 'Q', 'R'])
     expect(windows.map((window) => window.entry.label)).toEqual([
       'Practice 1',
       'Practice 2',
@@ -196,12 +188,8 @@ describe('session windows', () => {
       'Race',
     ])
     expect(windows[0].start).toBe(Date.parse('2026-10-23T17:30:00Z'))
-    expect(windows[0].end).toBe(
-      Date.parse('2026-10-23T17:30:00Z') + SESSION_MINUTES.FP1 * 60_000,
-    )
-    expect(windows[4].end).toBe(
-      Date.parse('2026-10-25T20:00:00Z') + SESSION_MINUTES.R * 60_000,
-    )
+    expect(windows[0].end).toBe(Date.parse('2026-10-23T17:30:00Z') + SESSION_MINUTES.FP1 * 60_000)
+    expect(windows[4].end).toBe(Date.parse('2026-10-25T20:00:00Z') + SESSION_MINUTES.R * 60_000)
   })
 
   it('maps sprint weekend sessions by key rather than by position', () => {

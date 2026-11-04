@@ -285,9 +285,7 @@ async function loadFromOpenF1({
   const fetchStart = Number.isFinite(sessionStart)
     ? sessionStart - SESSION_SLACK_MS
     : Date.now() - 24 * 3_600_000
-  const fetchEnd = Number.isFinite(sessionEnd)
-    ? sessionEnd + SESSION_SLACK_MS
-    : Date.now()
+  const fetchEnd = Number.isFinite(sessionEnd) ? sessionEnd + SESSION_SLACK_MS : Date.now()
 
   const replayDrivers: ReplayDriver[] = []
   let missing = 0
@@ -311,7 +309,9 @@ async function loadFromOpenF1({
           acronym: driver.name_acronym,
           name: driver.full_name,
           team: driver.team_name,
-          color: driver.team_colour?.trim() ? `#${driver.team_colour.replace(/^#/, '')}` : '#7d786b',
+          color: driver.team_colour?.trim()
+            ? `#${driver.team_colour.replace(/^#/, '')}`
+            : '#7d786b',
           samples,
           laps: driverLaps.get(driver.driver_number),
           stints: driverStints.get(driver.driver_number),

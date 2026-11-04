@@ -20,7 +20,9 @@ is Vercel static hosting plus one Vercel edge function, `api/upstream.ts`.
 Single test: `npm test -- worker/test/results.test.ts` or `npm test -- -t "promotes"`.
 
 There is no CI. A typical full check is
-`npm run lint && npm run build && npm run worker:typecheck && npm test`.
+`npx oxlint && npm run build && npm run worker:typecheck && npm test`. Use
+`npx oxlint` rather than `npm run lint`: the RTK hook rewrites the latter to
+`rtk lint`, which shells out to eslint and fails with a JSON parse error.
 
 ## Context discipline
 
@@ -174,6 +176,9 @@ the rest of the session. Measured: ~90K tokens of context per turn on this repo.
 
 - `verbatimModuleSyntax` is on: use `import type` for types.
 - `erasableSyntaxOnly` is on: no enums, namespaces, or parameter properties.
+- Style is no semicolons, single quotes, 100 columns, trailing commas
+  (`.prettierrc`). Write to it directly; `npm run format` is for bulk reflow,
+  not a per-task step.
 - Unused locals and parameters are errors in the app, node, and Worker configs;
   the Worker config is also `strict`.
 - `npm run readiness` / `readiness:report` and `npm run results:watch` are live

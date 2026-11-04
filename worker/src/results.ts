@@ -79,11 +79,7 @@ export async function createRefreshContext(
 
 function getOpenF1Sessions(context: RefreshContext): Promise<OpenF1SessionRow[]> {
   if (!context.openF1Sessions) {
-    context.openF1Sessions = loadOpenF1Sessions(
-      context.env,
-      context.season,
-      context.options,
-    )
+    context.openF1Sessions = loadOpenF1Sessions(context.env, context.season, context.options)
   }
   return context.openF1Sessions
 }
@@ -197,11 +193,7 @@ function baseResult(
     source: fields.source,
     complete: fields.complete,
     session: fields.session,
-    fetchedAt: fields.session
-      ? sameSession
-        ? (cached?.fetchedAt ?? nowIso)
-        : nowIso
-      : null,
+    fetchedAt: fields.session ? (sameSession ? (cached?.fetchedAt ?? nowIso) : nowIso) : null,
     checkedAt: nowIso,
     nextAttemptAt: fields.nextAttemptAt,
     recheckAt: fields.recheckAt,
@@ -392,11 +384,7 @@ export async function refreshSession(
   const sources = mergeSources(cached, checks, iso(ctx.now))
 
   if (cached?.state === 'final') {
-    return writeResultIfNewer(
-      ctx.env,
-      finalRecheckCandidate(cached, jolpica, ctx, sources),
-      cached,
-    )
+    return writeResultIfNewer(ctx.env, finalRecheckCandidate(cached, jolpica, ctx, sources), cached)
   }
 
   if (jolpica.check.complete && jolpica.session) {
@@ -431,10 +419,7 @@ export async function refreshSession(
  * sessions from the last week are candidates, and the batch is rotated by the
  * persisted `checkedAt` so every session gets a turn.
  */
-export async function dueSessions(
-  ctx: RefreshContext,
-  now: number,
-): Promise<SessionTarget[]> {
+export async function dueSessions(ctx: RefreshContext, now: number): Promise<SessionTarget[]> {
   const items: Array<{ target: SessionTarget; checkedAt: number }> = []
 
   for (const race of ctx.races) {
@@ -484,9 +469,7 @@ export interface RefreshBatch {
 /** Run a cron batch without letting one bad session fail the whole tick. */
 export async function refreshDueSessions(ctx: RefreshContext, now: number): Promise<RefreshBatch> {
   const targets = await dueSessions(ctx, now)
-  const settled = await Promise.allSettled(
-    targets.map((target) => refreshSession(target, ctx)),
-  )
+  const settled = await Promise.allSettled(targets.map((target) => refreshSession(target, ctx)))
 
   const results: CachedResult[] = []
   const errors: string[] = []

@@ -1,8 +1,5 @@
 import type { AlphaSessionResults, Race, SessionCode } from '../../../src/api/types'
-import {
-  assessCompleteness,
-  type SourceCheck,
-} from '../../../src/shared/results'
+import { assessCompleteness, type SourceCheck } from '../../../src/shared/results'
 import {
   mapOpenF1Results,
   rawCompleteness,
@@ -10,11 +7,7 @@ import {
   type OpenF1ResultRow,
 } from '../../../src/shared/openf1Map'
 import { sessionWindows } from '../../../src/shared/schedule'
-import {
-  DEFAULT_OPENF1_BASE,
-  OPENF1_REQUEST_GAP_MS,
-  type Env,
-} from '../config'
+import { DEFAULT_OPENF1_BASE, OPENF1_REQUEST_GAP_MS, type Env } from '../config'
 import { sleep, UpstreamError, type FetchOptions } from '../http'
 import { fetchViaRelay } from '../relay'
 

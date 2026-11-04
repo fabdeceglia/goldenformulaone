@@ -104,9 +104,7 @@ export function ReplayLeaderboard({
                 <span
                   className="replay__tower-tyre-cell"
                   title={`${compound ? `${tyreLabel(compound)} tyre` : 'Tyre data unavailable'}${
-                    pitStops === null
-                      ? ''
-                      : ` · ${pitStops} pit stop${pitStops === 1 ? '' : 's'}`
+                    pitStops === null ? '' : ` · ${pitStops} pit stop${pitStops === 1 ? '' : 's'}`
                   }`}
                 >
                   <span className="replay__tower-tyre" data-compound={compound ?? '?'}>

@@ -207,8 +207,7 @@ export function rankDrivers(
   return ranked
     .sort(
       (a, b) =>
-        a.best.duration - b.best.duration ||
-        a.driver.acronym.localeCompare(b.driver.acronym),
+        a.best.duration - b.best.duration || a.driver.acronym.localeCompare(b.driver.acronym),
     )
     .map((entry) => entry.driver)
 }
@@ -239,9 +238,7 @@ export function buildBattleLap(
     const gear = numberOrNull(row.n_gear)
     const throttle = numberOrNull(row.throttle)
     const brake =
-      typeof row.brake === 'number' && Number.isFinite(row.brake)
-        ? row.brake >= BRAKE_ON
-        : null
+      typeof row.brake === 'number' && Number.isFinite(row.brake) ? row.brake >= BRAKE_ON : null
     const drs = numberOrNull(row.drs)
 
     if (
@@ -447,11 +444,7 @@ export function sectorDeltas(
 ): [number | null, number | null, number | null] {
   if (!a.sectors || !b.sectors) return [null, null, null]
 
-  return [
-    a.sectors[0] - b.sectors[0],
-    a.sectors[1] - b.sectors[1],
-    a.sectors[2] - b.sectors[2],
-  ]
+  return [a.sectors[0] - b.sectors[0], a.sectors[1] - b.sectors[1], a.sectors[2] - b.sectors[2]]
 }
 
 export function lapDelta(a: BattleLapRef, b: BattleLapRef): number {

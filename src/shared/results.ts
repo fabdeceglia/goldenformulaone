@@ -115,7 +115,9 @@ export function isCachedResult(value: unknown): value is CachedResult {
     typeof candidate.round === 'string' &&
     isSessionCode(candidate.code) &&
     isResultState(candidate.state) &&
-    (candidate.source === 'jolpica' || candidate.source === 'openf1' || candidate.source === null) &&
+    (candidate.source === 'jolpica' ||
+      candidate.source === 'openf1' ||
+      candidate.source === null) &&
     typeof candidate.complete === 'boolean' &&
     typeof candidate.checkedAt === 'string' &&
     !!candidate.sources &&

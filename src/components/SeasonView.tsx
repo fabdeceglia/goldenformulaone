@@ -48,10 +48,7 @@ export function SeasonView({ season, races }: SeasonViewProps) {
   // same mapping itself; this is only used for tab labels now.
   const { rounds } = useSeasonRounds(season)
 
-  const roundIds = useMemo(
-    () => new Map(rounds.map((item) => [item.number, item.id])),
-    [rounds],
-  )
+  const roundIds = useMemo(() => new Map(rounds.map((item) => [item.number, item.id])), [rounds])
 
   // Default to the most recently completed race, falling back to the last round.
   const defaultRound = useMemo(() => {

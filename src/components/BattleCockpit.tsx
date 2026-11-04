@@ -21,17 +21,10 @@ function barWidth(value: number | null, max: number): string {
  * One driver's side of the 1v1: a cockpit HUD rather than a fake onboard camera.
  * Only channels OpenF1 actually publishes are shown, so nothing is invented.
  */
-export function BattleCockpit({
-  driver,
-  lap,
-  telemetry,
-  finished,
-  leading,
-}: BattleCockpitProps) {
+export function BattleCockpit({ driver, lap, telemetry, finished, leading }: BattleCockpitProps) {
   const drs = drsState(telemetry.drs)
   const drsLabel = drs === 'on' ? 'DRS open' : drs === 'ready' ? 'DRS ready' : 'DRS closed'
-  const gear =
-    telemetry.gear === null ? '—' : telemetry.gear === 0 ? 'N' : String(telemetry.gear)
+  const gear = telemetry.gear === null ? '—' : telemetry.gear === 0 ? 'N' : String(telemetry.gear)
 
   return (
     <article
@@ -54,9 +47,7 @@ export function BattleCockpit({
 
       <div className="battle__readout">
         <div className="battle__speed">
-          <strong>
-            {telemetry.speed === null ? '—' : Math.round(telemetry.speed)}
-          </strong>
+          <strong>{telemetry.speed === null ? '—' : Math.round(telemetry.speed)}</strong>
           <span>km/h</span>
         </div>
         <div className="battle__gear">
@@ -92,14 +83,10 @@ export function BattleCockpit({
         <div>
           <div className="battle__mini-head">
             <span>Brake</span>
-            <strong>
-              {telemetry.brake === null ? '—' : telemetry.brake ? 'On' : 'Off'}
-            </strong>
+            <strong>{telemetry.brake === null ? '—' : telemetry.brake ? 'On' : 'Off'}</strong>
           </div>
           <div className="battle__bar battle__bar--brake">
-            <span
-              style={{ width: telemetry.brake === true ? '100%' : '0%' }}
-            />
+            <span style={{ width: telemetry.brake === true ? '100%' : '0%' }} />
           </div>
         </div>
       </div>

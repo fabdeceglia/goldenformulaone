@@ -102,9 +102,7 @@ describe('results endpoint', () => {
       'fetch',
       vi.fn((input: unknown) =>
         Promise.resolve(
-          String(input).includes('/f1/alpha/results/')
-            ? json(makeSessionResults('FP1'))
-            : json([]),
+          String(input).includes('/f1/alpha/results/') ? json(makeSessionResults('FP1')) : json([]),
         ),
       ),
     )
@@ -169,9 +167,7 @@ describe('scheduled handler', () => {
       'fetch',
       vi.fn((input: unknown) =>
         Promise.resolve(
-          String(input).includes('/f1/alpha/results/')
-            ? json(makeSessionResults('FP1'))
-            : json([]),
+          String(input).includes('/f1/alpha/results/') ? json(makeSessionResults('FP1')) : json([]),
         ),
       ),
     )
@@ -268,7 +264,10 @@ describe('status heartbeat', () => {
       },
     })
 
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(json([]))))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(json([]))),
+    )
 
     await worker.scheduled(
       { scheduledTime: now, cron: '*/2 * * * *', noRetry: () => undefined },
@@ -306,7 +305,10 @@ describe('status heartbeat', () => {
       },
     })
 
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(json([]))))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(json([]))),
+    )
 
     await worker.scheduled(
       { scheduledTime: now, cron: '*/2 * * * *', noRetry: () => undefined },

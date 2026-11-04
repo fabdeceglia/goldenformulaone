@@ -53,19 +53,14 @@ export function FeaturedEventPanel({
   // finished; before then the schedule is just names and dates, and reserving
   // the space would leave a dead gap on every row.
   const showFinishedColumn =
-    onOpenSession !== undefined &&
-    schedule.some((entry) => sessionPhase(entry, now) === 'finished')
+    onOpenSession !== undefined && schedule.some((entry) => sessionPhase(entry, now) === 'finished')
 
   // A session on track outranks the weekend label: "Live · Qualifying" beats a
   // generic "Race weekend", and the badge goes red to match. Once the race
   // itself is done, "Race complete" says so rather than leaving "Race day" up.
   const badgeStatus: EventStatus = live ? 'live' : status
   const raceComplete = !live && status === 'raceDay' && finished?.isRace === true
-  const badgeLabel = live
-    ? `Live · ${live.label}`
-    : raceComplete
-      ? 'Race complete'
-      : BADGE[status]
+  const badgeLabel = live ? `Live · ${live.label}` : raceComplete ? 'Race complete' : BADGE[status]
 
   return (
     <section className={`hero hero--${status}`} aria-labelledby="featured-event">
@@ -173,11 +168,7 @@ export function FeaturedEventBar({ featured, onOpen }: FeaturedEventBarProps) {
 
   const badgeStatus: EventStatus = live ? 'live' : status
   const raceComplete = !live && status === 'raceDay' && finished?.isRace === true
-  const badgeLabel = live
-    ? `Live · ${live.label}`
-    : raceComplete
-      ? 'Race complete'
-      : BADGE[status]
+  const badgeLabel = live ? `Live · ${live.label}` : raceComplete ? 'Race complete' : BADGE[status]
 
   return (
     <button

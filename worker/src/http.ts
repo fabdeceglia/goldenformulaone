@@ -80,14 +80,10 @@ export async function fetchJson<T>(
       if (!(cause instanceof UpstreamError)) throw cause
 
       const retryable =
-        cause.kind === 'http' &&
-        cause.status !== undefined &&
-        RETRYABLE_STATUSES.has(cause.status)
+        cause.kind === 'http' && cause.status !== undefined && RETRYABLE_STATUSES.has(cause.status)
       if (!retryable || attempt >= MAX_ATTEMPTS) throw cause
 
-      const remaining = options.deadline
-        ? options.deadline - Date.now()
-        : Number.POSITIVE_INFINITY
+      const remaining = options.deadline ? options.deadline - Date.now() : Number.POSITIVE_INFINITY
       const requested = cause.retryAfterMs ?? BASE_RETRY_MS * 2 ** (attempt - 1)
       const delay = Math.max(0, Math.min(requested, MAX_RETRY_MS, remaining))
 
@@ -100,11 +96,7 @@ export async function fetchJson<T>(
   }
 }
 
-async function fetchJsonOnce<T>(
-  url: string,
-  init: RequestInit,
-  options: FetchOptions,
-): Promise<T> {
+async function fetchJsonOnce<T>(url: string, init: RequestInit, options: FetchOptions): Promise<T> {
   const controller = new AbortController()
   const forwardAbort = () => controller.abort()
   options.signal?.addEventListener('abort', forwardAbort, { once: true })

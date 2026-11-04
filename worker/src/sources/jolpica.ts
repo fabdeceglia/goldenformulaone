@@ -88,9 +88,7 @@ export async function fetchRoundIds(
   env: Env,
   options: SourceOptions,
 ): Promise<Record<string, string>> {
-  const payload = await fetchViaRelay<
-    AlphaRound[] | { metadata: unknown; data: AlphaRound[] }
-  >(
+  const payload = await fetchViaRelay<AlphaRound[] | { metadata: unknown; data: AlphaRound[] }>(
     `${base(env)}/f1/alpha/core/rounds/?year=${encodeURIComponent(season)}`,
     env.JOLPICA_RELAY,
     { headers: headers(env) },
@@ -145,7 +143,10 @@ export async function fetchSessionResult(
   options: SourceOptions,
 ): Promise<JolpicaSessionResult> {
   if (!roundId) {
-    return { check: errorCheck(new Error('No alpha round id for this round'), options.now), session: null }
+    return {
+      check: errorCheck(new Error('No alpha round id for this round'), options.now),
+      session: null,
+    }
   }
 
   try {
@@ -160,7 +161,10 @@ export async function fetchSessionResult(
     const session = unwrapAlpha<AlphaSessionResults>(payload)
 
     if (!session || !Array.isArray(session.results)) {
-      return { check: errorCheck(new Error('Malformed alpha session payload'), options.now), session: null }
+      return {
+        check: errorCheck(new Error('Malformed alpha session payload'), options.now),
+        session: null,
+      }
     }
 
     if (session.results.length === 0) {
@@ -187,4 +191,3 @@ export async function fetchSessionResult(
     return { check: errorCheck(cause, options.now), session: null }
   }
 }
-

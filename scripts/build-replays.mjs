@@ -237,9 +237,7 @@ function lapTimeline(rows) {
 
   if (starts.size === 0) return null
 
-  const ordered = [...starts]
-    .sort(([a], [b]) => a - b)
-    .map(([lap, t]) => ({ lap, t }))
+  const ordered = [...starts].sort(([a], [b]) => a - b).map(([lap, t]) => ({ lap, t }))
 
   return {
     laps: { total: ordered[ordered.length - 1].lap, starts: ordered },
@@ -381,9 +379,7 @@ function weatherSamples(rows, start, end) {
     const pressureValue = weatherNumber(row.pressure)
     const pressure = pressureValue !== null && pressureValue > 0 ? pressureValue : null
     const rain =
-      row.rainfall === null || row.rainfall === undefined
-        ? null
-        : Number(row.rainfall) > 0
+      row.rainfall === null || row.rainfall === undefined ? null : Number(row.rainfall) > 0
     const wind = weatherNumber(row.wind_speed)
     const windDirection = weatherNumber(row.wind_direction)
 
@@ -492,8 +488,7 @@ function safetyCarPeriods(rows, start, end) {
       if (open) open.ending ??= event.t
     } else if (
       open &&
-      ((event.flag === 'CLEAR' &&
-        (event.scope === 'Track' || message.includes('TRACK CLEAR'))) ||
+      ((event.flag === 'CLEAR' && (event.scope === 'Track' || message.includes('TRACK CLEAR'))) ||
         event.flag === 'CHEQUERED' ||
         message.includes('RED FLAG') ||
         message.includes('RACE SUSPENDED') ||
@@ -574,10 +569,7 @@ function flagPeriods(rows, start, end) {
       continue
     }
 
-    if (
-      (event.flag === 'CLEAR' && event.scope === 'Track') ||
-      message.includes('TRACK CLEAR')
-    ) {
+    if ((event.flag === 'CLEAR' && event.scope === 'Track') || message.includes('TRACK CLEAR')) {
       closeYellows(event.t)
       continue
     }
@@ -803,9 +795,7 @@ async function main() {
       continue
     }
 
-    console.log(
-      `\n${key} ${session.year} ${session.session_name} ${session.location} — fetching…`,
-    )
+    console.log(`\n${key} ${session.year} ${session.session_name} ${session.location} — fetching…`)
 
     try {
       const [drivers, positionRows] = await Promise.all([
@@ -899,7 +889,9 @@ async function main() {
           driverSamples.push({ driver, samples })
         } catch (cause) {
           missing += 1
-          console.warn(`\n  ${driver.name_acronym}: ${cause instanceof Error ? cause.message : cause}`)
+          console.warn(
+            `\n  ${driver.name_acronym}: ${cause instanceof Error ? cause.message : cause}`,
+          )
         }
       }
 
@@ -964,9 +956,7 @@ async function main() {
         team: driver.team_name,
         c: driver.team_colour ?? undefined,
         s: encodeLocations(samples, start),
-        l:
-          encodeDriverLaps(timingLaps.get(driver.driver_number) ?? [], start) ||
-          undefined,
+        l: encodeDriverLaps(timingLaps.get(driver.driver_number) ?? [], start) || undefined,
         t: encodeDriverStints(timingStints.get(driver.driver_number) ?? []) || undefined,
         g:
           encodeDriverGaps(
@@ -1006,8 +996,7 @@ async function main() {
       const baked = {
         v: 1,
         sessionKey: key,
-        title:
-          info?.meetingName ?? info?.meetingOfficialName ?? `${session.location} Grand Prix`,
+        title: info?.meetingName ?? info?.meetingOfficialName ?? `${session.location} Grand Prix`,
         subtitle: `${info?.circuitName ?? session.circuit_short_name} · ${session.year} ${
           session.session_name === 'Sprint' ? 'Sprint' : 'Race'
         }`,
@@ -1035,11 +1024,7 @@ async function main() {
             safetyCars.length
               ? `, ${safetyCars.length} safety car period${safetyCars.length === 1 ? '' : 's'}`
               : ''
-          }${
-            flags.length
-              ? `, ${flags.length} flag period${flags.length === 1 ? '' : 's'}`
-              : ''
-          }`,
+          }${flags.length ? `, ${flags.length} flag period${flags.length === 1 ? '' : 's'}` : ''}`,
       )
     } catch (cause) {
       failures += 1
@@ -1053,14 +1038,15 @@ async function main() {
   const indexSessions = [...index.values()]
     .filter((entry) => bakedFiles.has(`${entry.sessionKey}.json`))
     .sort(
-      (a, b) =>
-        a.season - b.season || a.date.localeCompare(b.date) || a.code.localeCompare(b.code),
+      (a, b) => a.season - b.season || a.date.localeCompare(b.date) || a.code.localeCompare(b.code),
     )
 
   await fs.writeFile(INDEX_FILE, JSON.stringify({ v: 1, sessions: indexSessions }))
   await fs.writeFile(CIRCUITS_FILE, JSON.stringify(circuits))
   console.log(`\nWrote ${path.relative(ROOT, INDEX_FILE)} (${indexSessions.length} sessions)`)
-  console.log(`Wrote ${path.relative(ROOT, CIRCUITS_FILE)} (${Object.keys(circuits).length} circuits)`)
+  console.log(
+    `Wrote ${path.relative(ROOT, CIRCUITS_FILE)} (${Object.keys(circuits).length} circuits)`,
+  )
 
   if (failures > 0) {
     console.error(`\n${failures} session${failures === 1 ? '' : 's'} failed.`)

@@ -172,11 +172,7 @@ export function rawCompleteness(rows: readonly OpenF1ResultRow[]): {
     positioned: rows.filter((row) => typeof row.position === 'number' && row.position > 0).length,
     classified: rows.filter(
       (row) =>
-        typeof row.position === 'number' &&
-        row.position > 0 &&
-        !row.dnf &&
-        !row.dns &&
-        !row.dsq,
+        typeof row.position === 'number' && row.position > 0 && !row.dnf && !row.dns && !row.dsq,
     ).length,
     hasWinner: rows.some((row) => row.position === 1),
   }
@@ -192,9 +188,7 @@ export function mapOpenF1Results(
   const isRace = code === 'R' || code === 'SR'
 
   const positionOf = (row: OpenF1ResultRow) =>
-    typeof row.position === 'number' && row.position > 0
-      ? row.position
-      : Number.MAX_SAFE_INTEGER
+    typeof row.position === 'number' && row.position > 0 ? row.position : Number.MAX_SAFE_INTEGER
 
   const results: AlphaSessionEntry[] = [...rows]
     .sort((a, b) => positionOf(a) - positionOf(b))
@@ -204,9 +198,7 @@ export function mapOpenF1Results(
       // A sentinel, never a real classification. `position_text` is NC, so the
       // UI shows the retirement/DNS marker rather than an invented place.
       const position = hasPosition ? (row.position as number) : Number.MAX_SAFE_INTEGER
-      const name = driver
-        ? splitName(driver)
-        : { given: `#${row.driver_number}`, family: '' }
+      const name = driver ? splitName(driver) : { given: `#${row.driver_number}`, family: '' }
       const teamName = driver?.team_name ?? '—'
       const { time, components: segmentComponents } = sessionTime(row, code)
       const components: Record<string, AlphaComponent> = segmentComponents
@@ -219,11 +211,7 @@ export function mapOpenF1Results(
       }
 
       const classified =
-        hasPosition &&
-        !row.dnf &&
-        !row.dns &&
-        !row.dsq &&
-        (!segments || time !== undefined)
+        hasPosition && !row.dnf && !row.dns && !row.dsq && (!segments || time !== undefined)
 
       return {
         driver: {

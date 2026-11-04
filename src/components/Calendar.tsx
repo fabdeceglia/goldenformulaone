@@ -28,9 +28,7 @@ export function Calendar({
 }: CalendarProps) {
   // A future round has no results to open, so it shows the weekend instead.
   const [detailsRound, setDetailsRound] = useState<string | null>(null)
-  const detailsRace = detailsRound
-    ? races.find((race) => race.round === detailsRound)
-    : undefined
+  const detailsRace = detailsRound ? races.find((race) => race.round === detailsRound) : undefined
 
   // A phone has no width to spare for two buttons on every row, so at the usual
   // mobile breakpoint the row actions fold into a kebab menu instead.

@@ -59,8 +59,7 @@ export function ReplayPace({
     const measure = () => {
       const styles = window.getComputedStyle(shell)
       const padding =
-        (Number.parseFloat(styles.paddingLeft) || 0) +
-        (Number.parseFloat(styles.paddingRight) || 0)
+        (Number.parseFloat(styles.paddingLeft) || 0) + (Number.parseFloat(styles.paddingRight) || 0)
       setWidth(Math.max(MIN_CHART_WIDTH, shell.clientWidth - padding))
     }
     measure()
@@ -92,9 +91,7 @@ export function ReplayPace({
   const playheadLap = useMemo(() => {
     const starts = data.laps?.starts
     if (!starts || starts.length === 0) {
-      return duration > 0
-        ? Math.min(totalLaps, Math.max(0, (elapsed / duration) * totalLaps))
-        : 0
+      return duration > 0 ? Math.min(totalLaps, Math.max(0, (elapsed / duration) * totalLaps)) : 0
     }
 
     const lap = currentLap ?? starts[0].lap
@@ -134,8 +131,7 @@ export function ReplayPace({
 
   // A chip for a driver hidden by the filter should not dim the lines that are
   // on screen, so only a visible driver can take the hover highlight.
-  const focused =
-    hovered !== null && (!filterActive || selected.has(hovered)) ? hovered : null
+  const focused = hovered !== null && (!filterActive || selected.has(hovered)) ? hovered : null
 
   const labelled = filterActive
     ? visible.length <= 8
@@ -373,17 +369,15 @@ export function ReplayPace({
           </g>
 
           {showDots && tooltipPoint ? (
-            <PaceDotTooltip
-              series={tooltipPoint.series}
-              point={tooltipPoint.point}
-              chart={chart}
-            />
+            <PaceDotTooltip series={tooltipPoint.series} point={tooltipPoint.point} chart={chart} />
           ) : null}
         </svg>
       </div>
 
       <figcaption className="replay__pace-caption">
-        {filterActive ? `${visible.length} of ${series.length} drivers` : `${series.length} drivers`}{' '}
+        {filterActive
+          ? `${visible.length} of ${series.length} drivers`
+          : `${series.length} drivers`}{' '}
         · each point is a completed lap, drawn live with the replay · pit stops, safety cars and
         other very slow laps hidden
         {hiddenDrivers > 0
@@ -408,9 +402,7 @@ interface PaceDotTooltipProps {
 function PaceDotTooltip({ series, point, chart }: PaceDotTooltipProps) {
   const header = `${series.driver.acronym} · Lap ${point.lap}`
   const value = formatLapTime(point.time)
-  const width = Math.round(
-    Math.max(96, Math.max(header.length * 5.9, value.length * 7.1) + 24),
-  )
+  const width = Math.round(Math.max(96, Math.max(header.length * 5.9, value.length * 7.1) + 24))
   const height = 42
   const gap = 10
 
@@ -471,9 +463,7 @@ interface Chart {
 }
 
 function buildChart(series: readonly PaceSeries[], totalLaps: number, width: number): Chart {
-  const height = Math.round(
-    Math.min(MAX_CHART_HEIGHT, Math.max(MIN_CHART_HEIGHT, width * 0.46)),
-  )
+  const height = Math.round(Math.min(MAX_CHART_HEIGHT, Math.max(MIN_CHART_HEIGHT, width * 0.46)))
   const margin = { top: 24, right: 18, bottom: 48, left: 46 }
   const plotWidth = Math.max(1, width - margin.left - margin.right)
   const plotHeight = Math.max(1, height - margin.top - margin.bottom)

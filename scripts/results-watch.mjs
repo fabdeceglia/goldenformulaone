@@ -107,7 +107,8 @@ async function poll(config, previous) {
   }
 
   const states = new Map()
-  for (const [code, result] of next) states.set(code, { key: `${result.state}/${result.source ?? '-'}`, result })
+  for (const [code, result] of next)
+    states.set(code, { key: `${result.state}/${result.source ?? '-'}`, result })
   return states
 }
 

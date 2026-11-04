@@ -221,10 +221,7 @@ export function sampleIndexAt(samples: readonly { t: number }[], t: number): num
 }
 
 /** Latest sample at or before `t`, or `null` when `t` is before the first one. */
-export function sampleAt<T extends { t: number }>(
-  samples: readonly T[],
-  t: number,
-): T | null {
+export function sampleAt<T extends { t: number }>(samples: readonly T[], t: number): T | null {
   const index = sampleIndexAt(samples, t)
   return index < 0 ? null : samples[index]
 }
@@ -442,9 +439,7 @@ export function formatLapTime(millis: number): string {
   const total = Math.max(0, Math.round(millis))
   const minutes = Math.floor(total / 60_000)
   const seconds = (total % 60_000) / 1_000
-  return minutes > 0
-    ? `${minutes}:${seconds.toFixed(3).padStart(6, '0')}`
-    : seconds.toFixed(3)
+  return minutes > 0 ? `${minutes}:${seconds.toFixed(3).padStart(6, '0')}` : seconds.toFixed(3)
 }
 
 /** `+0.382`, `+12.3`, `+1:02.3`, or `+1 LAP` for a gap beyond two minutes. */
@@ -501,9 +496,7 @@ export function lapTimeline(
 
   if (starts.size === 0) return null
 
-  const ordered = [...starts]
-    .sort(([a], [b]) => a - b)
-    .map(([lap, t]) => ({ lap, t }))
+  const ordered = [...starts].sort(([a], [b]) => a - b).map(([lap, t]) => ({ lap, t }))
 
   return {
     laps: { total: ordered[ordered.length - 1].lap, starts: ordered },
@@ -642,9 +635,7 @@ export function weatherSamples(
     const pressureValue = weatherNumber(row.pressure)
     const pressure = pressureValue !== null && pressureValue > 0 ? pressureValue : null
     const rain =
-      row.rainfall === null || row.rainfall === undefined
-        ? null
-        : Number(row.rainfall) > 0
+      row.rainfall === null || row.rainfall === undefined ? null : Number(row.rainfall) > 0
     const wind = weatherNumber(row.wind_speed)
     const windDirection = weatherNumber(row.wind_direction)
 
@@ -711,9 +702,7 @@ function raceControlEvents(
 ): TimedRaceControlRow[] {
   return rows
     .map((row) => ({ ...row, t: Date.parse(row.date) }))
-    .filter(
-      (row) => Number.isFinite(row.t) && row.t >= start - 15 * 60_000 && row.t <= end,
-    )
+    .filter((row) => Number.isFinite(row.t) && row.t >= start - 15 * 60_000 && row.t <= end)
     .sort((a, b) => a.t - b.t)
 }
 
@@ -775,8 +764,7 @@ export function safetyCarPeriods(
       if (open) open.ending ??= event.t
     } else if (
       open &&
-      ((event.flag === 'CLEAR' &&
-        (event.scope === 'Track' || message.includes('TRACK CLEAR'))) ||
+      ((event.flag === 'CLEAR' && (event.scope === 'Track' || message.includes('TRACK CLEAR'))) ||
         event.flag === 'CHEQUERED' ||
         message.includes('RED FLAG') ||
         message.includes('RACE SUSPENDED') ||
@@ -870,10 +858,7 @@ export function flagPeriods(
       continue
     }
 
-    if (
-      (event.flag === 'CLEAR' && event.scope === 'Track') ||
-      message.includes('TRACK CLEAR')
-    ) {
+    if ((event.flag === 'CLEAR' && event.scope === 'Track') || message.includes('TRACK CLEAR')) {
       closeYellows(event.t)
       continue
     }
@@ -1117,8 +1102,7 @@ function decodeWeatherSamples(encoded: string, start: number): ReplayWeatherSamp
       pressure: decodeTenths(pressure),
       rain: rain === '1' ? true : rain === '0' ? false : null,
       wind: decodeTenths(wind),
-      windDirection:
-        !windDirection || windDirection === '-' ? null : fromBase36(windDirection),
+      windDirection: !windDirection || windDirection === '-' ? null : fromBase36(windDirection),
     })
   }
   return samples
@@ -1221,10 +1205,7 @@ export function encodeWeatherSamples(
 }
 
 /** Encodes safety-car periods relative to the replay start; used by the bake script. */
-export function encodeSafetyCars(
-  periods: readonly ReplaySafetyCar[],
-  start: number,
-): string {
+export function encodeSafetyCars(periods: readonly ReplaySafetyCar[], start: number): string {
   const offset = (value: number | null) =>
     value === null ? '-' : base36(Math.max(0, Math.round((value - start) / 100)))
 
@@ -1241,10 +1222,7 @@ export function encodeSafetyCars(
 }
 
 /** Encodes a driver's lap timing; used by the bake script. */
-export function encodeDriverLaps(
-  laps: readonly ReplayDriverLap[],
-  start: number,
-): string {
+export function encodeDriverLaps(laps: readonly ReplayDriverLap[], start: number): string {
   let previousT = start
   return laps
     .map((lap) => {

@@ -73,9 +73,7 @@ function channelLuminance(value: number): number {
 }
 
 function luminance([r, g, b]: [number, number, number]): number {
-  return (
-    0.2126 * channelLuminance(r) + 0.7152 * channelLuminance(g) + 0.0722 * channelLuminance(b)
-  )
+  return 0.2126 * channelLuminance(r) + 0.7152 * channelLuminance(g) + 0.0722 * channelLuminance(b)
 }
 
 function contrast(a: number, b: number): number {
