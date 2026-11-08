@@ -1,7 +1,9 @@
-import type { AlphaSessionResults, Race } from '../../src/api/types'
+import type { AlphaSessionResults, Race, SessionCode } from '../../src/api/types'
 import {
   classificationHash,
   emptySourceStatus,
+  hasQualifyingTimes,
+  mergeQualifyingTimes,
   type CachedResult,
   type ResultSource,
   type SourceCheck,
@@ -91,6 +93,10 @@ function iso(now: number): string {
 function openF1Allowed(cached: CachedResult | null, now: number): boolean {
   const retryAt = cached?.sources.openf1.retryAt
   return !retryAt || Date.parse(retryAt) <= now
+}
+
+function isQualifying(code: SessionCode): boolean {
+  return code === 'Q' || code === 'SQ'
 }
 
 /** Apply the per-source backoff policy and record when it expires. */
@@ -300,13 +306,14 @@ function pendingCandidate(
 function finalRecheckCandidate(
   cached: CachedResult,
   jolpica: JolpicaSessionResult,
+  session: AlphaSessionResults | null,
   ctx: RefreshContext,
   sources: CachedResult['sources'],
 ): CachedResult {
   const nowIso = iso(ctx.now)
 
-  if (jolpica.check.complete && jolpica.session) {
-    const changed = classificationHash(cached.session) !== classificationHash(jolpica.session)
+  if (jolpica.check.complete && session) {
+    const changed = classificationHash(cached.session) !== classificationHash(session)
     const fetchedAt = changed ? nowIso : (cached.fetchedAt ?? nowIso)
 
     return {
@@ -314,7 +321,7 @@ function finalRecheckCandidate(
       state: 'final',
       source: 'jolpica',
       complete: true,
-      session: changed ? jolpica.session : cached.session,
+      session: changed ? session : cached.session,
       fetchedAt,
       checkedAt: nowIso,
       nextAttemptAt: null,
@@ -367,8 +374,17 @@ export async function refreshSession(
   const jolpicaCheck = withRetry(jolpica.check, ctx.now)
   checks.jolpica = jolpicaCheck
 
+  // jolpica has published qualifying classifications with positions but no
+  // Q1/Q2/Q3 times. OpenF1's session_result carries the same segment durations,
+  // so fetch it and merge instead of promoting a table full of blanks.
+  const needsTiming =
+    isQualifying(target.code) &&
+    jolpica.check.state === 'ready' &&
+    jolpica.session != null &&
+    !hasQualifyingTimes(jolpica.session)
+
   let openf1: OpenF1Outcome | null = null
-  if (!isFinal && !jolpica.check.complete && openF1Allowed(cached, ctx.now)) {
+  if ((needsTiming || (!isFinal && !jolpica.check.complete)) && openF1Allowed(cached, ctx.now)) {
     const sessions = await getOpenF1Sessions(ctx)
     openf1 = await fetchOpenF1Session(
       target.race,
@@ -382,15 +398,27 @@ export async function refreshSession(
   }
 
   const sources = mergeSources(cached, checks, iso(ctx.now))
+  const timing = openf1?.check.state === 'ready' ? openf1.session : null
+  const finalSession = !jolpica.session
+    ? null
+    : needsTiming
+      ? timing && hasQualifyingTimes(timing)
+        ? mergeQualifyingTimes(jolpica.session, timing)
+        : null
+      : jolpica.session
 
   if (cached?.state === 'final') {
-    return writeResultIfNewer(ctx.env, finalRecheckCandidate(cached, jolpica, ctx, sources), cached)
-  }
-
-  if (jolpica.check.complete && jolpica.session) {
     return writeResultIfNewer(
       ctx.env,
-      finalCandidate(target, jolpica.session, cached, ctx, sources),
+      finalRecheckCandidate(cached, jolpica, finalSession, ctx, sources),
+      cached,
+    )
+  }
+
+  if (jolpica.check.complete && finalSession) {
+    return writeResultIfNewer(
+      ctx.env,
+      finalCandidate(target, finalSession, cached, ctx, sources),
       cached,
     )
   }

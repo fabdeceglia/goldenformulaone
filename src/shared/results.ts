@@ -178,6 +178,71 @@ export function alphaCompleteness(session: AlphaSessionResults): CompletenessCou
   }
 }
 
+/**
+ * True when a qualifying classification actually carries lap times. jolpica
+ * occasionally publishes positions first and fills Q1/Q2/Q3 later; until then
+ * every row has a place and no time, which is not a usable classification.
+ */
+export function hasQualifyingTimes(session: AlphaSessionResults | null): boolean {
+  if (!session) return false
+
+  const leader = session.results.find((entry) => entry.position === 1) ?? session.results[0]
+  if (!leader) return false
+
+  return (
+    !!leader.time || Object.values(leader.components ?? {}).some((component) => !!component?.time)
+  )
+}
+
+/**
+ * Fill the missing qualifying times from OpenF1's `session_result` durations.
+ *
+ * Only times are copied: positions, status, points and every other official
+ * field stay exactly as jolpica published them. A time that jolpica already
+ * carries always wins, so this is a no-op once upstream backfills.
+ */
+export function mergeQualifyingTimes(
+  canonical: AlphaSessionResults,
+  timing: AlphaSessionResults,
+): AlphaSessionResults {
+  const byCar = new Map<number, AlphaSessionResults['results'][number]>()
+  const byId = new Map<string, AlphaSessionResults['results'][number]>()
+  const byCode = new Map<string, AlphaSessionResults['results'][number]>()
+
+  for (const entry of timing.results) {
+    if (typeof entry.car_number === 'number') byCar.set(entry.car_number, entry)
+    if (entry.driver?.id) byId.set(entry.driver.id, entry)
+    if (entry.driver?.abbreviation) byCode.set(entry.driver.abbreviation, entry)
+  }
+
+  const results = canonical.results.map((entry) => {
+    const match =
+      (typeof entry.car_number === 'number' ? byCar.get(entry.car_number) : undefined) ??
+      (entry.driver?.id ? byId.get(entry.driver.id) : undefined) ??
+      (entry.driver?.abbreviation ? byCode.get(entry.driver.abbreviation) : undefined)
+
+    if (!match) return entry
+
+    const components = { ...(entry.components ?? {}) }
+    for (const [key, component] of Object.entries(match.components ?? {})) {
+      if (!component) continue
+      const existing = components[key]
+
+      if (!existing) components[key] = { ...component }
+      else if (!existing.time && component.time)
+        components[key] = { ...existing, time: component.time }
+    }
+
+    return {
+      ...entry,
+      ...(entry.time || !match.time ? {} : { time: match.time }),
+      ...(Object.keys(components).length > 0 ? { components } : {}),
+    }
+  })
+
+  return { ...canonical, results }
+}
+
 function stableEntry(entry: AlphaSessionResults['results'][number]): unknown {
   const components = Object.keys(entry.components ?? {})
     .sort()

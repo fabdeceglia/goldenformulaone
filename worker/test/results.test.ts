@@ -5,7 +5,7 @@ import { dueSessions, refreshSession, type RefreshContext } from '../src/results
 import type { SessionTarget } from '../src/schedule'
 import type { OpenF1SessionRow } from '../src/sources/openf1'
 import type { OpenF1DriverRow, OpenF1ResultRow } from '../../src/shared/openf1Map'
-import type { Race, SessionCode } from '../../src/api/types'
+import type { AlphaSessionResults, Race, SessionCode } from '../../src/api/types'
 import { sessionWindows } from '../../src/shared/schedule'
 import { FakeKV, makeCached, makeRace, makeSessionResults } from './fixtures'
 
@@ -116,6 +116,22 @@ function openF1Rows(code: SessionCode): OpenF1ResultRow[] {
   }))
 }
 
+function qualifyingWithoutTimes(): AlphaSessionResults {
+  const session = makeSessionResults('Q', 2)
+
+  return {
+    ...session,
+    results: session.results.map((entry) => ({
+      ...entry,
+      time: undefined,
+      components: {
+        Q1: { key: 'Q1', name: 'Qualifying 1', position: entry.position },
+        Q2: { key: 'Q2', name: 'Qualifying 2', position: entry.position },
+      },
+    })),
+  }
+}
+
 function openF1Server(rowsFor: (key: number) => OpenF1ResultRow[]) {
   return (url: string) => {
     const key = Number(new URL(url).searchParams.get('session_key'))
@@ -176,6 +192,71 @@ describe('refreshSession source priority', () => {
     expect(result.state).toBe('provisional')
     expect(result.source).toBe('openf1')
     expect(result.session?.results[0].components?.GRID.position).toBe(1)
+  })
+
+  it('merges OpenF1 qualifying times when jolpica publishes none', async () => {
+    const kv = new FakeKV()
+    const race = makeRace()
+    const now = Date.parse('2026-10-25T22:30:00Z')
+    const ctx = makeContext(kv, [race], now)
+
+    stubSources({
+      jolpica: () => json(qualifyingWithoutTimes()),
+      openf1: openF1Server((key) => (key === 102 ? openF1Rows('Q') : [])),
+    })
+
+    const result = await refreshSession(targetFor(race, 'Q'), ctx)
+
+    expect(result.state).toBe('final')
+    expect(result.source).toBe('jolpica')
+    expect(result.session?.results[0].components?.Q3.time).toBe('1:15.300')
+    expect(result.session?.results[1].components?.Q3).toBeUndefined()
+    expect(result.session?.results[1].time).toBe('1:16.800')
+  })
+
+  it('keeps a qualifying result provisional when no source has lap times', async () => {
+    const kv = new FakeKV()
+    const race = makeRace()
+    const now = Date.parse('2026-10-25T22:30:00Z')
+    const ctx = makeContext(kv, [race], now)
+
+    stubSources({
+      jolpica: () => json(qualifyingWithoutTimes()),
+      openf1: () => failing(404),
+    })
+
+    const result = await refreshSession(targetFor(race, 'Q'), ctx)
+
+    expect(result.state).toBe('provisional')
+    expect(result.source).toBe('jolpica')
+    expect(result.session?.results[0].time).toBeUndefined()
+  })
+
+  it('heals a cached final that was published without qualifying times', async () => {
+    const kv = new FakeKV()
+    const race = makeRace()
+    const now = Date.parse('2026-10-25T22:30:00Z')
+    const ctx = makeContext(kv, [race], now)
+
+    kv.seed(
+      keys.result('2026', '18', 'Q'),
+      makeCached({
+        code: 'Q',
+        state: 'final',
+        complete: true,
+        session: qualifyingWithoutTimes(),
+        recheckAt: new Date(now - 60_000).toISOString(),
+      }),
+    )
+    stubSources({
+      jolpica: () => json(qualifyingWithoutTimes()),
+      openf1: openF1Server((key) => (key === 102 ? openF1Rows('Q') : [])),
+    })
+
+    const result = await refreshSession(targetFor(race, 'Q'), ctx)
+
+    expect(result.state).toBe('final')
+    expect(result.session?.results[0].components?.Q3.time).toBe('1:15.300')
   })
 
   it('keeps a pending result with a locked OpenF1 marker on 401', async () => {

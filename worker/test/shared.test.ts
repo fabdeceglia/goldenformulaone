@@ -3,7 +3,9 @@ import { unwrapAlpha } from '../../src/shared/alpha'
 import {
   assessCompleteness,
   classificationHash,
+  hasQualifyingTimes,
   isCachedResult,
+  mergeQualifyingTimes,
   resultStateRank,
 } from '../../src/shared/results'
 import {
@@ -172,6 +174,53 @@ describe('completeness', () => {
 
     const noFinisher = { drivers: 20, positioned: 20, classified: 0, hasWinner: true }
     expect(assessCompleteness(noFinisher, 20, 'SR').complete).toBe(false)
+  })
+})
+
+describe('qualifying timing', () => {
+  const withoutTimes = makeSessionResults('Q', 3, {
+    results: makeSessionResults('Q', 3).results.map((entry, index) => ({
+      ...entry,
+      time: undefined,
+      car_number: index + 1,
+      components: {
+        Q1: { key: 'Q1', name: 'Qualifying 1', position: index + 1 },
+        Q2: { key: 'Q2', name: 'Qualifying 2', position: index + 1 },
+      },
+    })),
+  })
+
+  it('detects a classification that carries positions but no lap times', () => {
+    expect(hasQualifyingTimes(withoutTimes)).toBe(false)
+    expect(hasQualifyingTimes(makeSessionResults('Q', 3))).toBe(true)
+    expect(hasQualifyingTimes(null)).toBe(false)
+  })
+
+  it('fills only the missing times and keeps the official classification', () => {
+    const timing = makeSessionResults('Q', 3, {
+      results: makeSessionResults('Q', 3).results.map((entry, index) => ({
+        ...entry,
+        time: `1:2${index}.000`,
+        car_number: index + 1,
+        components: {
+          Q1: { key: 'Q1', name: 'Qualifying 1', time: `1:3${index}.000` },
+          Q2: { key: 'Q2', name: 'Qualifying 2', time: `1:2${index}.000` },
+        },
+      })),
+    })
+
+    const merged = mergeQualifyingTimes(withoutTimes, timing)
+
+    expect(merged.results.map((row) => row.position)).toEqual([1, 2, 3])
+    expect(merged.results[0].time).toBe('1:20.000')
+    expect(merged.results[0].components?.Q1.time).toBe('1:30.000')
+    expect(merged.results[0].components?.Q2.time).toBe('1:20.000')
+
+    // A time jolpica already published is never replaced by the fallback.
+    const official = makeSessionResults('Q', 1, {
+      results: [{ ...makeSessionResults('Q', 1).results[0], time: '1:00.000' }],
+    })
+    expect(mergeQualifyingTimes(official, timing).results[0].time).toBe('1:00.000')
   })
 })
 
