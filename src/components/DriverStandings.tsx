@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { api } from '../api/client'
-import type { Constructor } from '../api/types'
+import type { Constructor, DriverStanding as Standing } from '../api/types'
 import { useFetch } from '../hooks/useFetch'
 import { driverName } from '../lib/format'
+import { DriverStatsDialog } from './DriverStatsDialog'
 import { Empty, ErrorState, Loading } from './Feedback'
 import { Position } from './Position'
 
@@ -10,6 +12,7 @@ interface DriverStandingsProps {
 }
 
 export function DriverStandings({ season }: DriverStandingsProps) {
+  const [statsDriver, setStatsDriver] = useState<Standing | null>(null)
   const { data, loading, error, reload } = useFetch(
     (signal) => api.driverStandings(season, signal),
     [season],
@@ -51,6 +54,9 @@ export function DriverStandings({ season }: DriverStandingsProps) {
               <th scope="col" className="table__num">
                 Points
               </th>
+              <th scope="col" className="table__icon">
+                <span className="sr-only">Season statistics</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -74,12 +80,48 @@ export function DriverStandings({ season }: DriverStandingsProps) {
                 <td className="muted hide-sm">{teamNames(standing.Constructors)}</td>
                 <td className="table__num">{standing.wins}</td>
                 <td className="table__num table__num--strong">{standing.points}</td>
+                <td className="table__icon">
+                  <button
+                    type="button"
+                    className="table__icon-button"
+                    aria-label={`Season statistics for ${driverName(standing.Driver)}`}
+                    onClick={() => setStatsDriver(standing)}
+                  >
+                    <SeasonChartIcon />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {statsDriver && (
+        <DriverStatsDialog
+          season={season}
+          standing={statsDriver}
+          onClose={() => setStatsDriver(null)}
+        />
+      )}
     </section>
+  )
+}
+
+/** A small line-chart glyph, drawn inline like the row menu's kebab. */
+function SeasonChartIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 4v16h16" />
+      <path d="M7 15l4-5 3 3 4-7" />
+    </svg>
   )
 }
 

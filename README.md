@@ -14,7 +14,9 @@ powered by the free [jolpica-f1](https://github.com/jolpica/jolpica-f1) API.
   open their results; rounds still to come open a details panel instead, since there is
   nothing to show yet. Every round also offers an **Info** popup with the circuit's track
   layout and racing history
-- **The Grid** — driver championship table, with each position in a team-coloured chip
+- **The Grid** — driver championship table, with each position in a team-coloured chip.
+  Each row opens a **season statistics** dialog: cumulative points and race-classification
+  charts plus victories, retirements and average finishes
 - **Constructors** — team championship table
 - **Chequered Flag** — every session of a weekend: practice 1–3, sprint qualifying,
   qualifying, the sprint and the race. Qualifying can also be read as a **Starting
@@ -41,7 +43,7 @@ The section names above are the tab labels. Each tab keeps a stable id (`home`, 
 | **The Pit Wall** | Full-size featured-event panel + the five newest headlines |
 | **Paddock and Coffee** | Every headline the feeds are carrying, newest first |
 | **The Schedule** | Round list with the featured race highlighted; future rounds open a details panel, every round opens a circuit info popup |
-| **The Grid** | Driver championship table |
+| **The Grid** | Driver championship table; each row opens a season statistics dialog |
 | **Constructors** | Constructor championship table |
 | **Chequered Flag** | Every session of a selected round |
 
@@ -615,7 +617,7 @@ Open http://localhost:5173.
 | `npm run build` | Type-check and build for production into `dist/` |
 | `npm run preview` | Serve the production build locally |
 | `npm run lint` | Run oxlint |
-| `npm run test` | Run the Worker/shared Vitest suite |
+| `npm run test` | Run the Worker and library Vitest suite |
 | `npm run worker:dev` | Run the results Worker locally on port 8787 |
 | `npm run worker:deploy` | Deploy the results Worker |
 | `npm run worker:tail` | Stream the deployed Worker's logs |
@@ -653,6 +655,7 @@ Endpoints used:
 | --- | --- |
 | The Schedule + current season | `/ergast/f1/current/races/?limit=100` |
 | The Grid | `/ergast/f1/{season}/driverstandings/?limit=100` |
+| Driver season statistics | `/ergast/f1/{season}/drivers/{driverId}/{results\|sprint\|qualifying}/?limit=100` |
 | Constructors | `/ergast/f1/{season}/constructorstandings/?limit=100` |
 | Circuit info (history) | `/ergast/f1/circuits/{circuitId}/results/1/?limit=100` |
 | Round ids for the season | `/f1/alpha/core/rounds/?year={season}` |
@@ -679,7 +682,8 @@ npm run dev
 src/
 ├── api/
 │   ├── alpha.ts     # jolpica alpha client + the session codes we render
-│   ├── client.ts    # Ergast-compatible client (calendar, standings)
+│   ├── client.ts    # Ergast-compatible client (calendar, standings, driver seasons)
+│   ├── driverSeason.ts # per-driver results/sprint/qualifying → one cached season
 │   ├── news.ts      # the trade press: feeds, parsing, the merged list
 │   ├── openf1.ts    # OpenF1 client, session-key resolution, rate limiting
 │   ├── resultsService.ts # browser client for the results Worker
@@ -693,7 +697,9 @@ src/
 │   ├── Calendar.tsx
 │   ├── CircuitInfo.tsx          # circuit info popup: layout, facts, racing history
 │   ├── ConstructorStandings.tsx
+│   ├── DriverSeasonChart.tsx    # points / finish-position SVG chart
 │   ├── DriverStandings.tsx
+│   ├── DriverStatsDialog.tsx    # per-driver season statistics modal
 │   ├── FeaturedEvent.tsx        # full panel + compact bar
 │   ├── Feedback.tsx             # Loading / ErrorState / Empty
 │   ├── Header.tsx               # brand mark + wordmark + theme switch
@@ -716,6 +722,7 @@ src/
 │   └── Tabs.tsx
 ├── hooks/
 │   ├── useFetch.ts              # abortable fetch hook with reload + background refresh
+│   ├── useMeasuredWidth.ts      # ResizeObserver width for hand-drawn SVG charts
 │   ├── useMediaQuery.ts         # width queries, for layout CSS cannot switch
 │   └── useTheme.ts              # light/dark theme: read, toggle, remember
 ├── lib/
@@ -725,6 +732,7 @@ src/
 │   ├── circuit.ts               # replay geometry: rotate, fit, project x/y to SVG
 │   ├── circuitHistory.ts        # past winners → editions, records, recent winners
 │   ├── circuits.ts              # circuit track layouts: Ergast id → vendored SVG
+│   ├── driverSeason.ts          # race/sprint/qualifying rows → series + season stats
 │   ├── format.ts                # date, time and gap formatting
 │   ├── grid.ts                  # qualifying classification → grid slots and gaps
 │   ├── pace.ts                  # replay lap times → race-pace series
@@ -783,7 +791,7 @@ scripts/
 vercel.json                          # production: news feeds + results Worker rewrites
 wrangler.jsonc                       # Worker name, KV binding, cron, vars
 worker-configuration.d.ts            # generated Cloudflare bindings/runtime types
-vitest.config.ts                     # Worker/shared test runner
+vitest.config.ts                     # Worker + pure-library test runner
 ```
 
 ## Notes

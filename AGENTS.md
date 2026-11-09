@@ -13,7 +13,7 @@ is Vercel static hosting plus one Vercel edge function, `api/upstream.ts`.
 | `npm run localdev` | Starts both, backgrounding `dev` |
 | `npm run build` | `tsc -b && vite build`; typechecks only `src/` and `vite.config.ts`, **not** the Worker |
 | `npm run lint` | oxlint (`.oxlintrc.json`); no formatter is configured |
-| `npm test` | Vitest; only `worker/test/**/*.test.ts`, no frontend tests |
+| `npm test` | Vitest; `worker/test/**/*.test.ts` plus pure `src/lib/**` modules, no component tests |
 | `npm run worker:typecheck` | Separate Worker/shared typecheck; run after Worker changes |
 | `npm run worker:types` | Regenerate `worker-configuration.d.ts` after a binding change; never hand-edit it |
 
@@ -67,6 +67,7 @@ the rest of the session. Measured: ~90K tokens of context per turn on this repo.
 - Browser API: `api/client.ts` (Ergast calendar, standings, past winners),
   `api/alpha.ts` (alpha rounds + results index, `SESSION_CODES`),
   `api/resultsService.ts` (the only entry for result tables),
+  `api/driverSeason.ts` (per-driver season charts, 10-minute memory cache),
   `api/openf1.ts` (replay/battle only; one serial queue), `api/news.ts` (RSS,
   10-minute cache).
 - Hooks: `useFetch` (abort + `reload`/silent `refresh`; `null` to idle),

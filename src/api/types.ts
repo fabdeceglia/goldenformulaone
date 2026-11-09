@@ -129,6 +129,55 @@ export interface ConstructorStandingsResponse {
   }
 }
 
+/* ---------- Per-driver season results ---------- */
+
+export interface RaceResult {
+  number: string
+  position: string
+  positionText: string
+  points: string
+  Driver: Driver
+  Constructor: Constructor
+  grid: string
+  laps: string
+  status: string
+  Time?: { millis?: string; time?: string }
+  FastestLap?: {
+    rank?: string
+    lap?: string
+    Time?: { time?: string }
+  }
+}
+
+export interface QualifyingResult {
+  number: string
+  position: string
+  Driver: Driver
+  Constructor: Constructor
+  Q1?: string
+  Q2?: string
+  Q3?: string
+}
+
+export type RaceWithResults = Race & { Results: RaceResult[] }
+export type RaceWithSprintResults = Race & { SprintResults: RaceResult[] }
+export type RaceWithQualifying = Race & { QualifyingResults: QualifyingResult[] }
+
+export interface DriverRaceResultsResponse {
+  MRData: MRData & { RaceTable: { season: string; driverId?: string; Races: RaceWithResults[] } }
+}
+
+/** The sprint endpoint keeps the `SprintResults` key, not `Results`. */
+export interface DriverSprintResultsResponse {
+  MRData: MRData & {
+    RaceTable: { season: string; driverId?: string; Races: RaceWithSprintResults[] }
+  }
+}
+
+export interface DriverQualifyingResponse {
+  MRData: MRData & { RaceTable: { season: string; driverId?: string; Races: RaceWithQualifying[] } }
+}
+
 /**
  * One past edition of a race, carrying just its winning entry (from
  * `/circuits/{circuitId}/results/1/`). The winner's `FastestLap` is present

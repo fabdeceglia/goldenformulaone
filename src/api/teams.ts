@@ -96,3 +96,11 @@ export function readableInk(color: string): string {
     ? DARK_INK
     : PAPER_INK
 }
+
+/**
+ * A livery colour that stays visible as a chart line on paper. Near-white
+ * liveries vanish, so they fall back to the theme's ink instead.
+ */
+export function chartInk(color: string): string {
+  return readableInk(color) === DARK_INK ? 'var(--ink)' : color
+}

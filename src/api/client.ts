@@ -2,6 +2,9 @@ import { getJson } from './http'
 import type {
   CircuitResultsResponse,
   ConstructorStandingsResponse,
+  DriverQualifyingResponse,
+  DriverRaceResultsResponse,
+  DriverSprintResultsResponse,
   DriverStandingsResponse,
   RacesResponse,
 } from './types'
@@ -25,6 +28,19 @@ export const api = {
 
   constructorStandings: (season: string, signal: AbortSignal) =>
     get<ConstructorStandingsResponse>(`/${season}/constructorstandings/?limit=100`, signal),
+
+  /*
+   * A driver's season is at most 24 races, so every per-driver endpoint fits in
+   * one page under the API's hard `limit` cap of 100.
+   */
+  driverRaceResults: (season: string, driverId: string, signal: AbortSignal) =>
+    get<DriverRaceResultsResponse>(`/${season}/drivers/${driverId}/results/?limit=100`, signal),
+
+  driverSprintResults: (season: string, driverId: string, signal: AbortSignal) =>
+    get<DriverSprintResultsResponse>(`/${season}/drivers/${driverId}/sprint/?limit=100`, signal),
+
+  driverQualifying: (season: string, driverId: string, signal: AbortSignal) =>
+    get<DriverQualifyingResponse>(`/${season}/drivers/${driverId}/qualifying/?limit=100`, signal),
 
   /**
    * Every past winner at a circuit, oldest first — the circuit's history. No
