@@ -1,4 +1,4 @@
-import { chartInk } from '../api/teams'
+import { useState } from 'react'
 import { useMeasuredWidth } from '../hooks/useMeasuredWidth'
 import type { DriverSeason, FinishOutcome } from '../lib/driverSeason'
 
@@ -7,8 +7,6 @@ export type StatsView = 'points' | 'positions'
 interface DriverSeasonChartProps {
   season: DriverSeason
   view: StatsView
-  /** Team colour from the standings table. */
-  color: string
   driver: string
 }
 
@@ -18,6 +16,9 @@ interface ChartDatum {
   value: number
   name: string
   outcome?: FinishOutcome
+  /** Points scored in this round (race + sprint); points view only. */
+  gain?: number
+  status?: string | null
 }
 
 interface Chart {
@@ -46,12 +47,22 @@ const OUTCOME_LABELS: Record<FinishOutcome, string> = {
  * because there is no value between two rounds. The two views share the axis
  * geometry; only the y direction and the marker semantics differ.
  */
-export function DriverSeasonChart({ season, view, color, driver }: DriverSeasonChartProps) {
+export function DriverSeasonChart({ season, view, driver }: DriverSeasonChartProps) {
   const { ref, width } = useMeasuredWidth<HTMLDivElement>()
+  const [hovered, setHovered] = useState<number | null>(null)
   const series = chartData(season, view)
   const chart = buildChart(season, series, view, width)
-  const stroke = chartInk(color)
+  // Three separate roles: a dedicated series colour for the line, ink for a
+  // finish, and the outcome accents for everything else. Reusing one colour for
+  // the line and the dots made the two indistinguishable in both themes.
+  const lineColor = 'var(--chart-line)'
+  const finishColor = 'var(--ink)'
   const lastRound = chart.lastRound
+  const tooltipPoint =
+    hovered === null ? null : (series.find((point) => point.round === hovered) ?? null)
+  // Keep neighbouring hit targets from overlapping on a narrow chart.
+  const slotWidth = chart.plotWidth / Math.max(1, season.rounds.length - 1)
+  const hitRadius = Math.max(6, Math.min(12, slotWidth / 2))
 
   if (series.length === 0) {
     return <p className="stats__chart-empty">No race classification for this driver yet.</p>
@@ -124,28 +135,46 @@ export function DriverSeasonChart({ season, view, color, driver }: DriverSeasonC
           </text>
 
           {chart.path !== '' && (
-            <path className="stats__chart-line" d={chart.path} stroke={stroke} />
+            <path className="stats__chart-line" d={chart.path} stroke={lineColor} />
           )}
 
           <g>
+            {chart.points.map((point) => {
+              const active = hovered === point.round
+              const filled = view === 'points' || point.outcome === 'finish'
+              return (
+                <circle
+                  key={`${point.round}-${point.value}`}
+                  className={`stats__chart-dot stats__chart-dot--${markerKind(view, point.outcome)}`}
+                  cx={chart.x(point.index)}
+                  cy={chart.y(point.value)}
+                  r={active ? (view === 'points' ? 3.4 : 3.8) : view === 'points' ? 2.6 : 3}
+                  fill={filled ? finishColor : 'var(--paper)'}
+                  stroke={filled ? 'var(--paper)' : outcomeColor(point.outcome)}
+                />
+              )
+            })}
+          </g>
+
+          {/* Transparent targets above the dots keep the mark small while the
+              hover area stays comfortable on a trackpad or a finger. */}
+          <g>
             {chart.points.map((point) => (
               <circle
-                key={`${point.round}-${point.value}`}
-                className={`stats__chart-dot stats__chart-dot--${markerKind(view, point.outcome)}`}
+                key={`hit-${point.round}`}
+                className="stats__chart-hit"
                 cx={chart.x(point.index)}
                 cy={chart.y(point.value)}
-                r={view === 'points' ? 2.6 : 3}
-                fill={view === 'points' || point.outcome === 'finish' ? stroke : 'var(--paper)'}
-                stroke={
-                  view === 'points' || point.outcome === 'finish'
-                    ? undefined
-                    : outcomeColor(point.outcome)
-                }
-              >
-                <title>{tooltip(view, point)}</title>
-              </circle>
+                r={hitRadius}
+                onMouseEnter={() => setHovered(point.round)}
+                onMouseLeave={() => setHovered(null)}
+              />
             ))}
           </g>
+
+          {tooltipPoint && (
+            <ChartTooltip point={tooltipPoint} view={view} chart={chart} accent={finishColor} />
+          )}
         </svg>
       </div>
 
@@ -181,16 +210,24 @@ function chartData(season: DriverSeason, view: StatsView): ChartDatum[] {
   const nameOf = (index: number, round: number) => season.rounds[index]?.name ?? `Round ${round}`
 
   if (view === 'points') {
-    return season.points.map((point) => ({
-      ...point,
-      name: nameOf(point.index, point.round),
-    }))
+    return season.points.map((point) => {
+      const round = season.rounds[point.index]
+      return {
+        ...point,
+        name: nameOf(point.index, point.round),
+        gain: round ? round.racePoints + round.sprintPoints : 0,
+      }
+    })
   }
 
-  return season.positions.map((point) => ({
-    ...point,
-    name: nameOf(point.index, point.round),
-  }))
+  return season.positions.map((point) => {
+    const round = season.rounds[point.index]
+    return {
+      ...point,
+      name: nameOf(point.index, point.round),
+      status: round?.status ?? null,
+    }
+  })
 }
 
 function buildChart(
@@ -300,17 +337,81 @@ function markerKind(view: StatsView, outcome: FinishOutcome | undefined): string
 
 function outcomeColor(outcome: FinishOutcome | undefined): string {
   if (outcome === 'retired') return 'var(--red)'
-  if (outcome === 'dsq') return 'var(--amber)'
-  return 'var(--line-strong)'
+  if (outcome === 'dsq' || outcome === 'dns') return 'var(--amber)'
+  return 'var(--ink)'
 }
 
-function tooltip(view: StatsView, point: ChartDatum): string {
-  const prefix = `R${point.round} · ${point.name}`
-  if (view === 'points') return `${prefix} · ${point.value} pts`
-  if (point.outcome === undefined || point.outcome === 'finish') {
-    return `${prefix} · P${point.value}`
-  }
-  return `${prefix} · P${point.value} · ${OUTCOME_LABELS[point.outcome]}`
+interface ChartTooltipProps {
+  point: ChartDatum
+  view: StatsView
+  chart: Chart
+  accent: string
+}
+
+/**
+ * A hover card for one event. Drawn in the chart's SVG so it scales with the
+ * plot, and flipped to the other side of the dot when the plot runs out of room.
+ */
+function ChartTooltip({ point, view, chart, accent }: ChartTooltipProps) {
+  const header = `R${point.round} · ${point.name}`
+  const value = view === 'points' ? `${point.value} pts` : `P${point.value}`
+  const detail =
+    view === 'points'
+      ? point.gain && point.gain > 0
+        ? `+${point.gain} this round`
+        : 'no points this round'
+      : point.outcome && point.outcome !== 'finish'
+        ? OUTCOME_LABELS[point.outcome]
+        : undefined
+
+  const width = Math.round(
+    Math.max(
+      104,
+      Math.max(header.length * 5.6, value.length * 7.2, (detail?.length ?? 0) * 6.2) + 26,
+    ),
+  )
+  const height = detail ? 52 : 40
+  const gap = 10
+
+  const dotX = chart.x(point.index)
+  const dotY = chart.y(point.value)
+  const minX = chart.margin.left
+  const maxX = chart.margin.left + chart.plotWidth
+  const minY = chart.margin.top
+  const maxY = chart.margin.top + chart.plotHeight
+
+  let x = dotX + gap
+  if (x + width > maxX) x = dotX - gap - width
+  x = Math.min(Math.max(x, minX), Math.max(minX, maxX - width))
+
+  let y = dotY - gap - height
+  if (y < minY) y = dotY + gap
+  y = Math.min(Math.max(y, minY), Math.max(minY, maxY - height))
+
+  return (
+    <g className="stats__chart-tooltip" aria-hidden="true">
+      <rect
+        className="stats__chart-tooltip-card"
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        rx={7}
+      />
+      <rect x={x + 2} y={y + 7} width={3} height={height - 14} rx={1.5} fill={accent} />
+      <text className="stats__chart-tooltip-title" x={x + 13} y={y + 15}>
+        {header}
+      </text>
+      <text className="stats__chart-tooltip-value" x={x + 13} y={y + 31}>
+        {value}
+      </text>
+      {detail && (
+        <text className="stats__chart-tooltip-detail" x={x + 13} y={y + 44}>
+          {detail}
+        </text>
+      )}
+    </g>
+  )
 }
 
 function summaryText(driver: string, view: StatsView, series: readonly ChartDatum[]): string {

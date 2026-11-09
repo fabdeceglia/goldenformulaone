@@ -608,13 +608,11 @@ change, no proxy change, and no chart dependency.
 - `src/hooks/useMeasuredWidth.ts` — shared `ResizeObserver` measurement.
   `ReplayPace` was left untouched.
 - `src/components/DriverSeasonChart.tsx` — one SVG component for both views.
-  Straight polyline, dots with `<title>` tooltips, inverted position axis,
-  outcome markers and a legend.
+  Straight polyline, hover cards, inverted position axis, outcome markers and a
+  legend.
 - `src/components/DriverStatsDialog.tsx` — modal, tabs, loading/error/empty,
   stats sidebar and the DNS/DSQ footnote.
 - `src/components/DriverStandings.tsx` — icon column and dialog state.
-- `src/api/teams.ts` — `chartInk()`, which falls back to `var(--ink)` when a
-  near-white livery would disappear on paper.
 - `src/index.css` — icon button, dialog layout, chart and responsive rules
   (stacked under 780 px, two-column stats grid).
 
@@ -632,6 +630,17 @@ change, no proxy change, and no chart dependency.
 - The chart's `niceStep` stays a local helper; it is used once here, so lifting
   `ReplayPace`'s copy into `src/lib/chart.ts` was not worth touching the replay
   in this change.
+- **Hover cards replace the native `<title>` tooltips.** Each dot has a wider
+  transparent hit target and a card drawn in the SVG, following
+  `ReplayPace`'s dot tooltip: round and race name, then the points total and
+  the points gained that round, or the exact classification and outcome. The
+  card flips and clamps inside the plot so it never leaves the chart.
+- **One neutral series colour, not the team livery.** The planned team-coloured
+  line made a Ferrari retirement indistinguishable from a Ferrari finish, since
+  both were red. The line is now `var(--ink-muted)` and the finish markers
+  `var(--ink)`, so the two never blend in either theme; only the outcome changes
+  the marker colour: black finish, red retirement, amber DSQ/DNS, matching the
+  legend exactly. This is consistent across every driver.
 - Series coverage is shown per chart: the points caption uses the last round
   with a race or sprint row, the position caption the last race row, while
   qualifying averages may include a newer round.

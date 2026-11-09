@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { fetchDriverSeason } from '../api/driverSeason'
-import { teamColor } from '../api/teams'
 import type { DriverStanding } from '../api/types'
 import { useFetch } from '../hooks/useFetch'
 import type { DriverStats } from '../lib/driverSeason'
@@ -73,12 +72,7 @@ export function DriverStatsDialog({ season, standing, onClose }: DriverStatsDial
             ) : !data || data.rounds.length === 0 ? (
               <Empty message="No race data for this driver yet." />
             ) : (
-              <DriverSeasonChart
-                season={data}
-                view={view}
-                color={teamColor(standing.Constructors[0]?.constructorId)}
-                driver={driver}
-              />
+              <DriverSeasonChart season={data} view={view} driver={driver} />
             )}
           </div>
 
