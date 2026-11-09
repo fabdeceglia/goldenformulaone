@@ -1,13 +1,18 @@
+import { useState } from 'react'
 import { api } from '../api/client'
+import type { ConstructorStanding as Standing } from '../api/types'
 import { useFetch } from '../hooks/useFetch'
+import { ConstructorStatsDialog } from './ConstructorStatsDialog'
 import { Empty, ErrorState, Loading } from './Feedback'
 import { Position } from './Position'
+import { SeasonChartIcon } from './SeasonChartIcon'
 
 interface ConstructorStandingsProps {
   season: string
 }
 
 export function ConstructorStandings({ season }: ConstructorStandingsProps) {
+  const [statsTeam, setStatsTeam] = useState<Standing | null>(null)
   const { data, loading, error, reload } = useFetch(
     (signal) => api.constructorStandings(season, signal),
     [season],
@@ -46,6 +51,9 @@ export function ConstructorStandings({ season }: ConstructorStandingsProps) {
               <th scope="col" className="table__num">
                 Points
               </th>
+              <th scope="col" className="table__icon">
+                <span className="sr-only">Season statistics</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -65,11 +73,29 @@ export function ConstructorStandings({ season }: ConstructorStandingsProps) {
                 </td>
                 <td className="table__num">{standing.wins}</td>
                 <td className="table__num table__num--strong">{standing.points}</td>
+                <td className="table__icon">
+                  <button
+                    type="button"
+                    className="table__icon-button"
+                    aria-label={`Season statistics for ${standing.Constructor.name}`}
+                    onClick={() => setStatsTeam(standing)}
+                  >
+                    <SeasonChartIcon />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {statsTeam && (
+        <ConstructorStatsDialog
+          season={season}
+          standing={statsTeam}
+          onClose={() => setStatsTeam(null)}
+        />
+      )}
     </section>
   )
 }

@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { fetchDriverSeason } from '../api/driverSeason'
 import type { DriverStanding } from '../api/types'
 import { useFetch } from '../hooks/useFetch'
-import type { DriverStats } from '../lib/driverSeason'
 import { driverName } from '../lib/format'
-import { DriverSeasonChart } from './DriverSeasonChart'
-import type { StatsView } from './DriverSeasonChart'
+import { SeasonChart } from './SeasonChart'
+import type { StatsView } from './SeasonChart'
+import { SeasonStatsAside } from './SeasonStatsAside'
 import { Empty, ErrorState, Loading } from './Feedback'
 import { Modal } from './Modal'
 import { Tabs } from './Tabs'
@@ -72,69 +72,13 @@ export function DriverStatsDialog({ season, standing, onClose }: DriverStatsDial
             ) : !data || data.rounds.length === 0 ? (
               <Empty message="No race data for this driver yet." />
             ) : (
-              <DriverSeasonChart season={data} view={view} driver={driver} />
+              <SeasonChart season={data} view={view} subject={driver} />
             )}
           </div>
 
-          <aside className="stats__aside" aria-label="Season statistics">
-            <dl className="stats__list">
-              <Stat label="Victories" value={statValue(stats, (stats) => stats.wins)} />
-              <Stat label="Retirements" value={statValue(stats, (stats) => stats.retirements)} />
-              <Stat
-                label="Avg finish"
-                value={average(stats, (stats) => stats.avgRace)}
-                hint={
-                  stats && stats.raceSample > 0
-                    ? `${stats.raceSample} classified`
-                    : 'no classified races'
-                }
-              />
-              <Stat
-                label="Avg qualifying"
-                value={average(stats, (stats) => stats.avgQualifying)}
-                hint={
-                  stats && stats.qualifyingSample > 0
-                    ? `${stats.qualifyingSample} sessions`
-                    : undefined
-                }
-              />
-            </dl>
-
-            {stats && (stats.dns > 0 || stats.dsq > 0) && (
-              <p className="stats__note">
-                {[
-                  stats.dns > 0 ? `${stats.dns} DNS` : null,
-                  stats.dsq > 0 ? `${stats.dsq} DSQ` : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}{' '}
-                not counted in averages
-              </p>
-            )}
-          </aside>
+          <SeasonStatsAside stats={stats} />
         </div>
       </div>
     </Modal>
   )
-}
-
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="stats__stat">
-      <dt>{label}</dt>
-      <dd>
-        {value}
-        {hint && <span className="stats__sample">{hint}</span>}
-      </dd>
-    </div>
-  )
-}
-
-function statValue(stats: DriverStats | null, pick: (stats: DriverStats) => number): string {
-  return stats ? String(pick(stats)) : '—'
-}
-
-function average(stats: DriverStats | null, pick: (stats: DriverStats) => number | null): string {
-  const value = stats ? pick(stats) : null
-  return value === null ? '—' : value.toFixed(1)
 }

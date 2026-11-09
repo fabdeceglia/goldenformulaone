@@ -413,7 +413,7 @@ Changes in `DriverStandings.tsx`:
   <div className="stats__body">
     <div className="stats__plot" role="tabpanel" id={`panel-${view}`}
          aria-labelledby={`tab-${view}`}>
-      {loading ? <Loading …/> : error ? <ErrorState …/> : <DriverSeasonChart …/>}
+      {loading ? <Loading …/> : error ? <ErrorState …/> : <SeasonChart …/>}
     </div>
     <aside className="stats__aside"> …stat list… </aside>
   </div>
@@ -448,7 +448,7 @@ CSS (in `src/index.css`, next to the table and circuit-stat blocks):
 | `src/lib/driverSeason.ts` | Pure normalisation, series and stats derivation |
 | `src/hooks/useMeasuredWidth.ts` | `ResizeObserver` width for the SVG chart |
 | `src/components/DriverStatsDialog.tsx` | Modal shell, tabs, loading/error, stats sidebar |
-| `src/components/DriverSeasonChart.tsx` | Generic single-series SVG chart (points/positions) |
+| `src/components/SeasonChart.tsx` | Generic single-series SVG chart (points/positions) |
 | `docs/driver-stats-feature-plan.md` | This document |
 
 ### Changed
@@ -607,9 +607,11 @@ change, no proxy change, and no chart dependency.
   memory cache.
 - `src/hooks/useMeasuredWidth.ts` — shared `ResizeObserver` measurement.
   `ReplayPace` was left untouched.
-- `src/components/DriverSeasonChart.tsx` — one SVG component for both views.
+- `src/components/SeasonChart.tsx` — one SVG component for both views.
   Straight polyline, hover cards, inverted position axis, outcome markers and a
-  legend.
+  legend. It accepts any `SeasonChartData`, so the constructor dialog reuses it.
+- `src/components/SeasonStatsAside.tsx` — the four statistic blocks shared by
+  both dialogs.
 - `src/components/DriverStatsDialog.tsx` — modal, tabs, loading/error/empty,
   stats sidebar and the DNS/DSQ footnote.
 - `src/components/DriverStandings.tsx` — icon column and dialog state.
@@ -637,10 +639,16 @@ change, no proxy change, and no chart dependency.
   card flips and clamps inside the plot so it never leaves the chart.
 - **One neutral series colour, not the team livery.** The planned team-coloured
   line made a Ferrari retirement indistinguishable from a Ferrari finish, since
-  both were red. The line is now `var(--ink-muted)` and the finish markers
+  both were red. The line is now `var(--chart-line)` and the finish markers
   `var(--ink)`, so the two never blend in either theme; only the outcome changes
   the marker colour: black finish, red retirement, amber DSQ/DNS, matching the
   legend exactly. This is consistent across every driver.
+- **The Constructors table got the same dialog, points view only.** A team has two
+  classifications per round, so a single finish-position line would have to pick
+  one car. `api/constructorSeason.ts` reads the same three endpoints filtered by
+  constructor and `lib/constructorSeason.ts` sums both cars per round; the stats
+  aggregate wins, retirements and car positions. The chart and the stats sidebar
+  are shared with the driver dialog.
 - Series coverage is shown per chart: the points caption uses the last round
   with a race or sprint row, the position caption the last race row, while
   qualifying averages may include a newer round.

@@ -42,6 +42,28 @@ export const api = {
   driverQualifying: (season: string, driverId: string, signal: AbortSignal) =>
     get<DriverQualifyingResponse>(`/${season}/drivers/${driverId}/qualifying/?limit=100`, signal),
 
+  /*
+   * The constructor-filtered endpoints return both team cars per race, and the
+   * payload shape is identical to the per-driver one.
+   */
+  constructorRaceResults: (season: string, constructorId: string, signal: AbortSignal) =>
+    get<DriverRaceResultsResponse>(
+      `/${season}/constructors/${constructorId}/results/?limit=100`,
+      signal,
+    ),
+
+  constructorSprintResults: (season: string, constructorId: string, signal: AbortSignal) =>
+    get<DriverSprintResultsResponse>(
+      `/${season}/constructors/${constructorId}/sprint/?limit=100`,
+      signal,
+    ),
+
+  constructorQualifying: (season: string, constructorId: string, signal: AbortSignal) =>
+    get<DriverQualifyingResponse>(
+      `/${season}/constructors/${constructorId}/qualifying/?limit=100`,
+      signal,
+    ),
+
   /**
    * Every past winner at a circuit, oldest first — the circuit's history. No
    * circuit has hosted more than 100 races, so one request carries them all.

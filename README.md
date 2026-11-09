@@ -17,7 +17,9 @@ powered by the free [jolpica-f1](https://github.com/jolpica/jolpica-f1) API.
 - **The Grid** — driver championship table, with each position in a team-coloured chip.
   Each row opens a **season statistics** dialog: cumulative points and race-classification
   charts plus victories, retirements and average finishes
-- **Constructors** — team championship table
+- **Constructors** — team championship table. Each row opens the same **season statistics**
+  dialog with a cumulative points chart and the team's aggregate victories, retirements and
+  average finishes/qualifying
 - **Chequered Flag** — every session of a weekend: practice 1–3, sprint qualifying,
   qualifying, the sprint and the race. Qualifying can also be read as a **Starting
   Grid**, laid out the way the cars line up. Finished races and sprints offer a
@@ -44,7 +46,7 @@ The section names above are the tab labels. Each tab keeps a stable id (`home`, 
 | **Paddock and Coffee** | Every headline the feeds are carrying, newest first |
 | **The Schedule** | Round list with the featured race highlighted; future rounds open a details panel, every round opens a circuit info popup |
 | **The Grid** | Driver championship table; each row opens a season statistics dialog |
-| **Constructors** | Constructor championship table |
+| **Constructors** | Constructor championship table; each row opens a season statistics dialog |
 | **Chequered Flag** | Every session of a selected round |
 
 Every section except The Pit Wall shows `FeaturedEventBar`, a compact summary of the featured
@@ -656,6 +658,7 @@ Endpoints used:
 | The Schedule + current season | `/ergast/f1/current/races/?limit=100` |
 | The Grid | `/ergast/f1/{season}/driverstandings/?limit=100` |
 | Driver season statistics | `/ergast/f1/{season}/drivers/{driverId}/{results\|sprint\|qualifying}/?limit=100` |
+| Constructor season statistics | `/ergast/f1/{season}/constructors/{constructorId}/{results\|sprint\|qualifying}/?limit=100` |
 | Constructors | `/ergast/f1/{season}/constructorstandings/?limit=100` |
 | Circuit info (history) | `/ergast/f1/circuits/{circuitId}/results/1/?limit=100` |
 | Round ids for the season | `/f1/alpha/core/rounds/?year={season}` |
@@ -683,6 +686,7 @@ src/
 ├── api/
 │   ├── alpha.ts     # jolpica alpha client + the session codes we render
 │   ├── client.ts    # Ergast-compatible client (calendar, standings, driver seasons)
+│   ├── constructorSeason.ts # per-constructor results/sprint/qualifying → one cached season
 │   ├── driverSeason.ts # per-driver results/sprint/qualifying → one cached season
 │   ├── news.ts      # the trade press: feeds, parsing, the merged list
 │   ├── openf1.ts    # OpenF1 client, session-key resolution, rate limiting
@@ -697,9 +701,12 @@ src/
 │   ├── Calendar.tsx
 │   ├── CircuitInfo.tsx          # circuit info popup: layout, facts, racing history
 │   ├── ConstructorStandings.tsx
-│   ├── DriverSeasonChart.tsx    # points / finish-position SVG chart
+│   ├── ConstructorStatsDialog.tsx # team season statistics modal (points only)
 │   ├── DriverStandings.tsx
 │   ├── DriverStatsDialog.tsx    # per-driver season statistics modal
+│   ├── SeasonChart.tsx          # shared points / finish-position SVG chart
+│   ├── SeasonChartIcon.tsx      # chart glyph used by both standings tables
+│   ├── SeasonStatsAside.tsx     # the four shared statistic blocks
 │   ├── FeaturedEvent.tsx        # full panel + compact bar
 │   ├── Feedback.tsx             # Loading / ErrorState / Empty
 │   ├── Header.tsx               # brand mark + wordmark + theme switch
@@ -732,6 +739,7 @@ src/
 │   ├── circuit.ts               # replay geometry: rotate, fit, project x/y to SVG
 │   ├── circuitHistory.ts        # past winners → editions, records, recent winners
 │   ├── circuits.ts              # circuit track layouts: Ergast id → vendored SVG
+│   ├── constructorSeason.ts     # two-car rows → cumulative points + team stats
 │   ├── driverSeason.ts          # race/sprint/qualifying rows → series + season stats
 │   ├── format.ts                # date, time and gap formatting
 │   ├── grid.ts                  # qualifying classification → grid slots and gaps

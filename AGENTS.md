@@ -68,6 +68,7 @@ the rest of the session. Measured: ~90K tokens of context per turn on this repo.
   `api/alpha.ts` (alpha rounds + results index, `SESSION_CODES`),
   `api/resultsService.ts` (the only entry for result tables),
   `api/driverSeason.ts` (per-driver season charts, 10-minute memory cache),
+  `api/constructorSeason.ts` (the same three endpoints filtered per team),
   `api/openf1.ts` (replay/battle only; one serial queue), `api/news.ts` (RSS,
   10-minute cache).
 - Hooks: `useFetch` (abort + `reload`/silent `refresh`; `null` to idle),

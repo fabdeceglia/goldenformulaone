@@ -6,6 +6,7 @@ import { driverName } from '../lib/format'
 import { DriverStatsDialog } from './DriverStatsDialog'
 import { Empty, ErrorState, Loading } from './Feedback'
 import { Position } from './Position'
+import { SeasonChartIcon } from './SeasonChartIcon'
 
 interface DriverStandingsProps {
   season: string
@@ -104,24 +105,6 @@ export function DriverStandings({ season }: DriverStandingsProps) {
         />
       )}
     </section>
-  )
-}
-
-/** A small line-chart glyph, drawn inline like the row menu's kebab. */
-function SeasonChartIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M4 4v16h16" />
-      <path d="M7 15l4-5 3 3 4-7" />
-    </svg>
   )
 }
 

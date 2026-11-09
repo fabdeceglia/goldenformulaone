@@ -164,18 +164,37 @@ export type RaceWithSprintResults = Race & { SprintResults: RaceResult[] }
 export type RaceWithQualifying = Race & { QualifyingResults: QualifyingResult[] }
 
 export interface DriverRaceResultsResponse {
-  MRData: MRData & { RaceTable: { season: string; driverId?: string; Races: RaceWithResults[] } }
+  MRData: MRData & {
+    RaceTable: {
+      season: string
+      driverId?: string
+      constructorId?: string
+      Races: RaceWithResults[]
+    }
+  }
 }
 
 /** The sprint endpoint keeps the `SprintResults` key, not `Results`. */
 export interface DriverSprintResultsResponse {
   MRData: MRData & {
-    RaceTable: { season: string; driverId?: string; Races: RaceWithSprintResults[] }
+    RaceTable: {
+      season: string
+      driverId?: string
+      constructorId?: string
+      Races: RaceWithSprintResults[]
+    }
   }
 }
 
 export interface DriverQualifyingResponse {
-  MRData: MRData & { RaceTable: { season: string; driverId?: string; Races: RaceWithQualifying[] } }
+  MRData: MRData & {
+    RaceTable: {
+      season: string
+      driverId?: string
+      constructorId?: string
+      Races: RaceWithQualifying[]
+    }
+  }
 }
 
 /**

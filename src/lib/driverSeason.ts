@@ -191,7 +191,7 @@ const DNS_STATUSES = new Set(['Did not start', 'Did not qualify', 'Withdrew', 'S
  * marker first, then the status. Finish statuses are the stable short list;
  * retirement reasons are free text and deliberately not enumerated.
  */
-function outcomeFor(positionText: string, status: string | null | undefined): FinishOutcome {
+export function outcomeFor(positionText: string, status: string | null | undefined): FinishOutcome {
   if (positionText === 'R') return 'retired'
   if (positionText === 'D') return 'dsq'
   if (positionText === 'W') return 'dns'
@@ -203,7 +203,7 @@ function outcomeFor(positionText: string, status: string | null | undefined): Fi
 }
 
 /** Ergast sends every numeric field as a string; a blank one is missing, not zero. */
-function toNumber(value: string | undefined): number | null {
+export function toNumber(value: string | undefined): number | null {
   if (value === undefined || value === '') return null
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null

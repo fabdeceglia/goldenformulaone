@@ -1859,13 +1859,14 @@ a:hover {
 }
 
 .stats__viewbar {
-  margin: 0.9rem 0 1rem;
+  margin: 0.9rem 0 0;
 }
 
 .stats__body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 240px;
   gap: 1.15rem;
+  margin-top: 1rem;
   align-items: start;
 }
 

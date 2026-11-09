@@ -1,13 +1,35 @@
 import { useState } from 'react'
 import { useMeasuredWidth } from '../hooks/useMeasuredWidth'
-import type { DriverSeason, FinishOutcome } from '../lib/driverSeason'
+import type { FinishOutcome } from '../lib/driverSeason'
 
 export type StatsView = 'points' | 'positions'
 
-interface DriverSeasonChartProps {
-  season: DriverSeason
+/** The pieces the chart needs from a driver or a constructor season. */
+export interface SeasonChartRound {
+  round: number
+  name: string
+  racePoints: number
+  sprintPoints: number
+  status?: string | null
+}
+
+export interface SeasonChartData {
+  rounds: ReadonlyArray<SeasonChartRound>
+  points: ReadonlyArray<{ index: number; round: number; value: number }>
+  /** Absent for constructor seasons, which only have the points view. */
+  positions?: ReadonlyArray<{
+    index: number
+    round: number
+    value: number
+    outcome: FinishOutcome
+  }>
+}
+
+interface SeasonChartProps {
+  season: SeasonChartData
   view: StatsView
-  driver: string
+  /** Driver or team name, used in the accessible label and summary. */
+  subject: string
 }
 
 interface ChartDatum {
@@ -47,7 +69,7 @@ const OUTCOME_LABELS: Record<FinishOutcome, string> = {
  * because there is no value between two rounds. The two views share the axis
  * geometry; only the y direction and the marker semantics differ.
  */
-export function DriverSeasonChart({ season, view, driver }: DriverSeasonChartProps) {
+export function SeasonChart({ season, view, subject }: SeasonChartProps) {
   const { ref, width } = useMeasuredWidth<HTMLDivElement>()
   const [hovered, setHovered] = useState<number | null>(null)
   const series = chartData(season, view)
@@ -65,15 +87,15 @@ export function DriverSeasonChart({ season, view, driver }: DriverSeasonChartPro
   const hitRadius = Math.max(6, Math.min(12, slotWidth / 2))
 
   if (series.length === 0) {
-    return <p className="stats__chart-empty">No race classification for this driver yet.</p>
+    return <p className="stats__chart-empty">No race data for this season yet.</p>
   }
 
   const ariaLabel =
     view === 'points'
-      ? `${driver}: cumulative championship points after each event, through round ${lastRound}.`
-      : `${driver}: race classification after each event, P1 at the top, through round ${lastRound}.`
+      ? `${subject}: cumulative championship points after each event, through round ${lastRound}.`
+      : `${subject}: race classification after each event, P1 at the top, through round ${lastRound}.`
 
-  const summary = summaryText(driver, view, series)
+  const summary = summaryText(subject, view, series)
 
   return (
     <figure className={`stats__chart stats__chart--${view}`}>
@@ -206,7 +228,7 @@ export function DriverSeasonChart({ season, view, driver }: DriverSeasonChartPro
   )
 }
 
-function chartData(season: DriverSeason, view: StatsView): ChartDatum[] {
+function chartData(season: SeasonChartData, view: StatsView): ChartDatum[] {
   const nameOf = (index: number, round: number) => season.rounds[index]?.name ?? `Round ${round}`
 
   if (view === 'points') {
@@ -220,7 +242,7 @@ function chartData(season: DriverSeason, view: StatsView): ChartDatum[] {
     })
   }
 
-  return season.positions.map((point) => {
+  return (season.positions ?? []).map((point) => {
     const round = season.rounds[point.index]
     return {
       ...point,
@@ -231,7 +253,7 @@ function chartData(season: DriverSeason, view: StatsView): ChartDatum[] {
 }
 
 function buildChart(
-  season: DriverSeason,
+  season: SeasonChartData,
   series: readonly ChartDatum[],
   view: StatsView,
   width: number,
@@ -414,12 +436,12 @@ function ChartTooltip({ point, view, chart, accent }: ChartTooltipProps) {
   )
 }
 
-function summaryText(driver: string, view: StatsView, series: readonly ChartDatum[]): string {
+function summaryText(subject: string, view: StatsView, series: readonly ChartDatum[]): string {
   const first = series[0]
   const last = series[series.length - 1]
 
   if (view === 'points') {
-    return `${driver} had ${first.value} points after round ${first.round} and ${last.value} after round ${last.round}.`
+    return `${subject} had ${first.value} points after round ${first.round} and ${last.value} after round ${last.round}.`
   }
 
   let best = Infinity
@@ -428,5 +450,5 @@ function summaryText(driver: string, view: StatsView, series: readonly ChartDatu
     best = Math.min(best, point.value)
     worst = Math.max(worst, point.value)
   }
-  return `${driver}'s race classifications run from P${best} to P${worst} across ${series.length} events.`
+  return `${subject}'s race classifications run from P${best} to P${worst} across ${series.length} events.`
 }
