@@ -6,6 +6,7 @@ import { driverName } from '../lib/format'
 import { SeasonChart } from './SeasonChart'
 import type { StatsView } from './SeasonChart'
 import { SeasonStatsAside } from './SeasonStatsAside'
+import { SeasonStatsNav } from './SeasonStatsNav'
 import { Empty, ErrorState, Loading } from './Feedback'
 import { Modal } from './Modal'
 import { Tabs } from './Tabs'
@@ -13,6 +14,11 @@ import { Tabs } from './Tabs'
 interface DriverStatsDialogProps {
   season: string
   standing: DriverStanding
+  /** One-based position in the standings list. */
+  position: number
+  total: number
+  onPrevious: () => void
+  onNext: () => void
   onClose: () => void
 }
 
@@ -26,10 +32,20 @@ const STATS_TABS = [
  * the whole standings row so the header can show the table's current position
  * and total without a second fetch.
  */
-export function DriverStatsDialog({ season, standing, onClose }: DriverStatsDialogProps) {
+export function DriverStatsDialog({
+  season,
+  standing,
+  position,
+  total,
+  onPrevious,
+  onNext,
+  onClose,
+}: DriverStatsDialogProps) {
   const [view, setView] = useState<StatsView>('points')
   const driverId = standing.Driver.driverId
   const driver = driverName(standing.Driver)
+  const team = standing.Constructors[0]?.name ?? '—'
+  const meta = `${team} · P${standing.position} · ${standing.points} pts`
 
   const { data, loading, error, reload } = useFetch(
     (signal) => fetchDriverSeason(season, driverId, signal),
@@ -42,10 +58,17 @@ export function DriverStatsDialog({ season, standing, onClose }: DriverStatsDial
     <Modal label={`${driver} season statistics`} size="wide" onClose={onClose}>
       <div className="stats">
         <header className="stats__head">
-          <h2 className="stats__name">{driver}</h2>
-          <p className="stats__meta">
-            {standing.Constructors[0]?.name ?? '—'} · P{standing.position} · {standing.points} pts
-          </p>
+          <div className="stats__head-text">
+            <h2 className="stats__name">{driver}</h2>
+            <p className="stats__meta">{meta}</p>
+          </div>
+          <SeasonStatsNav
+            position={position}
+            total={total}
+            noun="driver"
+            onPrevious={onPrevious}
+            onNext={onNext}
+          />
         </header>
 
         <div className="stats__viewbar">

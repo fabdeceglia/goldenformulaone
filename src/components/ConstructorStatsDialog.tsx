@@ -5,10 +5,15 @@ import { Empty, ErrorState, Loading } from './Feedback'
 import { Modal } from './Modal'
 import { SeasonChart } from './SeasonChart'
 import { SeasonStatsAside } from './SeasonStatsAside'
+import { SeasonStatsNav } from './SeasonStatsNav'
 
 interface ConstructorStatsDialogProps {
   season: string
   standing: ConstructorStanding
+  position: number
+  total: number
+  onPrevious: () => void
+  onNext: () => void
   onClose: () => void
 }
 
@@ -17,7 +22,15 @@ interface ConstructorStatsDialogProps {
  * the points view exists here: a team has two classifications per round, so a
  * single finish-position line would have to pick one car over the other.
  */
-export function ConstructorStatsDialog({ season, standing, onClose }: ConstructorStatsDialogProps) {
+export function ConstructorStatsDialog({
+  season,
+  standing,
+  position,
+  total,
+  onPrevious,
+  onNext,
+  onClose,
+}: ConstructorStatsDialogProps) {
   const team = standing.Constructor.name
   const constructorId = standing.Constructor.constructorId
 
@@ -32,10 +45,19 @@ export function ConstructorStatsDialog({ season, standing, onClose }: Constructo
     <Modal label={`${team} season statistics`} size="wide" onClose={onClose}>
       <div className="stats">
         <header className="stats__head">
-          <h2 className="stats__name">{team}</h2>
-          <p className="stats__meta">
-            {season} season · P{standing.position} · {standing.points} pts
-          </p>
+          <div className="stats__head-text">
+            <h2 className="stats__name">{team}</h2>
+            <p className="stats__meta">
+              {season} season · P{standing.position} · {standing.points} pts
+            </p>
+          </div>
+          <SeasonStatsNav
+            position={position}
+            total={total}
+            noun="team"
+            onPrevious={onPrevious}
+            onNext={onNext}
+          />
         </header>
 
         <div className="stats__body">

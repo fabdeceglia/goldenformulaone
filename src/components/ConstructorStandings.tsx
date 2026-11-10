@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api } from '../api/client'
-import type { ConstructorStanding as Standing } from '../api/types'
 import { useFetch } from '../hooks/useFetch'
+import { stepSeasonIndex } from '../lib/seasonIndex'
 import { ConstructorStatsDialog } from './ConstructorStatsDialog'
 import { Empty, ErrorState, Loading } from './Feedback'
 import { Position } from './Position'
@@ -12,7 +12,7 @@ interface ConstructorStandingsProps {
 }
 
 export function ConstructorStandings({ season }: ConstructorStandingsProps) {
-  const [statsTeam, setStatsTeam] = useState<Standing | null>(null)
+  const [statsIndex, setStatsIndex] = useState<number | null>(null)
   const { data, loading, error, reload } = useFetch(
     (signal) => api.constructorStandings(season, signal),
     [season],
@@ -57,7 +57,7 @@ export function ConstructorStandings({ season }: ConstructorStandingsProps) {
             </tr>
           </thead>
           <tbody>
-            {list.map((standing) => (
+            {list.map((standing, index) => (
               <tr key={standing.Constructor.constructorId}>
                 <td className="table__pos">
                   <Position
@@ -78,7 +78,7 @@ export function ConstructorStandings({ season }: ConstructorStandingsProps) {
                     type="button"
                     className="table__icon-button"
                     aria-label={`Season statistics for ${standing.Constructor.name}`}
-                    onClick={() => setStatsTeam(standing)}
+                    onClick={() => setStatsIndex(index)}
                   >
                     <SeasonChartIcon />
                   </button>
@@ -89,11 +89,15 @@ export function ConstructorStandings({ season }: ConstructorStandingsProps) {
         </table>
       </div>
 
-      {statsTeam && (
+      {statsIndex !== null && list[statsIndex] && (
         <ConstructorStatsDialog
           season={season}
-          standing={statsTeam}
-          onClose={() => setStatsTeam(null)}
+          standing={list[statsIndex]}
+          position={statsIndex + 1}
+          total={list.length}
+          onPrevious={() => setStatsIndex((current) => stepSeasonIndex(current, -1, list.length))}
+          onNext={() => setStatsIndex((current) => stepSeasonIndex(current, 1, list.length))}
+          onClose={() => setStatsIndex(null)}
         />
       )}
     </section>

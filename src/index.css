@@ -1842,7 +1842,63 @@ a:hover {
 }
 
 .stats__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.6rem 1rem;
   padding-right: 2.6rem;
+}
+
+.stats__head-text {
+  min-width: 0;
+}
+
+.stats__nav {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+
+.stats__nav-button {
+  display: inline-grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--paper-raised);
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.stats__nav-button:hover {
+  background: var(--paper-hover);
+  color: var(--red);
+}
+
+.stats__nav-button:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 2px;
+}
+
+.stats__nav-button svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.stats__nav-count {
+  min-width: 2.4rem;
+  color: var(--ink-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
 .stats__name {

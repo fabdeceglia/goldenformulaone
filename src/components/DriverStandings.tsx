@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { api } from '../api/client'
-import type { Constructor, DriverStanding as Standing } from '../api/types'
+import type { Constructor } from '../api/types'
 import { useFetch } from '../hooks/useFetch'
 import { driverName } from '../lib/format'
+import { stepSeasonIndex } from '../lib/seasonIndex'
 import { DriverStatsDialog } from './DriverStatsDialog'
 import { Empty, ErrorState, Loading } from './Feedback'
 import { Position } from './Position'
@@ -13,7 +14,7 @@ interface DriverStandingsProps {
 }
 
 export function DriverStandings({ season }: DriverStandingsProps) {
-  const [statsDriver, setStatsDriver] = useState<Standing | null>(null)
+  const [statsIndex, setStatsIndex] = useState<number | null>(null)
   const { data, loading, error, reload } = useFetch(
     (signal) => api.driverStandings(season, signal),
     [season],
@@ -28,6 +29,8 @@ export function DriverStandings({ season }: DriverStandingsProps) {
   if (list.length === 0) {
     return <Empty message={`No driver standings are available for ${season} yet.`} />
   }
+
+  const statsStanding = statsIndex === null ? null : list[statsIndex]
 
   return (
     <section className="panel" aria-labelledby="drivers-title">
@@ -61,7 +64,7 @@ export function DriverStandings({ season }: DriverStandingsProps) {
             </tr>
           </thead>
           <tbody>
-            {list.map((standing) => (
+            {list.map((standing, index) => (
               <tr key={standing.Driver.driverId}>
                 <td className="table__pos">
                   <Position
@@ -86,7 +89,7 @@ export function DriverStandings({ season }: DriverStandingsProps) {
                     type="button"
                     className="table__icon-button"
                     aria-label={`Season statistics for ${driverName(standing.Driver)}`}
-                    onClick={() => setStatsDriver(standing)}
+                    onClick={() => setStatsIndex(index)}
                   >
                     <SeasonChartIcon />
                   </button>
@@ -97,11 +100,15 @@ export function DriverStandings({ season }: DriverStandingsProps) {
         </table>
       </div>
 
-      {statsDriver && (
+      {statsStanding && statsIndex !== null && (
         <DriverStatsDialog
           season={season}
-          standing={statsDriver}
-          onClose={() => setStatsDriver(null)}
+          standing={statsStanding}
+          position={statsIndex + 1}
+          total={list.length}
+          onPrevious={() => setStatsIndex((current) => stepSeasonIndex(current, -1, list.length))}
+          onNext={() => setStatsIndex((current) => stepSeasonIndex(current, 1, list.length))}
+          onClose={() => setStatsIndex(null)}
         />
       )}
     </section>

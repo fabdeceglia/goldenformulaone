@@ -612,6 +612,8 @@ change, no proxy change, and no chart dependency.
   legend. It accepts any `SeasonChartData`, so the constructor dialog reuses it.
 - `src/components/SeasonStatsAside.tsx` — the four statistic blocks shared by
   both dialogs.
+- `src/components/SeasonStatsNav.tsx` — previous/next arrows and a `1 / 25`
+  counter, with `src/lib/seasonIndex.ts` wrapping the list index.
 - `src/components/DriverStatsDialog.tsx` — modal, tabs, loading/error/empty,
   stats sidebar and the DNS/DSQ footnote.
 - `src/components/DriverStandings.tsx` — icon column and dialog state.
@@ -649,6 +651,11 @@ change, no proxy change, and no chart dependency.
   constructor and `lib/constructorSeason.ts` sums both cars per round; the stats
   aggregate wins, retirements and car positions. The chart and the stats sidebar
   are shared with the driver dialog.
+- **Both dialogs page through the standings list.** The standings component keeps
+  the selected index, not the row object, and `lib/seasonIndex.ts` wraps it: at
+  the last row Next opens the first, at the first row Previous opens the last.
+  The dialog stays mounted while the index changes, so the chosen tab survives
+  and only the chart refetches. A live `1 / 25` counter announces the position.
 - Series coverage is shown per chart: the points caption uses the last round
   with a race or sprint row, the position caption the last race row, while
   qualifying averages may include a newer round.

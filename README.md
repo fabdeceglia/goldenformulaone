@@ -16,10 +16,11 @@ powered by the free [jolpica-f1](https://github.com/jolpica/jolpica-f1) API.
   layout and racing history
 - **The Grid** — driver championship table, with each position in a team-coloured chip.
   Each row opens a **season statistics** dialog: cumulative points and race-classification
-  charts plus victories, retirements and average finishes
+  charts plus victories, retirements and average finishes. Previous/next arrows page
+  through the whole grid and wrap around at either end
 - **Constructors** — team championship table. Each row opens the same **season statistics**
   dialog with a cumulative points chart and the team's aggregate victories, retirements and
-  average finishes/qualifying
+  average finishes/qualifying, with the same wrap-around arrows
 - **Chequered Flag** — every session of a weekend: practice 1–3, sprint qualifying,
   qualifying, the sprint and the race. Qualifying can also be read as a **Starting
   Grid**, laid out the way the cars line up. Finished races and sprints offer a
@@ -707,6 +708,7 @@ src/
 │   ├── SeasonChart.tsx          # shared points / finish-position SVG chart
 │   ├── SeasonChartIcon.tsx      # chart glyph used by both standings tables
 │   ├── SeasonStatsAside.tsx     # the four shared statistic blocks
+│   ├── SeasonStatsNav.tsx       # previous/next arrows for the standings list
 │   ├── FeaturedEvent.tsx        # full panel + compact bar
 │   ├── Feedback.tsx             # Loading / ErrorState / Empty
 │   ├── Header.tsx               # brand mark + wordmark + theme switch
@@ -744,10 +746,11 @@ src/
 │   ├── format.ts                # date, time and gap formatting
 │   ├── grid.ts                  # qualifying classification → grid slots and gaps
 │   ├── pace.ts                  # replay lap times → race-pace series
-│   ├── replay.ts               # replay timeline, interpolation, standings, encoding
-│   ├── replayCache.ts          # IndexedDB cache for fallback downloads
+│   ├── replay.ts                # replay timeline, interpolation, standings, encoding
+│   ├── replayCache.ts           # IndexedDB cache for fallback downloads
 │   ├── replaySource.ts         # baked-first loader with OpenF1 fallback
-│   └── schedule.ts              # weekend windows, session codes, race-day status
+│   ├── schedule.ts              # weekend windows, session codes, race-day status
+│   └── seasonIndex.ts           # wrap-around index for the standings dialogs
 ├── App.tsx                      # resolves the current season
 ├── index.css                    # theme tokens + all styling
 ├── main.tsx
