@@ -1,19 +1,10 @@
 import type { QualifyingResult, RaceWithQualifying } from '../api/types'
+import type { CompareAxis, CompareStat } from './compare'
+import { share } from './compare'
 import { outcomeFor, toNumber } from './driverSeason'
 import type { DriverSeason } from './driverSeason'
 
-/** Four series are the most a single radar can carry and stay readable. */
-export const MAX_COMPARE_DRIVERS = 4
-
 export type CompareAxisId = 'wins' | 'poles' | 'qualifying' | 'fastestLaps' | 'finishes'
-
-export interface CompareAxis {
-  id: CompareAxisId
-  /** Spoke label, one or two short lines so five of them fit around a radar. */
-  spoke: readonly string[]
-  /** What the axis counts, printed under the chart and on hover. */
-  hint: string
-}
 
 /**
  * Every axis is a share of a sample, so more is always better and the five
@@ -24,7 +15,7 @@ export interface CompareAxis {
  * often loses area instead of gaining it, which is what a reader expects from a
  * chart where the outer ring is the strong end.
  */
-export const COMPARE_AXES: readonly CompareAxis[] = [
+export const COMPARE_AXES: readonly CompareAxis<CompareAxisId>[] = [
   { id: 'wins', spoke: ['Wins'], hint: 'share of race starts won' },
   { id: 'poles', spoke: ['Poles'], hint: 'share of qualifying sessions taken' },
   {
@@ -62,11 +53,9 @@ export interface CompareCounts {
   headToHeadLosses: number
 }
 
-export interface DriverCompareStat {
+export interface DriverCompareStat extends CompareStat<Record<CompareAxisId, number | null>> {
   driverId: string
   counts: CompareCounts
-  /** 0..1 per axis, or null when the driver has no sample for it. */
-  values: Record<CompareAxisId, number | null>
 }
 
 /**
@@ -161,8 +150,4 @@ function bestPosition(rows: readonly QualifyingResult[]): number | null {
     .map((row) => toNumber(row.position))
     .filter((position): position is number => position !== null)
   return positions.length === 0 ? null : Math.min(...positions)
-}
-
-function share(count: number, sample: number): number | null {
-  return sample > 0 ? count / sample : null
 }

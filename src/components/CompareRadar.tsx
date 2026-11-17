@@ -1,12 +1,12 @@
 import { useMeasuredWidth } from '../hooks/useMeasuredWidth'
-import type { CompareAxis, CompareAxisId } from '../lib/driverCompare'
+import type { CompareAxis } from '../lib/compare'
 
 export interface RadarSeries {
-  driverId: string
+  id: string
   /** Short name, used in the accessible summary. */
   label: string
   color: string
-  values: Readonly<Record<CompareAxisId, number | null>>
+  values: Readonly<Record<string, number | null>>
 }
 
 interface CompareRadarProps {
@@ -132,7 +132,7 @@ export function CompareRadar({ axes, series }: CompareRadarProps) {
         </g>
 
         {series.map((entry) => (
-          <g key={entry.driverId} aria-hidden="true">
+          <g key={entry.id} aria-hidden="true">
             <polygon
               className="compare__radar-area"
               points={points(axes.map((axis, index) => fractionOf(index, entry.values[axis.id])))}
@@ -142,7 +142,7 @@ export function CompareRadar({ axes, series }: CompareRadarProps) {
               const point = pointAt(index, fractionOf(index, entry.values[axis.id]))
               return (
                 <circle
-                  key={`${entry.driverId}-${axis.id}`}
+                  key={`${entry.id}-${axis.id}`}
                   className="compare__radar-dot"
                   cx={point.x}
                   cy={point.y}

@@ -22,6 +22,13 @@ export interface ConstructorStats {
   races: number
   /** Race wins across both cars; sprint wins are not counted here. */
   wins: number
+  /** Car finishes in the top three, so a 1-2 counts twice. */
+  podiums: number
+  poles: number
+  /** Car race finishes with the fastest lap of the race. */
+  fastestLaps: number
+  /** Qualifying sessions the team took part in, one per round. */
+  qualifyingSessions: number
   retirements: number
   dns: number
   dsq: number
@@ -34,6 +41,7 @@ export interface ConstructorStats {
 }
 
 export interface ConstructorSeason {
+  constructorId: string
   /** Ascending union of race and sprint rounds. */
   rounds: ConstructorRoundResult[]
   /** Cumulative points, indexed by position in `rounds`. */
@@ -101,6 +109,7 @@ export function buildConstructorSeason(
   })
 
   return {
+    constructorId,
     rounds,
     points,
     stats: buildStats(races, qualifying),
@@ -132,6 +141,13 @@ function buildStats(
     wins: raceRows.filter(
       (row, index) => outcomes[index] === 'finish' && toNumber(row.position) === 1,
     ).length,
+    podiums: raceRows.filter(
+      (row, index) =>
+        outcomes[index] === 'finish' && (toNumber(row.position) ?? Number.POSITIVE_INFINITY) <= 3,
+    ).length,
+    poles: qualifyingRows.filter((row) => toNumber(row.position) === 1).length,
+    fastestLaps: raceRows.filter((row) => row.FastestLap?.rank === '1').length,
+    qualifyingSessions: qualifying.size,
     retirements: count('retired'),
     dns: count('dns'),
     dsq: count('dsq'),

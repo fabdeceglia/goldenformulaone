@@ -16,6 +16,15 @@ const DEFAULT_RETRIES = 1
 /** Short pause before the retry, so a blip is not hammered. */
 const RETRY_DELAY_MS = 500
 
+/**
+ * jolpica allows four requests a second and answers 429 beyond that. Opening a
+ * comparison dialog fires three calls per picked driver plus a team-mate call,
+ * which is over the limit on its own; a gap between request starts keeps any
+ * burst inside it. Aborting gives the slot back, so flipping through drivers
+ * does not queue up unused waits.
+ */
+const REQUEST_GAP_MS = 300
+
 class TimeoutError extends Error {
   constructor(message: string) {
     super(message)
@@ -27,7 +36,14 @@ class StatusError extends Error {
   status: number
 
   constructor(status: number) {
-    super(`Request failed with status ${status}`)
+    // 429 is the one status a reader can act on, so it says what to do instead
+    // of quoting the number. The gate above keeps it rare — it means the hourly
+    // cap, not the per-second one.
+    super(
+      status === 429
+        ? 'The API is rate limiting requests — try again in a minute.'
+        : `Request failed with status ${status}`,
+    )
     this.name = 'StatusError'
     this.status = status
   }
@@ -40,9 +56,9 @@ function abortError(signal?: AbortSignal): unknown {
 
 /**
  * A pause that ends early when the caller aborts. Rejecting with the abort
- * reason keeps cancellation immediate instead of waiting out the backoff.
+ * reason keeps cancellation immediate instead of waiting out the pause.
  */
-function backoff(millis: number, signal?: AbortSignal): Promise<void> {
+function pause(millis: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
       reject(abortError(signal))
@@ -72,6 +88,28 @@ function isRetryable(cause: unknown): boolean {
   if (cause instanceof StatusError) return cause.status >= 500
   // fetch rejects with a TypeError for DNS, connection and other network failures.
   return cause instanceof TypeError
+}
+
+/** When the last request was allowed to start. */
+let lastStart = 0
+
+/** One turn per request, handed out in arrival order. */
+let gate: Promise<unknown> = Promise.resolve()
+
+/**
+ * Wait for this request's turn in the queue. Measuring the gap from the previous
+ * actual start (rather than reserving slots up front) means an aborted caller
+ * costs nothing: it never starts, so it never pushes the next one back.
+ */
+function awaitSlot(signal?: AbortSignal): Promise<void> {
+  const turn = gate.then(async () => {
+    const wait = lastStart + REQUEST_GAP_MS - Date.now()
+    if (wait > 0) await pause(wait, signal)
+    lastStart = Date.now()
+  })
+
+  gate = turn.catch(() => undefined)
+  return turn
 }
 
 /** One attempt, with a deadline that covers the response body as well. */
@@ -128,10 +166,11 @@ export async function getJson(url: string, options: GetJsonOptions = {}): Promis
 
   for (let attempt = 1; ; attempt++) {
     try {
+      await awaitSlot(signal)
       return await requestOnce(url, signal, timeoutMs)
     } catch (cause) {
       if (signal?.aborted || attempt >= attempts || !isRetryable(cause)) throw cause
-      await backoff(RETRY_DELAY_MS, signal)
+      await pause(RETRY_DELAY_MS, signal)
     }
   }
 }

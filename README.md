@@ -22,7 +22,9 @@ powered by the free [jolpica-f1](https://github.com/jolpica/jolpica-f1) API.
   mate, fastest laps and finishes, with the raw counts in a table underneath
 - **Constructors** — team championship table. Each row opens the same **season statistics**
   dialog with a cumulative points chart and the team's aggregate victories, retirements and
-  average finishes/qualifying, with the same wrap-around arrows
+  average finishes/qualifying, with the same wrap-around arrows. **Compare teams** in the
+  panel header opens the same radar for up to four teams, swapping the team-mate axis for
+  podiums
 - **Chequered Flag** — every session of a weekend: practice 1–3, sprint qualifying,
   qualifying, the sprint and the race. Qualifying can also be read as a **Starting
   Grid**, laid out the way the cars line up. Finished races and sprints offer a
@@ -662,6 +664,7 @@ Endpoints used:
 | The Grid | `/ergast/f1/{season}/driverstandings/?limit=100` |
 | Driver season statistics | `/ergast/f1/{season}/drivers/{driverId}/{results\|sprint\|qualifying}/?limit=100` |
 | Driver comparison (team-mate record) | the per-driver endpoints above, plus `/ergast/f1/{season}/constructors/{constructorId}/qualifying/?limit=100` |
+| Constructor comparison | the per-constructor endpoints above |
 | Constructor season statistics | `/ergast/f1/{season}/constructors/{constructorId}/{results\|sprint\|qualifying}/?limit=100` |
 | Constructors | `/ergast/f1/{season}/constructorstandings/?limit=100` |
 | Circuit info (history) | `/ergast/f1/circuits/{circuitId}/results/1/?limit=100` |
@@ -690,6 +693,7 @@ src/
 ├── api/
 │   ├── alpha.ts     # jolpica alpha client + the session codes we render
 │   ├── client.ts    # Ergast-compatible client (calendar, standings, driver seasons)
+│   ├── compareConstructors.ts # team radar numbers from the cached constructor season
 │   ├── compareDrivers.ts # radar numbers per picked driver, with a team-mate cache
 │   ├── constructorSeason.ts # per-constructor results/sprint/qualifying → one cached season
 │   ├── driverSeason.ts # per-driver results/sprint/qualifying → one cached season
@@ -705,7 +709,9 @@ src/
 │   ├── BattleTrack.tsx          # ghost cars on the circuit, progress ribbons
 │   ├── Calendar.tsx
 │   ├── CircuitInfo.tsx          # circuit info popup: layout, facts, racing history
+│   ├── CompareDialog.tsx        # shared comparison shell: picker, radar, counts table
 │   ├── CompareRadar.tsx         # hand-drawn five-spoke radar for the comparison
+│   ├── ConstructorCompareDialog.tsx # pick up to four teams, radar + counts table
 │   ├── ConstructorStandings.tsx
 │   ├── ConstructorStatsDialog.tsx # team season statistics modal (points only)
 │   ├── DriverCompareDialog.tsx  # pick up to four drivers, radar + counts table
@@ -747,6 +753,8 @@ src/
 │   ├── circuit.ts               # replay geometry: rotate, fit, project x/y to SVG
 │   ├── circuitHistory.ts        # past winners → editions, records, recent winners
 │   ├── circuits.ts              # circuit track layouts: Ergast id → vendored SVG
+│   ├── compare.ts               # shared radar axis/share contract, four-series cap
+│   ├── constructorCompare.ts    # team season → radar shares
 │   ├── constructorSeason.ts     # two-car rows → cumulative points + team stats
 │   ├── driverCompare.ts         # season → radar shares + team-mate qualifying record
 │   ├── driverSeason.ts          # race/sprint/qualifying rows → series + season stats
@@ -840,7 +848,9 @@ vitest.config.ts                     # Worker + pure-library test runner
   the lead lap, `+1 Lap` for cars a lap down, and the status for retirements.
 - The upstream APIs are free and rate limited. Session results are cached by the Worker, so
   selecting the same round and session again is served from KV rather than refetched; the
-  calendar and standings still come straight from jolpica.
+  calendar and standings still come straight from jolpica. Every jolpica GET in the browser
+  goes through one gate in `api/http.ts` that keeps request starts 300 ms apart (the API
+  allows four a second), because a comparison dialog alone fires eight calls at once.
 - The link-preview tags in `index.html` (`og:*` and `twitter:*`) are pinned to the deployed
   origin, `https://boxthislap.vercel.app`, because `og:url` and `og:image` have to be
   absolute URLs — update them if the site moves. The cards (`public/og-image.png`,

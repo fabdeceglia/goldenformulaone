@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { api } from '../api/client'
 import { useFetch } from '../hooks/useFetch'
 import { stepSeasonIndex } from '../lib/seasonIndex'
+import { ConstructorCompareDialog } from './ConstructorCompareDialog'
 import { ConstructorStatsDialog } from './ConstructorStatsDialog'
 import { Empty, ErrorState, Loading } from './Feedback'
 import { Position } from './Position'
@@ -13,6 +14,7 @@ interface ConstructorStandingsProps {
 
 export function ConstructorStandings({ season }: ConstructorStandingsProps) {
   const [statsIndex, setStatsIndex] = useState<number | null>(null)
+  const [compareOpen, setCompareOpen] = useState(false)
   const { data, loading, error, reload } = useFetch(
     (signal) => api.constructorStandings(season, signal),
     [season],
@@ -34,7 +36,17 @@ export function ConstructorStandings({ season }: ConstructorStandingsProps) {
         <h2 className="panel__title" id="constructors-title">
           {season} Constructor Standings
         </h2>
-        {round && <span className="panel__meta">After round {round}</span>}
+        <div className="panel__actions">
+          {round && <span className="panel__meta">After round {round}</span>}
+          <button
+            type="button"
+            className="button button--ghost"
+            aria-haspopup="dialog"
+            onClick={() => setCompareOpen(true)}
+          >
+            Compare teams
+          </button>
+        </div>
       </div>
 
       <div className="table-wrap">
@@ -98,6 +110,14 @@ export function ConstructorStandings({ season }: ConstructorStandingsProps) {
           onPrevious={() => setStatsIndex((current) => stepSeasonIndex(current, -1, list.length))}
           onNext={() => setStatsIndex((current) => stepSeasonIndex(current, 1, list.length))}
           onClose={() => setStatsIndex(null)}
+        />
+      )}
+
+      {compareOpen && (
+        <ConstructorCompareDialog
+          season={season}
+          standings={list}
+          onClose={() => setCompareOpen(false)}
         />
       )}
     </section>

@@ -2329,6 +2329,15 @@ a:hover {
   letter-spacing: 0.04em;
 }
 
+/* A team has no code of its own, so its chip is the livery alone. */
+.compare__code--plain {
+  justify-self: center;
+  width: 0.6rem;
+  height: 0.6rem;
+  padding: 0;
+  border-radius: 999px;
+}
+
 .compare__name {
   grid-area: name;
   overflow: hidden;
