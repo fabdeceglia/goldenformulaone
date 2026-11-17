@@ -22,9 +22,12 @@ export interface DriverRoundResult {
   racePoints: number
   sprintPoints: number
   qualifyingPosition: number | null
+  /** This driver set the race's fastest lap. */
+  fastestLap: boolean
 }
 
 export interface DriverSeason {
+  driverId: string
   /** Ascending union of race and sprint rounds. */
   rounds: DriverRoundResult[]
   /** Cumulative points, indexed by position in `rounds`. */
@@ -114,6 +117,9 @@ export function buildDriverSeason(
       racePoints: race ? (toNumber(race.row.points) ?? 0) : 0,
       sprintPoints: sprint ? (toNumber(sprint.row.points) ?? 0) : 0,
       qualifyingPosition: quali ? toNumber(quali.row.position) : null,
+      // Ergast ranks the fastest lap within the race; the winner's row carries
+      // `1`, everyone else a worse rank or no `FastestLap` at all.
+      fastestLap: race?.row.FastestLap?.rank === '1',
     }
   })
 
@@ -135,6 +141,7 @@ export function buildDriverSeason(
   })
 
   return {
+    driverId,
     rounds,
     points,
     positions,

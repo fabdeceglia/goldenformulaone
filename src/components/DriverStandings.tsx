@@ -4,6 +4,7 @@ import type { Constructor } from '../api/types'
 import { useFetch } from '../hooks/useFetch'
 import { driverName } from '../lib/format'
 import { stepSeasonIndex } from '../lib/seasonIndex'
+import { DriverCompareDialog } from './DriverCompareDialog'
 import { DriverStatsDialog } from './DriverStatsDialog'
 import { Empty, ErrorState, Loading } from './Feedback'
 import { Position } from './Position'
@@ -15,6 +16,7 @@ interface DriverStandingsProps {
 
 export function DriverStandings({ season }: DriverStandingsProps) {
   const [statsIndex, setStatsIndex] = useState<number | null>(null)
+  const [compareOpen, setCompareOpen] = useState(false)
   const { data, loading, error, reload } = useFetch(
     (signal) => api.driverStandings(season, signal),
     [season],
@@ -38,7 +40,17 @@ export function DriverStandings({ season }: DriverStandingsProps) {
         <h2 className="panel__title" id="drivers-title">
           {season} Driver Standings
         </h2>
-        {round && <span className="panel__meta">After round {round}</span>}
+        <div className="panel__actions">
+          {round && <span className="panel__meta">After round {round}</span>}
+          <button
+            type="button"
+            className="button button--ghost"
+            aria-haspopup="dialog"
+            onClick={() => setCompareOpen(true)}
+          >
+            Compare drivers
+          </button>
+        </div>
       </div>
 
       <div className="table-wrap">
@@ -109,6 +121,14 @@ export function DriverStandings({ season }: DriverStandingsProps) {
           onPrevious={() => setStatsIndex((current) => stepSeasonIndex(current, -1, list.length))}
           onNext={() => setStatsIndex((current) => stepSeasonIndex(current, 1, list.length))}
           onClose={() => setStatsIndex(null)}
+        />
+      )}
+
+      {compareOpen && (
+        <DriverCompareDialog
+          season={season}
+          standings={list}
+          onClose={() => setCompareOpen(false)}
         />
       )}
     </section>

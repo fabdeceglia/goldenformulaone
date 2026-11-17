@@ -17,7 +17,9 @@ powered by the free [jolpica-f1](https://github.com/jolpica/jolpica-f1) API.
 - **The Grid** — driver championship table, with each position in a team-coloured chip.
   Each row opens a **season statistics** dialog: cumulative points and race-classification
   charts plus victories, retirements and average finishes. Previous/next arrows page
-  through the whole grid and wrap around at either end
+  through the whole grid and wrap around at either end. **Compare drivers** in the panel
+  header opens a radar of up to four drivers over wins, poles, qualifying against the team
+  mate, fastest laps and finishes, with the raw counts in a table underneath
 - **Constructors** — team championship table. Each row opens the same **season statistics**
   dialog with a cumulative points chart and the team's aggregate victories, retirements and
   average finishes/qualifying, with the same wrap-around arrows
@@ -659,6 +661,7 @@ Endpoints used:
 | The Schedule + current season | `/ergast/f1/current/races/?limit=100` |
 | The Grid | `/ergast/f1/{season}/driverstandings/?limit=100` |
 | Driver season statistics | `/ergast/f1/{season}/drivers/{driverId}/{results\|sprint\|qualifying}/?limit=100` |
+| Driver comparison (team-mate record) | the per-driver endpoints above, plus `/ergast/f1/{season}/constructors/{constructorId}/qualifying/?limit=100` |
 | Constructor season statistics | `/ergast/f1/{season}/constructors/{constructorId}/{results\|sprint\|qualifying}/?limit=100` |
 | Constructors | `/ergast/f1/{season}/constructorstandings/?limit=100` |
 | Circuit info (history) | `/ergast/f1/circuits/{circuitId}/results/1/?limit=100` |
@@ -687,6 +690,7 @@ src/
 ├── api/
 │   ├── alpha.ts     # jolpica alpha client + the session codes we render
 │   ├── client.ts    # Ergast-compatible client (calendar, standings, driver seasons)
+│   ├── compareDrivers.ts # radar numbers per picked driver, with a team-mate cache
 │   ├── constructorSeason.ts # per-constructor results/sprint/qualifying → one cached season
 │   ├── driverSeason.ts # per-driver results/sprint/qualifying → one cached season
 │   ├── news.ts      # the trade press: feeds, parsing, the merged list
@@ -701,8 +705,10 @@ src/
 │   ├── BattleTrack.tsx          # ghost cars on the circuit, progress ribbons
 │   ├── Calendar.tsx
 │   ├── CircuitInfo.tsx          # circuit info popup: layout, facts, racing history
+│   ├── CompareRadar.tsx         # hand-drawn five-spoke radar for the comparison
 │   ├── ConstructorStandings.tsx
 │   ├── ConstructorStatsDialog.tsx # team season statistics modal (points only)
+│   ├── DriverCompareDialog.tsx  # pick up to four drivers, radar + counts table
 │   ├── DriverStandings.tsx
 │   ├── DriverStatsDialog.tsx    # per-driver season statistics modal
 │   ├── SeasonChart.tsx          # shared points / finish-position SVG chart
@@ -742,6 +748,7 @@ src/
 │   ├── circuitHistory.ts        # past winners → editions, records, recent winners
 │   ├── circuits.ts              # circuit track layouts: Ergast id → vendored SVG
 │   ├── constructorSeason.ts     # two-car rows → cumulative points + team stats
+│   ├── driverCompare.ts         # season → radar shares + team-mate qualifying record
 │   ├── driverSeason.ts          # race/sprint/qualifying rows → series + season stats
 │   ├── format.ts                # date, time and gap formatting
 │   ├── grid.ts                  # qualifying classification → grid slots and gaps

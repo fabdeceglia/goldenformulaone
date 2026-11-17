@@ -66,6 +66,13 @@
      outcome markers so a point never merges into the line that joins it. */
   --chart-line: #2f6db3;
 
+  /* The four series of the driver radar, in selection order. Chosen to stay
+     apart from the red/amber outcome accents, which a line must never mimic. */
+  --compare-1: #2f6db3;
+  --compare-2: #c9217f;
+  --compare-3: #1f7a4a;
+  --compare-4: #a85f00;
+
   /* The battle's "gain" colour, used for throttle, the lead badge and the
      live gap. Named separately because it has to lighten after dark. */
   --battle-green: #1f7a4a;
@@ -113,6 +120,12 @@
   --amber-ink: #ffb765;
   --battle-green: #5acb8c;
   --chart-line: #83b0ef;
+
+  /* The radar's four series, lifted so they hold their hue on the dark paper. */
+  --compare-1: #83b0ef;
+  --compare-2: #ef7fbb;
+  --compare-3: #5acb8c;
+  --compare-4: #e0a860;
 }
 
 /* The pastel haze after dark: the same warm glows, dimmed from paper in daylight
@@ -504,6 +517,14 @@ a:hover {
   font-size: 0.68rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+/* Meta text and a panel-level action share the right-hand slot of the head. */
+.panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.75rem;
 }
 
 .panel__more {
@@ -2133,6 +2154,357 @@ a:hover {
 
   .table__icon {
     width: 2.3rem;
+  }
+}
+
+/* ---------- Driver comparison ---------- */
+
+.compare {
+  padding: 1.4rem 1.5rem 1.7rem;
+}
+
+.compare__head {
+  padding-right: 2.6rem;
+}
+
+.compare__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.compare__meta {
+  margin: 0.2rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+}
+
+.compare__body {
+  display: grid;
+  grid-template-columns: minmax(0, 230px) minmax(0, 1fr);
+  gap: 1.15rem;
+  margin-top: 1.1rem;
+  /* Both columns share one height, so the picker runs from the top of the
+     radar down to the bottom of the comparison table. */
+  align-items: stretch;
+}
+
+/* The picker copies the standings' order and colours, but as a toggle list:
+   four selected rows is the whole state the chart needs. */
+.compare__picker {
+  display: flex;
+  flex-direction: column;
+  /* Only bites in the error and empty states, where the plot column is short. */
+  min-height: 16rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-sunken);
+  overflow: hidden;
+}
+
+.compare__picker-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.compare__count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The list is taken out of flow so a full 25-driver grid can never make the row
+   taller than the plot: the wrapper takes the leftover height, the list scrolls
+   inside it. */
+.compare__list-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.compare__list {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: start;
+  gap: 0.1rem;
+  margin: 0;
+  padding: 0.3rem;
+  overflow: auto;
+  list-style: none;
+}
+
+.compare__row {
+  display: grid;
+  grid-template-columns: 1.15rem 2.5rem minmax(0, 1fr);
+  grid-template-areas:
+    'slot code name'
+    'slot code team';
+  gap: 0 0.45rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.3rem 0.35rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.compare__row:hover {
+  background: var(--paper-hover);
+}
+
+.compare__row[aria-pressed='true'] {
+  border-color: var(--line-strong);
+  background: var(--paper-raised);
+}
+
+.compare__row[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.compare__row:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 1px;
+}
+
+.compare__slot {
+  grid-area: slot;
+  display: grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink-muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+/* The slot number doubles as the legend of the radar: the same four colours. */
+.compare__slot[data-slot='1'] {
+  border: 0;
+  background: var(--compare-1);
+  color: var(--paper-raised);
+}
+
+.compare__slot[data-slot='2'] {
+  border: 0;
+  background: var(--compare-2);
+  color: var(--paper-raised);
+}
+
+.compare__slot[data-slot='3'] {
+  border: 0;
+  background: var(--compare-3);
+  color: var(--paper-raised);
+}
+
+.compare__slot[data-slot='4'] {
+  border: 0;
+  background: var(--compare-4);
+  color: var(--paper-raised);
+}
+
+.compare__code {
+  grid-area: code;
+  display: grid;
+  place-items: center;
+  padding: 0.12rem 0.2rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.compare__name {
+  grid-area: name;
+  overflow: hidden;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compare__team {
+  grid-area: team;
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 0.64rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compare__plot {
+  min-width: 0;
+}
+
+.compare__radar {
+  /* Capped so the radar keeps its 1:1 scale with the labels, instead of a
+     stretched viewBox making the 9px type unreadable on a wide dialog. */
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.compare__radar-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.compare__radar-ring {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.compare__radar-ring--outer {
+  stroke: var(--line-strong);
+}
+
+.compare__radar-spoke {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.compare__radar-label {
+  fill: var(--ink-muted);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.compare__radar-area {
+  fill-opacity: 0.12;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.compare__radar-dot {
+  stroke: var(--paper-raised);
+  stroke-width: 1;
+}
+
+.compare__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.1rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.72rem;
+}
+
+.compare__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.compare__swatch {
+  width: 0.85rem;
+  height: 0.2rem;
+  border-radius: 2px;
+}
+
+.compare__legend-name {
+  font-weight: 700;
+}
+
+.compare__legend-team {
+  color: var(--ink-muted);
+  font-size: 0.66rem;
+}
+
+.compare__caption {
+  margin: 0.45rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.68rem;
+}
+
+.compare__table {
+  width: 100%;
+  margin-top: 1rem;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.compare__table thead th {
+  padding: 0 0 0.4rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.compare__table tbody th {
+  padding: 0.4rem 0.6rem 0.4rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: left;
+  vertical-align: top;
+}
+
+.compare__table tbody td {
+  padding: 0.4rem 0.6rem 0.4rem 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.compare__table tbody tr:last-child th,
+.compare__table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.compare__table td strong {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.compare__table td span {
+  display: block;
+  color: var(--ink-muted);
+  font-size: 0.64rem;
+}
+
+.compare__pending {
+  margin: 0.6rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.68rem;
+}
+
+@media (max-width: 780px) {
+  .compare__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Stacked, so the picker has no plot beside it to match: give the list a
+     readable window of its own. */
+  .compare__picker {
+    min-height: 0;
+  }
+
+  .compare__list-wrap {
+    flex: none;
+    height: 13rem;
   }
 }
 
